@@ -235,7 +235,9 @@ function convertToolsToVercelFormat(
       description: schema.description,
       inputSchema: parametersSchema,
       execute: async (args: Record<string, unknown>) => {
+        console.log(`[Tool] Executing ${schema.name} with args:`, JSON.stringify(args));
         const result = await executeTool(schema.name, args, toolContext);
+        console.log(`[Tool] ${schema.name} result:`, result.success ? 'success' : `failed: ${result.error}`);
         // Return just the data on success, or throw on failure
         // so the LLM can see tool errors and potentially retry
         if (!result.success) {
@@ -381,6 +383,10 @@ export async function streamLLMResponseWithTools(
   // Convert tools to Vercel AI SDK format
   const vercelTools = convertToolsToVercelFormat(tools, toolContext);
 
+  // Debug: Log tools being passed
+  console.log(`[LLM] Tool calling enabled with ${Object.keys(vercelTools).length} tools:`, Object.keys(vercelTools));
+  console.log(`[LLM] Using provider: ${provider}, model: ${model}, maxSteps: ${maxSteps}`);
+
   // Helper to call streamText with tools for any provider
   async function callStreamTextWithTools(
     providerModel: ReturnType<
@@ -431,6 +437,12 @@ export async function streamLLMResponseWithTools(
           toolName: tr.toolName,
           result: tr.output,
         });
+      }
+
+      // Debug: Log tool call summary
+      console.log(`[LLM] Stream complete. Tool calls: ${collectedToolCalls.length}, Tool results: ${collectedToolResults.length}`);
+      if (collectedToolCalls.length > 0) {
+        console.log(`[LLM] Tool calls made:`, collectedToolCalls.map(tc => tc.toolName));
       }
     })();
 
