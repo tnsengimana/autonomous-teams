@@ -4,6 +4,17 @@ import { getTeamById } from '@/lib/db/queries/teams';
 import { getTeamLead, getAgentById } from '@/lib/db/queries/agents';
 import { Agent } from '@/lib/agents/agent';
 
+/**
+ * POST /api/messages
+ *
+ * Handles user messages to agents using the new foreground/background architecture:
+ * 1. User sends message
+ * 2. Agent generates quick contextual acknowledgment (foreground)
+ * 3. Task is queued for background processing
+ * 4. Returns acknowledgment stream immediately
+ *
+ * The actual work happens in background via worker runner.
+ */
 export async function POST(request: NextRequest) {
   try {
     // 1. Verify user is authenticated
@@ -57,9 +68,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 5. Create agent instance and handle message
+    // 5. Create agent instance and handle user message (foreground)
+    // This uses the new handleUserMessage which:
+    // - Generates a quick acknowledgment
+    // - Queues the task for background processing
+    // - Returns the acknowledgment stream
     const agent = new Agent(agentData);
-    const responseStream = await agent.handleMessage(content);
+    const responseStream = await agent.handleUserMessage(content);
 
     // 6. Create a ReadableStream from the async iterable
     const stream = new ReadableStream({

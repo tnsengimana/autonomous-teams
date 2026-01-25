@@ -5,6 +5,13 @@ import { getTeamById } from '@/lib/db/queries/teams';
 import { getLatestConversation } from '@/lib/db/queries/conversations';
 import { getMessagesByConversationId } from '@/lib/db/queries/messages';
 
+/**
+ * GET /api/conversations/[agentId]
+ *
+ * Returns the user conversation for an agent.
+ * Note: This returns CONVERSATIONS (user-facing), not THREADS (internal work sessions).
+ * Threads are ephemeral background work sessions and are not exposed via API.
+ */
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ agentId: string }> }

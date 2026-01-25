@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth/config';
 import { createTeam, getTeamsByUserId } from '@/lib/db/queries/teams';
 import { createAgent, getAgentsByTeamId } from '@/lib/db/queries/agents';
+import { queueSystemTask } from '@/lib/agents/taskQueue';
 import { z } from 'zod';
 
 const createTeamSchema = z.object({
@@ -77,7 +78,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Create the team lead agent
-    await createAgent({
+    const teamLead = await createAgent({
       teamId: team.id,
       parentAgentId: null,
       name: leadAgentName,
@@ -85,6 +86,14 @@ export async function POST(request: NextRequest) {
       systemPrompt: leadAgentPrompt,
       status: 'idle',
     });
+
+    // Queue bootstrap task to get the team started
+    // This triggers the agent to review its mission and start working
+    await queueSystemTask(
+      teamLead.id,
+      team.id,
+      'Get to work on your mission. Review your purpose and start taking actions to fulfill it.'
+    );
 
     return NextResponse.json(team, { status: 201 });
   } catch (error) {
