@@ -10,9 +10,12 @@ import type {
   agents,
   agentTasks,
   conversations,
+  insights,
   memories,
   messages,
   teams,
+  threadMessages,
+  threads,
   userApiKeys,
 } from '@/lib/db/schema';
 
@@ -23,9 +26,12 @@ import type {
 export type Agent = InferSelectModel<typeof agents>;
 export type AgentTask = InferSelectModel<typeof agentTasks>;
 export type Conversation = InferSelectModel<typeof conversations>;
+export type Insight = InferSelectModel<typeof insights>;
 export type Memory = InferSelectModel<typeof memories>;
 export type Message = InferSelectModel<typeof messages>;
 export type Team = InferSelectModel<typeof teams>;
+export type Thread = InferSelectModel<typeof threads>;
+export type ThreadMessage = InferSelectModel<typeof threadMessages>;
 export type UserApiKey = InferSelectModel<typeof userApiKeys>;
 
 // ============================================================================
@@ -34,9 +40,12 @@ export type UserApiKey = InferSelectModel<typeof userApiKeys>;
 
 export type AgentStatus = 'idle' | 'running' | 'paused';
 export type AgentTaskStatus = 'pending' | 'in_progress' | 'completed' | 'failed';
+export type AgentTaskSource = 'delegation' | 'user' | 'system' | 'self';
 export type TeamStatus = 'active' | 'paused' | 'archived';
 export type MemoryType = 'preference' | 'insight' | 'fact';
 export type MessageRole = 'user' | 'assistant' | 'system';
+export type ThreadStatus = 'active' | 'completed' | 'compacted';
+export type InsightType = 'fact' | 'technique' | 'pattern' | 'lesson';
 
 // ============================================================================
 // Extended Types

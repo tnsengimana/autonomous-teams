@@ -5,6 +5,9 @@ import {
   timestamp,
   integer,
   primaryKey,
+  jsonb,
+  real,
+  index,
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
@@ -105,9 +108,13 @@ export const agents = pgTable('agents', {
   role: text('role').notNull(),
   systemPrompt: text('system_prompt'),
   status: text('status').notNull().default('idle'), // 'idle', 'running', 'paused'
+  nextRunAt: timestamp('next_run_at', { mode: 'date' }),
+  lastCompletedAt: timestamp('last_completed_at', { mode: 'date' }),
   createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { mode: 'date' }).defaultNow().notNull(),
-});
+}, (table) => [
+  index('agents_next_run_at_idx').on(table.nextRunAt),
+]);
 
 export const conversations = pgTable('conversations', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -176,9 +183,51 @@ export const agentTasks = pgTable('agent_tasks', {
   task: text('task').notNull(),
   result: text('result'),
   status: text('status').notNull().default('pending'), // 'pending', 'in_progress', 'completed', 'failed'
+  source: text('source').notNull().default('delegation'), // 'delegation' | 'user' | 'system' | 'self'
   createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
   completedAt: timestamp('completed_at', { mode: 'date' }),
 });
+
+// ============================================================================
+// Threads and Insights (Background Work)
+// ============================================================================
+
+// Threads - ephemeral work sessions
+export const threads = pgTable('threads', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  agentId: uuid('agent_id').notNull().references(() => agents.id, { onDelete: 'cascade' }),
+  status: text('status').notNull().default('active'), // 'active', 'completed', 'compacted'
+  createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
+  completedAt: timestamp('completed_at', { mode: 'date' }),
+}, (table) => [
+  index('threads_agent_id_idx').on(table.agentId),
+]);
+
+// Thread messages
+export const threadMessages = pgTable('thread_messages', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  threadId: uuid('thread_id').notNull().references(() => threads.id, { onDelete: 'cascade' }),
+  role: text('role').notNull(), // 'user' (agent as user), 'assistant' (LLM response), 'system'
+  content: text('content').notNull(),
+  toolCalls: jsonb('tool_calls'),
+  sequenceNumber: integer('sequence_number').notNull(),
+  createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
+}, (table) => [
+  index('thread_messages_thread_id_idx').on(table.threadId),
+]);
+
+// Insights - professional knowledge extracted from work threads
+export const insights = pgTable('insights', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  agentId: uuid('agent_id').notNull().references(() => agents.id, { onDelete: 'cascade' }),
+  type: text('type').notNull(), // 'fact', 'technique', 'pattern', 'lesson'
+  content: text('content').notNull(),
+  sourceThreadId: uuid('source_thread_id').references(() => threads.id, { onDelete: 'set null' }),
+  confidence: real('confidence'),
+  createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
+}, (table) => [
+  index('insights_agent_id_idx').on(table.agentId),
+]);
 
 // ============================================================================
 // Relations
@@ -245,6 +294,8 @@ export const agentsRelations = relations(agents, ({ one, many }) => ({
   delegatedTasks: many(agentTasks, {
     relationName: 'delegatedTasks',
   }),
+  threads: many(threads),
+  insights: many(insights),
 }));
 
 export const conversationsRelations = relations(conversations, ({ one, many }) => ({
@@ -303,5 +354,32 @@ export const agentTasksRelations = relations(agentTasks, ({ one }) => ({
     fields: [agentTasks.assignedById],
     references: [agents.id],
     relationName: 'delegatedTasks',
+  }),
+}));
+
+export const threadsRelations = relations(threads, ({ one, many }) => ({
+  agent: one(agents, {
+    fields: [threads.agentId],
+    references: [agents.id],
+  }),
+  messages: many(threadMessages),
+  insights: many(insights),
+}));
+
+export const threadMessagesRelations = relations(threadMessages, ({ one }) => ({
+  thread: one(threads, {
+    fields: [threadMessages.threadId],
+    references: [threads.id],
+  }),
+}));
+
+export const insightsRelations = relations(insights, ({ one }) => ({
+  agent: one(agents, {
+    fields: [insights.agentId],
+    references: [agents.id],
+  }),
+  sourceThread: one(threads, {
+    fields: [insights.sourceThreadId],
+    references: [threads.id],
   }),
 }));

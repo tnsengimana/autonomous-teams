@@ -50,6 +50,8 @@ export async function getActiveTeamLeads(): Promise<Agent[]> {
       role: agents.role,
       systemPrompt: agents.systemPrompt,
       status: agents.status,
+      nextRunAt: agents.nextRunAt,
+      lastCompletedAt: agents.lastCompletedAt,
       createdAt: agents.createdAt,
       updatedAt: agents.updatedAt,
     })
