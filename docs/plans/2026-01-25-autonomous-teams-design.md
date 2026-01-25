@@ -55,6 +55,32 @@ Autonomous Teams is a TypeScript web application where users create teams of AI 
 └─────────────────────────────────────────────────────────┘
 ```
 
+## Local Development Setup
+
+A `docker-compose.yml` file is required to spin up the entire stack for local development:
+
+```yaml
+services:
+  postgres:
+    image: postgres:16
+    # Database for users, teams, agents, conversations, memories
+
+  next-app:
+    build: .
+    # Next.js application (frontend + API routes)
+    depends_on:
+      - postgres
+
+  worker:
+    build: .
+    command: npm run worker
+    # Separate worker process for agent execution
+    depends_on:
+      - postgres
+```
+
+This allows developers to start all services with a single `docker compose up` command.
+
 ## Database Schema
 
 ```sql
@@ -301,10 +327,38 @@ async function runTeamLead(agent: Agent) {
 | `/inbox` | All briefings/signals |
 | `/teams` | List of user's teams |
 | `/teams/new` | Create new team wizard |
-| `/teams/[id]` | Team detail + chat |
+| `/teams/[id]` | Team detail (edit, delete, navigation) |
+| `/teams/[id]/inbox` | Team-specific briefings and signals |
+| `/teams/[id]/chat` | Chat with team lead |
 | `/teams/[id]/agents` | Manage team agents |
 | `/teams/[id]/agents/[agentId]` | Direct chat with agent |
-| `/settings` | Profile + API keys |
+| `/settings` | API keys for supported providers |
+| `/profile` | User profile (read-only) |
+
+### Post-Login User Flow
+
+After a user logs in, they land on the dashboard with the following elements:
+
+1. **Teams List** - Shows all teams owned by the user
+   - Each team displays name and status (active/paused/archived)
+   - Click on a team to navigate to `/teams/[id]`
+
+2. **Create Team Button** - Navigates to `/teams/new`
+
+3. **Settings Button** - Navigates to `/settings` for API key management
+   - Configure API keys for supported providers (Anthropic, OpenAI, Google, Tavily, etc.)
+
+4. **Profile Button** - Navigates to `/profile` (read-only for now)
+
+### Team Detail View (`/teams/[id]`)
+
+When clicking on a team from the list:
+
+- **Team Details** - Name, purpose, status, creation date
+- **Edit Button** - Modify team name and purpose
+- **Delete Button** - Archive/delete the team (with confirmation)
+- **Go to Inbox** - Navigate to `/teams/[id]/inbox` for team-specific briefings
+- **Go to Chat** - Navigate to `/teams/[id]/chat` to interact with the team lead
 
 ### Dashboard Layout
 
@@ -414,7 +468,7 @@ autonomous-teams/
 ├── package.json
 ├── tsconfig.json
 ├── next.config.js
-└── docker-compose.yml            # Postgres for local dev
+└── docker-compose.yml            # Spins up entire stack (Postgres, Next.js, Worker)
 ```
 
 ## Dependencies
