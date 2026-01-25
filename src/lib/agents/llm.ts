@@ -236,7 +236,12 @@ function convertToolsToVercelFormat(
       inputSchema: parametersSchema,
       execute: async (args: Record<string, unknown>) => {
         const result = await executeTool(schema.name, args, toolContext);
-        return result;
+        // Return just the data on success, or throw on failure
+        // so the LLM can see tool errors and potentially retry
+        if (!result.success) {
+          throw new Error(result.error || 'Tool execution failed');
+        }
+        return result.data;
       },
     };
   }
@@ -338,11 +343,18 @@ export async function streamLLMResponseWithTools(
 
   // Mock mode for development - just return text without tool calls
   if (MOCK_ENABLED) {
-    const mockStream = mockStreamResponse();
+    const mockText = getMockResponse();
+    const mockStream = (async function* () {
+      const words = mockText.split(' ');
+      for (const word of words) {
+        yield word + ' ';
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+    })();
     return {
       textStream: mockStream,
       fullResponse: Promise.resolve({
-        text: getMockResponse(),
+        text: mockText,
         toolCalls: [],
         toolResults: [],
       }),
