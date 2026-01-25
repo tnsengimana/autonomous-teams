@@ -14,6 +14,9 @@ npm run dev          # Start Next.js dev server
 npm run build        # Build for production
 npm run lint         # Run ESLint
 
+# Background Worker (for autonomous operation)
+npx ts-node --project tsconfig.json src/worker/index.ts  # Start worker process
+
 # Database
 docker compose up -d              # Start PostgreSQL (port 5433)
 npx drizzle-kit generate          # Generate migrations from schema changes
@@ -62,6 +65,26 @@ npx drizzle-kit studio            # Open Drizzle Studio UI
 - **Encrypted API keys**: User API keys stored encrypted in `userApiKeys` table
 - **Team hierarchy**: Team leads have `parentAgentId = null`, workers reference their lead
 
+## Autonomous Operation
+
+For teams to run autonomously and deliver proactive insights:
+
+1. **Team status must be 'active'** - Set via UI or database
+2. **Worker process must be running** - Start separately from dev server with:
+   ```bash
+   npx ts-node --project tsconfig.json src/worker/index.ts
+   ```
+3. Worker polls every 5 seconds for active team leads and runs their cycles
+4. Team leads can delegate to workers and push items to user inbox
+
 ## Design Document
 
 Full system design with diagrams, tool definitions, and development tracks: `docs/plans/2026-01-25-autonomous-teams-design.md`
+
+## Workflow Preferences
+
+**Subagent Usage**: Always prefer to use subagents for implementation tasks:
+1. **Implementation subagent** - Writes code, creates files, installs dependencies
+2. **Review subagent** - Reviews implementation against plan/standards, then commits changes
+
+**Keeping CLAUDE.md Updated**: Whenever working in this repository and something sounds like it's worth keeping in mind for the future (patterns, gotchas, decisions, learnings), update this CLAUDE.md file immediately.

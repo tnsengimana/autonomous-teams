@@ -379,7 +379,7 @@ export async function isProviderAvailable(
  */
 export async function getDefaultProvider(
   userId?: string
-): Promise<LLMProvider | null> {
+): Promise<LLMProvider | undefined> {
   // Check available providers in priority order
   // Google/Gemini first (most reliable free tier), then OpenAI, then Anthropic
   if (await isProviderAvailable('google', userId)) {
@@ -391,5 +391,5 @@ export async function getDefaultProvider(
   if (await isProviderAvailable('anthropic', userId)) {
     return 'anthropic';
   }
-  return null;
+  return undefined;
 }
