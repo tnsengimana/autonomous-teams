@@ -14,7 +14,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
-export default function NewWorkerAgentPage() {
+export default function NewSubordinatePage() {
   const router = useRouter();
   const params = useParams();
   const teamId = params.id as string;
@@ -71,9 +71,9 @@ export default function NewWorkerAgentPage() {
         >
           Back to Agents
         </Link>
-        <h1 className="mt-2 text-3xl font-bold">Add Worker Agent</h1>
+        <h1 className="mt-2 text-3xl font-bold">Add Subordinate</h1>
         <p className="text-muted-foreground">
-          Create a new worker agent to handle specific tasks for your team
+          Create a new subordinate agent to handle specific tasks for your team
         </p>
       </div>
 
@@ -88,7 +88,7 @@ export default function NewWorkerAgentPage() {
           <CardHeader>
             <CardTitle>Agent Details</CardTitle>
             <CardDescription>
-              Define the worker agent&apos;s identity and capabilities
+              Define the subordinate agent&apos;s identity and capabilities
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

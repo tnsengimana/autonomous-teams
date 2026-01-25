@@ -32,7 +32,7 @@ export default async function TeamAgentsPage({
 
   const agents = await getAgentsByTeamId(id);
   const leadAgent = agents.find((a) => !a.parentAgentId);
-  const workerAgents = agents.filter((a) => a.parentAgentId);
+  const subordinateAgents = agents.filter((a) => a.parentAgentId);
 
   return (
     <div className="space-y-6">
@@ -50,7 +50,7 @@ export default async function TeamAgentsPage({
           </p>
         </div>
         <Link href={`/teams/${team.id}/agents/new`}>
-          <Button>Add Worker Agent</Button>
+          <Button>Add Subordinate</Button>
         </Link>
       </div>
 
@@ -60,7 +60,7 @@ export default async function TeamAgentsPage({
           <CardHeader>
             <CardTitle>Team Lead</CardTitle>
             <CardDescription>
-              The team lead runs continuously and coordinates worker agents
+              The team lead runs continuously and coordinates subordinate agents
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -90,27 +90,27 @@ export default async function TeamAgentsPage({
         </Card>
       )}
 
-      {/* Worker Agents */}
+      {/* Subordinates */}
       <Card>
         <CardHeader>
-          <CardTitle>Worker Agents</CardTitle>
+          <CardTitle>Subordinates</CardTitle>
           <CardDescription>
-            Workers spawn on-demand to handle specific tasks
+            Subordinates spawn on-demand to handle specific tasks
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {workerAgents.length === 0 ? (
+          {subordinateAgents.length === 0 ? (
             <div className="py-8 text-center text-muted-foreground">
-              <p>No worker agents yet.</p>
+              <p>No subordinate agents yet.</p>
               <Link href={`/teams/${team.id}/agents/new`}>
                 <Button variant="link" className="mt-2">
-                  Add your first worker agent
+                  Add your first subordinate agent
                 </Button>
               </Link>
             </div>
           ) : (
             <div className="space-y-4">
-              {workerAgents.map((agent) => (
+              {subordinateAgents.map((agent) => (
                 <Link
                   key={agent.id}
                   href={`/teams/${team.id}/agents/${agent.id}`}
@@ -120,7 +120,7 @@ export default async function TeamAgentsPage({
                       <div className="flex items-center gap-2">
                         <span className="font-medium">{agent.name}</span>
                         <Badge variant="outline" className="text-xs">
-                          worker
+                          subordinate
                         </Badge>
                       </div>
                       <p className="mt-1 text-sm text-muted-foreground">

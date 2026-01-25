@@ -138,7 +138,7 @@ export default function NewTeamPage() {
           <CardHeader>
             <CardTitle>Team Lead Agent</CardTitle>
             <CardDescription>
-              The team lead runs continuously and coordinates worker agents
+              The team lead runs continuously and coordinates subordinate agents
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

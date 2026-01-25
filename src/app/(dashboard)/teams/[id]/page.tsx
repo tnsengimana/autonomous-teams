@@ -124,7 +124,7 @@ export default async function TeamDetailPage({
                       <div className="flex items-center gap-2">
                         <span className="font-medium">{agent.name}</span>
                         <Badge variant="outline" className="text-xs">
-                          {agent.parentAgentId ? "worker" : "lead"}
+                          {agent.parentAgentId ? "subordinate" : "lead"}
                         </Badge>
                       </div>
                       <div className="text-sm text-muted-foreground">
@@ -155,7 +155,7 @@ export default async function TeamDetailPage({
         <CardContent>
           <div className="flex flex-wrap gap-2">
             <Button variant="outline">Edit Team</Button>
-            <Button variant="outline">Add Worker Agent</Button>
+            <Button variant="outline">Add Subordinate</Button>
             {team.status === "active" ? (
               <Button variant="outline">Pause Team</Button>
             ) : (

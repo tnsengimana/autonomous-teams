@@ -45,7 +45,7 @@ export default async function AgentDetailPage({
   // Get recent memories for this agent (limit to 20)
   const memories = await getRecentMemories(agentId, 20);
 
-  const agentType = agent.parentAgentId === null ? 'lead' : 'worker';
+  const agentType = agent.parentAgentId === null ? 'lead' : 'subordinate';
 
   // Helper function to get badge variant for memory type
   const getMemoryTypeBadgeVariant = (type: MemoryType) => {

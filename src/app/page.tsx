@@ -56,7 +56,7 @@ export default function Home() {
                 <div className="mb-4 text-4xl">2</div>
                 <h3 className="mb-2 text-xl font-semibold">Build Your Team</h3>
                 <p className="text-muted-foreground">
-                  Add specialized worker agents with unique skills. They spawn on-demand
+                  Add specialized subordinate agents with unique skills. They spawn on-demand
                   to handle research, analysis, and more.
                 </p>
               </div>
