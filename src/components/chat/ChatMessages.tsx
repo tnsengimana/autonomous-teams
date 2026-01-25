@@ -32,8 +32,8 @@ export function ChatMessages({
   }, [messages, streamingContent]);
 
   return (
-    <ScrollArea className="flex-1" ref={scrollRef}>
-      <div className="flex flex-col">
+    <ScrollArea className="h-full" ref={scrollRef}>
+      <div className="flex flex-col p-2">
         {messages.length === 0 && !isStreaming && (
           <div className="flex h-full items-center justify-center p-8 text-muted-foreground">
             <div className="text-center">
@@ -45,14 +45,16 @@ export function ChatMessages({
           </div>
         )}
 
-        {messages.map((message) => (
-          <ChatMessage
-            key={message.id}
-            role={message.role}
-            content={message.content}
-            agentName={agentName}
-          />
-        ))}
+        {messages
+          .filter((message) => message.content && message.content.trim() !== '')
+          .map((message) => (
+            <ChatMessage
+              key={message.id}
+              role={message.role}
+              content={message.content}
+              agentName={agentName}
+            />
+          ))}
 
         {isStreaming && streamingContent && (
           <ChatMessage

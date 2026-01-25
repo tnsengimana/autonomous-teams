@@ -1,5 +1,6 @@
 'use client';
 
+import ReactMarkdown from 'react-markdown';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Bot, User } from 'lucide-react';
@@ -54,7 +55,9 @@ export function ChatMessage({
               : 'bg-muted text-foreground'
           )}
         >
-          <p className="whitespace-pre-wrap">{content}</p>
+          <div className="prose prose-sm dark:prose-invert max-w-none">
+            <ReactMarkdown>{content}</ReactMarkdown>
+          </div>
           {isStreaming && (
             <span className="ml-1 inline-block h-2 w-2 animate-pulse rounded-full bg-current" />
           )}

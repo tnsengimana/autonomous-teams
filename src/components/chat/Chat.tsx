@@ -135,13 +135,13 @@ export function Chat({
   );
 
   return (
-    <Card className="flex h-full flex-col">
-      <CardHeader>
+    <Card className="flex h-full flex-col overflow-hidden">
+      <CardHeader className="shrink-0">
         <CardTitle>{title}</CardTitle>
         <CardDescription>{description}</CardDescription>
       </CardHeader>
-      <CardContent className="flex flex-1 flex-col gap-4">
-        <div className="flex-1 rounded-lg border bg-muted/30">
+      <CardContent className="flex min-h-0 flex-1 flex-col gap-4">
+        <div className="min-h-0 flex-1 overflow-hidden rounded-lg border bg-muted/30">
           <ChatMessages
             messages={messages}
             isStreaming={isStreaming}
