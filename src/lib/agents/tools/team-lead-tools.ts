@@ -27,19 +27,19 @@ const delegateToAgentTool: Tool = {
   schema: {
     name: 'delegateToAgent',
     description:
-      'Assign a task to a worker agent on your team. The worker will execute the task and report back.',
+      'Assign a task to a subordinate agent on your team. The subordinate will execute the task and report back.',
     parameters: [
       {
         name: 'agentId',
         type: 'string',
-        description: 'The UUID of the worker agent to delegate the task to',
+        description: 'The UUID of the subordinate agent to delegate the task to',
         required: true,
       },
       {
         name: 'task',
         type: 'string',
         description:
-          'A clear description of the task for the worker to complete',
+          'A clear description of the task for the subordinate to complete',
         required: true,
       },
     ],
@@ -101,7 +101,7 @@ const getTeamStatusTool: Tool = {
   schema: {
     name: 'getTeamStatus',
     description:
-      'Get the current status of all worker agents in your team, including their active tasks.',
+      'Get the current status of all subordinate agents in your team, including their active tasks.',
     parameters: [],
   },
   handler: async (_params, context): Promise<ToolResult> => {

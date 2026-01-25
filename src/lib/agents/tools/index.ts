@@ -111,7 +111,7 @@ export function getForegroundTools(): Tool[] {
 
 /**
  * Get tools available during background work sessions (threads)
- * Team leads get full tools, workers get limited set
+ * Team leads get full tools, subordinates get limited set
  */
 export function getBackgroundTools(isTeamLead: boolean): Tool[] {
   if (isTeamLead) {
@@ -121,15 +121,15 @@ export function getBackgroundTools(isTeamLead: boolean): Tool[] {
     ];
   }
   return [
-    ...getWorkerTools(),
+    ...getSubordinateTools(),
     ...getInsightTools(),
   ];
 }
 
 /**
- * Get tools available for workers
+ * Get tools available for subordinates
  */
-export function getWorkerTools(): Tool[] {
+export function getSubordinateTools(): Tool[] {
   return getAllTools().filter((tool) =>
     ['reportToLead', 'requestInput'].includes(tool.schema.name)
   );
@@ -178,7 +178,7 @@ export async function executeTool(
 // ============================================================================
 
 export const DelegateToAgentParamsSchema = z.object({
-  agentId: z.string().uuid().describe('The worker agent ID to delegate to'),
+  agentId: z.string().uuid().describe('The subordinate agent ID to delegate to'),
   task: z.string().min(1).describe('The task description'),
 });
 

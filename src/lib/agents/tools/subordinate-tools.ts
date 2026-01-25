@@ -1,7 +1,7 @@
 /**
- * Worker Agent Tools
+ * Subordinate Agent Tools
  *
- * Tools available to worker agents for reporting back to team leads.
+ * Tools available to subordinate agents for reporting back to team leads.
  */
 
 import {
@@ -55,7 +55,7 @@ const reportToLeadTool: Tool = {
 
     const { result, status } = parsed.data;
 
-    // Only workers can report to lead
+    // Only subordinates can report to lead
     if (context.isTeamLead) {
       return {
         success: false,
@@ -124,7 +124,7 @@ const requestInputTool: Tool = {
 
     const { question } = parsed.data;
 
-    // Only workers can request input from lead
+    // Only subordinates can request input from lead
     if (context.isTeamLead) {
       return {
         success: false,
@@ -154,7 +154,7 @@ const requestInputTool: Tool = {
 
     await addSystemMessage(
       conversation.id,
-      `[Worker Agent ${agent.name} is requesting input]\n\nQuestion: ${question}\n\nPlease respond with guidance for the worker.`
+      `[Subordinate Agent ${agent.name} is requesting input]\n\nQuestion: ${question}\n\nPlease respond with guidance for the subordinate.`
     );
 
     return {
@@ -172,9 +172,9 @@ const requestInputTool: Tool = {
 // ============================================================================
 
 /**
- * Register all worker tools
+ * Register all subordinate tools
  */
-export function registerWorkerTools(): void {
+export function registerSubordinateTools(): void {
   registerTool(reportToLeadTool);
   registerTool(requestInputTool);
 }

@@ -80,7 +80,7 @@ export {
   getTool,
   getAllTools,
   getTeamLeadTools,
-  getWorkerTools,
+  getSubordinateTools,
   getToolSchemas,
   executeTool,
   toolSchemasToOpenAIFunctions,
@@ -100,9 +100,9 @@ export {
   createInboxItemTool,
 } from './tools/team-lead-tools';
 
-// Worker tools
+// Subordinate tools
 export {
-  registerWorkerTools,
+  registerSubordinateTools,
   reportToLeadTool,
   requestInputTool,
-} from './tools/worker-tools';
+} from './tools/subordinate-tools';
