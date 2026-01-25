@@ -7,18 +7,47 @@ import {
   addAssistantMessage,
   trimMessagesToTokenBudget,
 } from './conversation';
-import { streamLLMResponse, streamLLMResponseWithTools, type StreamOptions } from './llm';
-import { getTeamLeadTools, type ToolContext } from './tools';
+import {
+  streamLLMResponse,
+  streamLLMResponseWithTools,
+  generateLLMResponse,
+  generateLLMObject,
+  type StreamOptions,
+} from './llm';
+import {
+  getTeamLeadTools,
+  getBackgroundTools,
+  type ToolContext,
+} from './tools';
 import {
   extractAndPersistMemories,
   buildMemoryContextBlock,
 } from './memory';
+import {
+  extractInsightsFromThread,
+  buildInsightsContextBlock,
+  loadInsights,
+} from './insights';
+import {
+  startWorkSession,
+  endWorkSession,
+  addToThread,
+  buildThreadContext,
+  shouldCompact,
+  compactWithSummary,
+  getMessages as getThreadMessages,
+  threadMessagesToLLMFormat,
+} from './thread';
+import { queueUserTask, claimNextTask, getQueueStatus } from './taskQueue';
 import type {
   Agent as AgentData,
+  AgentTask,
   Memory,
+  Insight,
   Conversation,
   LLMMessage,
 } from '@/lib/types';
+import { z } from 'zod';
 
 // ============================================================================
 // Agent Configuration
@@ -27,9 +56,13 @@ import type {
 const DEFAULT_MAX_CONTEXT_TOKENS = 8000;
 const DEFAULT_MAX_RESPONSE_TOKENS = 2000;
 
-// Proactive cycle intervals
+// Proactive cycle intervals (for legacy runCycle)
 const BRIEFING_INTERVAL_HOURS = 1;
 const RESEARCH_INTERVAL_MINUTES = 60;
+
+// Work session configuration
+const MAX_THREAD_MESSAGES_BEFORE_COMPACT = 50;
+const TEAM_LEAD_NEXT_RUN_HOURS = 1;
 
 // ============================================================================
 // Agent Class
@@ -45,6 +78,7 @@ export class Agent {
 
   private conversation: Conversation | null = null;
   private memories: Memory[] = [];
+  private insights: Insight[] = [];
   private llmOptions: StreamOptions;
 
   constructor(data: AgentData, llmOptions: StreamOptions = {}) {
@@ -82,7 +116,7 @@ export class Agent {
   }
 
   // ============================================================================
-  // Memory Management
+  // Memory Management (for foreground/user conversations)
   // ============================================================================
 
   /**
@@ -98,6 +132,25 @@ export class Agent {
    */
   getMemories(): Memory[] {
     return this.memories;
+  }
+
+  // ============================================================================
+  // Insight Management (for background/work sessions)
+  // ============================================================================
+
+  /**
+   * Load insights from the database
+   */
+  async loadInsights(): Promise<Insight[]> {
+    this.insights = await loadInsights(this.id);
+    return this.insights;
+  }
+
+  /**
+   * Get currently loaded insights
+   */
+  getInsights(): Insight[] {
+    return this.insights;
   }
 
   // ============================================================================
@@ -140,13 +193,26 @@ Always be professional, concise, and focused on your role.`;
   }
 
   /**
-   * Build the full system prompt including memory context
+   * Build the full system prompt including memory context (for foreground)
    */
   buildSystemPrompt(): string {
     const memoryBlock = buildMemoryContextBlock(this.memories);
 
     if (memoryBlock) {
       return `${this.systemPrompt}\n\n${memoryBlock}`;
+    }
+
+    return this.systemPrompt;
+  }
+
+  /**
+   * Build the system prompt with insights context (for background work)
+   */
+  buildBackgroundSystemPrompt(): string {
+    const insightsBlock = buildInsightsContextBlock(this.insights);
+
+    if (insightsBlock) {
+      return `${this.systemPrompt}\n\n${insightsBlock}`;
     }
 
     return this.systemPrompt;
@@ -166,12 +232,377 @@ Always be professional, concise, and focused on your role.`;
   }
 
   // ============================================================================
-  // Message Handling
+  // NEW: Foreground Message Handling (User Conversations)
+  // ============================================================================
+
+  /**
+   * Handle a user message in the foreground (user conversation)
+   *
+   * This method:
+   * 1. Loads MEMORIES for user context
+   * 2. Adds user message to conversation
+   * 3. Generates a quick contextual acknowledgment
+   * 4. Adds ack to conversation
+   * 5. Queues the task for background processing
+   * 6. Returns the acknowledgment as a stream
+   */
+  async handleUserMessage(content: string): Promise<AsyncIterable<string>> {
+    // 1. Load memories for user context (not insights)
+    await this.loadMemories();
+    const conversation = await this.ensureConversation();
+
+    // 2. Add user message to conversation
+    await addUserMessage(conversation.id, content);
+
+    // 3. Generate quick contextual acknowledgment
+    const ackPrompt = `The user just sent you this message:
+"${content}"
+
+Generate a brief, natural acknowledgment (1-2 sentences) that shows you understand what they're asking for.
+Don't answer the question yet - just acknowledge that you'll look into it.
+Examples:
+- "I'll look into the latest NVIDIA earnings for you."
+- "Let me research current market trends for semiconductor stocks."
+- "I'll analyze your portfolio's performance and get back to you."`;
+
+    const systemPrompt = this.buildSystemPrompt();
+    const ackResponse = await generateLLMResponse(
+      [{ role: 'user', content: ackPrompt }],
+      systemPrompt,
+      {
+        ...this.llmOptions,
+        maxOutputTokens: 100, // Keep it short
+        temperature: 0.7,
+      }
+    );
+
+    const acknowledgment = ackResponse.content;
+
+    // 4. Add acknowledgment to conversation
+    await addAssistantMessage(conversation.id, acknowledgment);
+
+    // 5. Queue task for background processing
+    await queueUserTask(this.id, this.teamId, content);
+
+    // 6. Return the acknowledgment as a stream (for API compatibility)
+    async function* streamAck(): AsyncGenerator<string> {
+      // Yield the acknowledgment in chunks for streaming feel
+      const words = acknowledgment.split(' ');
+      for (const word of words) {
+        yield word + ' ';
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+    }
+
+    // Extract memories in background (from user message + ack)
+    this.extractMemoriesInBackground(content, acknowledgment, '');
+
+    return streamAck();
+  }
+
+  // ============================================================================
+  // NEW: Background Work Session (Thread-based processing)
+  // ============================================================================
+
+  /**
+   * Run a work session to process queued tasks
+   *
+   * This is the main entry point for background processing:
+   * 1. Creates a new thread for this session
+   * 2. Loads INSIGHTS for work context (not memories)
+   * 3. Processes all pending tasks in queue
+   * 4. When queue empty:
+   *    - Extracts insights from thread
+   *    - Marks thread completed
+   *    - Team lead: decides on briefing
+   *    - Schedules next run
+   */
+  async runWorkSession(): Promise<void> {
+    // Check if there's work to do
+    const queueStatus = await getQueueStatus(this.id);
+    if (!queueStatus.hasPendingWork) {
+      console.log(`[Agent ${this.name}] No pending work, skipping session`);
+      return;
+    }
+
+    console.log(
+      `[Agent ${this.name}] Starting work session with ${queueStatus.pendingCount} pending tasks`
+    );
+
+    await this.setStatus('running');
+
+    try {
+      // 1. Create new thread for this session
+      const { threadId } = await startWorkSession(this.id);
+
+      // 2. Load INSIGHTS for work context (not memories)
+      await this.loadInsights();
+
+      // 3. Process all pending tasks in queue (loop)
+      let task = await claimNextTask(this.id);
+      while (task) {
+        console.log(`[Agent ${this.name}] Processing task: ${task.id}`);
+
+        try {
+          const result = await this.processTaskInThread(threadId, task);
+          console.log(
+            `[Agent ${this.name}] Task ${task.id} completed: ${result.slice(0, 100)}...`
+          );
+        } catch (error) {
+          console.error(
+            `[Agent ${this.name}] Task ${task.id} failed:`,
+            error
+          );
+          // Mark task as failed
+          const { failTask } = await import('@/lib/db/queries/agentTasks');
+          const errorMessage =
+            error instanceof Error ? error.message : 'Unknown error';
+          await failTask(task.id, errorMessage);
+        }
+
+        // Get next task
+        task = await claimNextTask(this.id);
+      }
+
+      // 4. Queue empty - wrap up the session
+      console.log(`[Agent ${this.name}] All tasks processed, wrapping up session`);
+
+      // Extract insights from thread
+      const newInsights = await extractInsightsFromThread(
+        threadId,
+        this.id,
+        this.role,
+        this.llmOptions
+      );
+      console.log(
+        `[Agent ${this.name}] Extracted ${newInsights.length} insights from session`
+      );
+
+      // Mark thread completed
+      await endWorkSession(threadId);
+
+      // Team lead: decide on briefing
+      if (this.isTeamLead()) {
+        await this.decideBriefing(threadId);
+      }
+
+      // Schedule next run (team lead: 1 hour, worker: none - triggered by delegation)
+      if (this.isTeamLead()) {
+        await this.scheduleNextRun(TEAM_LEAD_NEXT_RUN_HOURS);
+      }
+    } catch (error) {
+      console.error(`[Agent ${this.name}] Work session failed:`, error);
+    } finally {
+      await this.setStatus('idle');
+    }
+  }
+
+  /**
+   * Process a single task within a thread
+   */
+  async processTaskInThread(threadId: string, task: AgentTask): Promise<string> {
+    // 1. Add task as "user" message to thread (agent is the user here)
+    const taskMessage = `Task from ${task.source}: ${task.task}`;
+    await addToThread(threadId, 'user', taskMessage);
+
+    // 2. Build context from thread messages + INSIGHTS
+    // Note: threadContext is used implicitly when we fetch messages below for the LLM call
+    await buildThreadContext(threadId);
+    const systemPrompt = this.buildBackgroundSystemPrompt();
+
+    // 3. Get tools for background work
+    const tools = getBackgroundTools(this.isTeamLead());
+    const toolContext: ToolContext = {
+      agentId: this.id,
+      teamId: this.teamId,
+      isTeamLead: this.isTeamLead(),
+    };
+
+    // 4. Call LLM with tools
+    const result = await streamLLMResponseWithTools(
+      threadMessagesToLLMFormat(
+        (await getThreadMessages(threadId)).map((m) => ({
+          ...m,
+          toolCalls: null,
+          createdAt: new Date(),
+        }))
+      ),
+      systemPrompt,
+      {
+        ...this.llmOptions,
+        tools,
+        toolContext,
+        maxSteps: 10, // Allow multiple tool calls
+        maxOutputTokens: DEFAULT_MAX_RESPONSE_TOKENS,
+      }
+    );
+
+    // 5. Consume stream and get response
+    const fullResponse = await result.fullResponse;
+
+    // 6. Add response to thread
+    await addToThread(threadId, 'assistant', fullResponse.text, fullResponse.toolCalls);
+
+    // 7. Check if should compact thread
+    if (await shouldCompact(threadId, MAX_THREAD_MESSAGES_BEFORE_COMPACT)) {
+      await this.compactThread(threadId);
+    }
+
+    // 8. Mark task complete with result
+    const { completeTaskWithResult } = await import('@/lib/db/queries/agentTasks');
+    await completeTaskWithResult(task.id, fullResponse.text);
+
+    return fullResponse.text;
+  }
+
+  /**
+   * Compact a thread by summarizing its content
+   */
+  private async compactThread(threadId: string): Promise<void> {
+    const messages = await getThreadMessages(threadId);
+
+    // Generate summary
+    const summaryPrompt = `Summarize the key points from this work session conversation for context in future messages. Focus on:
+- What tasks were completed
+- Key decisions made
+- Important findings
+- Outstanding items
+
+Conversation:
+${messages.map((m) => `[${m.role}]: ${m.content}`).join('\n\n')}`;
+
+    const summaryResponse = await generateLLMResponse(
+      [{ role: 'user', content: summaryPrompt }],
+      'You are a concise summarizer. Create a brief summary (2-3 paragraphs max).',
+      {
+        ...this.llmOptions,
+        maxOutputTokens: 500,
+      }
+    );
+
+    await compactWithSummary(threadId, summaryResponse.content);
+    console.log(`[Agent ${this.name}] Thread compacted`);
+  }
+
+  // ============================================================================
+  // NEW: Briefing Decision (Team Lead Only)
+  // ============================================================================
+
+  /**
+   * Decide whether to brief the user based on work session results
+   */
+  async decideBriefing(threadId: string): Promise<void> {
+    if (!this.isTeamLead()) return;
+
+    // Get thread messages for review
+    const messages = await getThreadMessages(threadId);
+    if (messages.length === 0) return;
+
+    // Build summary of work done
+    const workSummary = messages
+      .filter((m) => m.role === 'assistant')
+      .map((m) => m.content)
+      .join('\n\n')
+      .slice(0, 2000); // Limit context size
+
+    // Schema for briefing decision
+    const BriefingDecisionSchema = z.object({
+      shouldBrief: z
+        .boolean()
+        .describe('Whether this work warrants notifying the user'),
+      reason: z.string().describe('Brief reason for the decision'),
+      title: z.string().optional().describe('Title for the briefing if shouldBrief is true'),
+      summary: z.string().optional().describe('Summary for inbox if shouldBrief is true'),
+      fullMessage: z
+        .string()
+        .optional()
+        .describe('Full briefing message if shouldBrief is true'),
+    });
+
+    // Ask LLM to decide
+    const decisionPrompt = `Review this work session and decide if the user should be briefed.
+
+Work completed:
+${workSummary}
+
+Guidelines for briefing:
+- Brief if there are significant findings, insights, or completed user requests
+- Brief if there are important market signals or alerts
+- DO NOT brief for routine maintenance, minor updates, or no-op sessions
+- The user should not be overwhelmed with notifications
+
+If briefing is warranted, provide:
+- A concise title
+- A brief summary (1-2 sentences for the inbox)
+- A full message with details for the conversation`;
+
+    try {
+      const decision = await generateLLMObject(
+        [{ role: 'user', content: decisionPrompt }],
+        BriefingDecisionSchema,
+        'You are a thoughtful assistant deciding what warrants user attention.',
+        {
+          ...this.llmOptions,
+          temperature: 0.3,
+        }
+      );
+
+      if (decision.shouldBrief && decision.title && decision.summary && decision.fullMessage) {
+        console.log(`[Agent ${this.name}] Creating briefing: ${decision.title}`);
+
+        // Get user ID
+        const { getTeamUserId } = await import('@/lib/db/queries/teams');
+        const userId = await getTeamUserId(this.teamId);
+        if (!userId) {
+          console.error(`[Agent ${this.name}] No user found for team`);
+          return;
+        }
+
+        // Create inbox item
+        const { createInboxItem } = await import('@/lib/db/queries/inboxItems');
+        await createInboxItem({
+          userId,
+          teamId: this.teamId,
+          agentId: this.id,
+          type: 'briefing',
+          title: decision.title,
+          content: decision.summary,
+        });
+
+        // Add full message to user conversation
+        const conversation = await this.ensureConversation();
+        await addAssistantMessage(conversation.id, decision.fullMessage);
+
+        console.log(`[Agent ${this.name}] Briefing sent successfully`);
+      } else {
+        console.log(
+          `[Agent ${this.name}] No briefing needed: ${decision.reason}`
+        );
+      }
+    } catch (error) {
+      console.error(`[Agent ${this.name}] Failed to decide briefing:`, error);
+    }
+  }
+
+  /**
+   * Schedule the next work session run
+   */
+  private async scheduleNextRun(hours: number): Promise<void> {
+    const { updateAgentNextRunAt } = await import('@/lib/db/queries/agents');
+    const nextRun = new Date(Date.now() + hours * 60 * 60 * 1000);
+    await updateAgentNextRunAt(this.id, nextRun);
+    console.log(`[Agent ${this.name}] Next run scheduled for ${nextRun.toISOString()}`);
+  }
+
+  // ============================================================================
+  // LEGACY: Message Handling (kept for backwards compatibility)
   // ============================================================================
 
   /**
    * Handle an incoming message and stream the response
    * Returns an async iterable that yields response chunks
+   *
+   * @deprecated Use handleUserMessage for the new foreground/background architecture
    */
   async handleMessage(
     content: string,
@@ -230,6 +661,8 @@ Always be professional, concise, and focused on your role.`;
 
   /**
    * Handle a message and return the complete response (non-streaming)
+   *
+   * @deprecated Use handleUserMessage for the new foreground/background architecture
    */
   async handleMessageSync(
     content: string,
@@ -266,20 +699,13 @@ Always be professional, concise, and focused on your role.`;
   }
 
   // ============================================================================
-  // Proactive Behavior (for Team Leads)
+  // LEGACY: Proactive Behavior (kept for backwards compatibility)
   // ============================================================================
 
   /**
    * Run a proactive cycle (for team leads running continuously)
    *
-   * For team leads:
-   * - Check for completed tasks from workers
-   * - Optionally generate proactive briefings
-   *
-   * For workers:
-   * - Check for assigned tasks
-   * - Execute pending tasks
-   * - Report results back
+   * @deprecated Use runWorkSession for the new thread-based architecture
    */
   async runCycle(): Promise<void> {
     if (this.isTeamLead()) {
@@ -291,6 +717,8 @@ Always be professional, concise, and focused on your role.`;
 
   /**
    * Run a team lead's proactive cycle
+   *
+   * @deprecated Use runWorkSession for the new thread-based architecture
    */
   private async runTeamLeadCycle(): Promise<void> {
     // Import dynamically to avoid circular dependencies
@@ -335,11 +763,7 @@ Always be professional, concise, and focused on your role.`;
   /**
    * Run a research cycle to proactively gather market insights
    *
-   * This method:
-   * 1. Loads user preferences from memories
-   * 2. Calls tavilySearch for relevant market news
-   * 3. If significant findings, delegates deep research to workers
-   * 4. Uses createInboxItem to push insights to the user
+   * @deprecated Will be replaced by task-based proactive research
    */
   private async runResearchCycle(): Promise<void> {
     // Import dynamically to avoid circular dependencies (createMemory, deleteMemory not imported at top)
@@ -461,6 +885,8 @@ Be concise and only push insights that are truly valuable to the user. Do not cr
 
   /**
    * Check if it's time to generate a proactive briefing and create one if so
+   *
+   * @deprecated Use decideBriefing in the new architecture
    */
   private async maybeGenerateProactiveBriefing(): Promise<void> {
     // Import dynamically to avoid circular dependencies
@@ -573,6 +999,8 @@ Keep the briefing concise (2-3 paragraphs max).`;
 
   /**
    * Run a worker agent's cycle
+   *
+   * @deprecated Use runWorkSession for the new thread-based architecture
    */
   private async runWorkerCycle(): Promise<void> {
     // Import dynamically to avoid circular dependencies

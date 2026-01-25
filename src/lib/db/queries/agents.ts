@@ -113,3 +113,29 @@ export async function createAgent(data: {
 
   return result[0];
 }
+
+/**
+ * Update agent's next scheduled run time
+ */
+export async function updateAgentNextRunAt(
+  agentId: string,
+  nextRunAt: Date
+): Promise<void> {
+  await db
+    .update(agents)
+    .set({ nextRunAt, updatedAt: new Date() })
+    .where(eq(agents.id, agentId));
+}
+
+/**
+ * Update agent's last completed timestamp
+ */
+export async function updateAgentLastCompletedAt(
+  agentId: string,
+  lastCompletedAt: Date
+): Promise<void> {
+  await db
+    .update(agents)
+    .set({ lastCompletedAt, updatedAt: new Date() })
+    .where(eq(agents.id, agentId));
+}

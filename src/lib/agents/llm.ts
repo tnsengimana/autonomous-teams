@@ -26,7 +26,8 @@ const DEFAULT_MODEL = {
   google: 'gemini-3-pro-preview',
 } as const;
 
-const MOCK_ENABLED = process.env.MOCK_LLM === 'true';
+// Check mock mode dynamically to support testing
+const isMockEnabled = () => process.env.MOCK_LLM === 'true';
 
 // ============================================================================
 // Provider Creation
@@ -260,7 +261,7 @@ export async function streamLLMResponse(
   options: StreamOptions = {}
 ): Promise<AsyncIterable<string>> {
   // Mock mode for development
-  if (MOCK_ENABLED) {
+  if (isMockEnabled()) {
     return mockStreamResponse();
   }
 
@@ -344,7 +345,7 @@ export async function streamLLMResponseWithTools(
   const { tools, toolContext, maxSteps = 5 } = options;
 
   // Mock mode for development - just return text without tool calls
-  if (MOCK_ENABLED) {
+  if (isMockEnabled()) {
     const mockText = getMockResponse();
     const mockStream = (async function* () {
       const words = mockText.split(' ');
@@ -493,7 +494,7 @@ export async function generateLLMResponse(
   options: StreamOptions = {}
 ): Promise<{ content: string; thinking?: string }> {
   // Mock mode for development
-  if (MOCK_ENABLED) {
+  if (isMockEnabled()) {
     return { content: getMockResponse() };
   }
 
@@ -565,21 +566,32 @@ export async function generateLLMObject<T>(
   systemPrompt?: string,
   options: StreamOptions = {}
 ): Promise<T> {
-  // Mock mode for development - return empty array for memory extraction
-  if (MOCK_ENABLED) {
-    // If the schema looks like it expects an array (memories), return empty array
-    // Otherwise return a basic object
-    try {
-      return schema.parse([]) as T;
-    } catch {
-      // If parsing [] fails, try parsing an empty object
+  // Mock mode for development - return valid mock objects for common schemas
+  if (isMockEnabled()) {
+    // Try common mock values in order of likelihood
+    const mockValues = [
+      // Memory extraction result
+      { memories: [] },
+      // Insights extraction result
+      { insights: [] },
+      // Briefing decision (no briefing)
+      { shouldBrief: false, reason: 'Mock mode - no briefing' },
+      // Empty array (fallback)
+      [],
+      // Empty object (fallback)
+      {},
+    ];
+
+    for (const mockValue of mockValues) {
       try {
-        return schema.parse({}) as T;
+        return schema.parse(mockValue) as T;
       } catch {
-        // Last resort - let it fail naturally
-        throw new Error('Mock mode cannot satisfy schema');
+        // Try next mock value
       }
     }
+
+    // Last resort - let it fail naturally
+    throw new Error('Mock mode cannot satisfy schema');
   }
 
   // Auto-detect provider if not specified

@@ -93,6 +93,40 @@ export function getTeamLeadTools(): Tool[] {
 }
 
 /**
+ * Get insight management tools (available in user conversations)
+ */
+export function getInsightTools(): Tool[] {
+  return getAllTools().filter((tool) =>
+    ['addInsight', 'listInsights', 'removeInsight'].includes(tool.schema.name)
+  );
+}
+
+/**
+ * Get tools available during user conversations (foreground)
+ * These help agents manage knowledge shared by users
+ */
+export function getForegroundTools(): Tool[] {
+  return getInsightTools();
+}
+
+/**
+ * Get tools available during background work sessions (threads)
+ * Team leads get full tools, workers get limited set
+ */
+export function getBackgroundTools(isTeamLead: boolean): Tool[] {
+  if (isTeamLead) {
+    return [
+      ...getTeamLeadTools(),
+      ...getInsightTools(),
+    ];
+  }
+  return [
+    ...getWorkerTools(),
+    ...getInsightTools(),
+  ];
+}
+
+/**
  * Get tools available for workers
  */
 export function getWorkerTools(): Tool[] {
