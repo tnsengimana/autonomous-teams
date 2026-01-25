@@ -43,6 +43,13 @@
       "when": 1769348734219,
       "tag": "0005_rapid_shape",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1769375757813,
+      "tag": "0006_lazy_stature",
+      "breakpoints": true
     }
   ]
 }
