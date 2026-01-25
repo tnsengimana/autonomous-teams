@@ -1,0 +1,563 @@
+/**
+ * Tests for task queue management module
+ *
+ * These tests verify the high-level task queue functions that
+ * wrap the lower-level database queries.
+ */
+
+import { describe, test, expect, beforeAll, afterAll } from 'vitest';
+import { db } from '@/lib/db/client';
+import { users, teams, agents, agentTasks } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
+
+// Import task queue functions
+import {
+  queueUserTask,
+  queueSystemTask,
+  queueSelfTask,
+  queueDelegationTask,
+  getQueueStatus,
+  claimNextTask,
+} from '@/lib/agents/taskQueue';
+
+// Import lower-level functions for verification
+import {
+  startTask,
+  completeTaskWithResult,
+  failTask,
+} from '@/lib/db/queries/agentTasks';
+
+// ============================================================================
+// Test Setup
+// ============================================================================
+
+let testUserId: string;
+let testTeamId: string;
+let testAgentId: string;
+let testAgent2Id: string;
+
+beforeAll(async () => {
+  // Create test user
+  const [user] = await db.insert(users).values({
+    email: `taskqueue-module-test-${Date.now()}@example.com`,
+    name: 'TaskQueue Module Test User',
+  }).returning();
+  testUserId = user.id;
+
+  // Create test team
+  const [team] = await db.insert(teams).values({
+    userId: testUserId,
+    name: 'TaskQueue Module Test Team',
+    purpose: 'Testing task queue module',
+  }).returning();
+  testTeamId = team.id;
+
+  // Create test agents
+  const [agent] = await db.insert(agents).values({
+    teamId: testTeamId,
+    name: 'TaskQueue Module Test Agent',
+    role: 'Tester',
+  }).returning();
+  testAgentId = agent.id;
+
+  const [agent2] = await db.insert(agents).values({
+    teamId: testTeamId,
+    name: 'TaskQueue Module Test Agent 2',
+    role: 'Delegator',
+  }).returning();
+  testAgent2Id = agent2.id;
+});
+
+afterAll(async () => {
+  // Cleanup: delete test user (cascades to teams, agents, tasks, etc.)
+  await db.delete(users).where(eq(users.id, testUserId));
+});
+
+// Helper to cleanup tasks created during tests
+async function cleanupTasks(taskIds: string[]) {
+  for (const taskId of taskIds) {
+    await db.delete(agentTasks).where(eq(agentTasks.id, taskId));
+  }
+}
+
+// ============================================================================
+// queueUserTask Tests
+// ============================================================================
+
+describe('queueUserTask', () => {
+  test('creates a task with user source', async () => {
+    const task = await queueUserTask(testAgentId, testTeamId, 'User message content');
+
+    expect(task.id).toBeDefined();
+    expect(task.assignedToId).toBe(testAgentId);
+    expect(task.teamId).toBe(testTeamId);
+    expect(task.task).toBe('User message content');
+    expect(task.source).toBe('user');
+    expect(task.status).toBe('pending');
+
+    await cleanupTasks([task.id]);
+  });
+
+  test('preserves full user message', async () => {
+    const longMessage = 'This is a detailed user message with multiple sentences. It contains specific instructions. The agent should process all of it.';
+    const task = await queueUserTask(testAgentId, testTeamId, longMessage);
+
+    expect(task.task).toBe(longMessage);
+
+    await cleanupTasks([task.id]);
+  });
+
+  test('handles multiline user messages', async () => {
+    const multilineMessage = `Line 1
+Line 2
+Line 3`;
+    const task = await queueUserTask(testAgentId, testTeamId, multilineMessage);
+
+    expect(task.task).toBe(multilineMessage);
+
+    await cleanupTasks([task.id]);
+  });
+});
+
+// ============================================================================
+// queueSystemTask Tests
+// ============================================================================
+
+describe('queueSystemTask', () => {
+  test('creates a task with system source', async () => {
+    const task = await queueSystemTask(testAgentId, testTeamId, 'Bootstrap: Get to work');
+
+    expect(task.id).toBeDefined();
+    expect(task.source).toBe('system');
+    expect(task.status).toBe('pending');
+    expect(task.task).toBe('Bootstrap: Get to work');
+
+    await cleanupTasks([task.id]);
+  });
+
+  test('typical bootstrap task', async () => {
+    const bootstrapMessage = 'Your team has been activated. Review your mission and begin proactive work.';
+    const task = await queueSystemTask(testAgentId, testTeamId, bootstrapMessage);
+
+    expect(task.source).toBe('system');
+    expect(task.task).toBe(bootstrapMessage);
+
+    await cleanupTasks([task.id]);
+  });
+});
+
+// ============================================================================
+// queueSelfTask Tests
+// ============================================================================
+
+describe('queueSelfTask', () => {
+  test('creates a task with self source', async () => {
+    const task = await queueSelfTask(testAgentId, testTeamId, 'Proactive monitoring check');
+
+    expect(task.id).toBeDefined();
+    expect(task.source).toBe('self');
+    expect(task.status).toBe('pending');
+    expect(task.assignedToId).toBe(testAgentId);
+    expect(task.assignedById).toBe(testAgentId); // Self-assigned
+
+    await cleanupTasks([task.id]);
+  });
+
+  test('agent can queue multiple self tasks', async () => {
+    const task1 = await queueSelfTask(testAgentId, testTeamId, 'Check market data');
+    const task2 = await queueSelfTask(testAgentId, testTeamId, 'Analyze trends');
+    const task3 = await queueSelfTask(testAgentId, testTeamId, 'Generate report');
+
+    expect(task1.source).toBe('self');
+    expect(task2.source).toBe('self');
+    expect(task3.source).toBe('self');
+
+    await cleanupTasks([task1.id, task2.id, task3.id]);
+  });
+});
+
+// ============================================================================
+// queueDelegationTask Tests
+// ============================================================================
+
+describe('queueDelegationTask', () => {
+  test('creates a task with delegation source and correct assignedById', async () => {
+    const task = await queueDelegationTask(
+      testAgentId,  // assigned TO
+      testTeamId,
+      'Research this topic',
+      testAgent2Id  // assigned BY
+    );
+
+    expect(task.id).toBeDefined();
+    expect(task.source).toBe('delegation');
+    expect(task.status).toBe('pending');
+    expect(task.assignedToId).toBe(testAgentId);
+    expect(task.assignedById).toBe(testAgent2Id);
+
+    await cleanupTasks([task.id]);
+  });
+
+  test('delegation tracks the delegating agent', async () => {
+    const task = await queueDelegationTask(
+      testAgentId,
+      testTeamId,
+      'Delegated work item',
+      testAgent2Id
+    );
+
+    // The assignedById is different from assignedToId
+    expect(task.assignedById).not.toBe(task.assignedToId);
+    expect(task.assignedById).toBe(testAgent2Id);
+    expect(task.assignedToId).toBe(testAgentId);
+
+    await cleanupTasks([task.id]);
+  });
+});
+
+// ============================================================================
+// getQueueStatus Tests
+// ============================================================================
+
+describe('getQueueStatus', () => {
+  test('returns empty status when no tasks', async () => {
+    const status = await getQueueStatus(testAgentId);
+
+    expect(status.hasPendingWork).toBe(false);
+    expect(status.pendingCount).toBe(0);
+    expect(status.inProgressCount).toBe(0);
+  });
+
+  test('counts pending tasks correctly', async () => {
+    const task1 = await queueUserTask(testAgentId, testTeamId, 'Task 1');
+    const task2 = await queueUserTask(testAgentId, testTeamId, 'Task 2');
+    const task3 = await queueUserTask(testAgentId, testTeamId, 'Task 3');
+
+    const status = await getQueueStatus(testAgentId);
+
+    expect(status.hasPendingWork).toBe(true);
+    expect(status.pendingCount).toBe(3);
+    expect(status.inProgressCount).toBe(0);
+
+    await cleanupTasks([task1.id, task2.id, task3.id]);
+  });
+
+  test('counts in_progress tasks correctly', async () => {
+    const task1 = await queueUserTask(testAgentId, testTeamId, 'Task 1');
+    const task2 = await queueUserTask(testAgentId, testTeamId, 'Task 2');
+    await startTask(task1.id);
+
+    const status = await getQueueStatus(testAgentId);
+
+    expect(status.hasPendingWork).toBe(true);
+    expect(status.pendingCount).toBe(1);
+    expect(status.inProgressCount).toBe(1);
+
+    await cleanupTasks([task1.id, task2.id]);
+  });
+
+  test('excludes completed tasks from counts', async () => {
+    const pending = await queueUserTask(testAgentId, testTeamId, 'Pending');
+    const completed = await queueUserTask(testAgentId, testTeamId, 'Completed');
+    await startTask(completed.id);
+    await completeTaskWithResult(completed.id, 'Done');
+
+    const status = await getQueueStatus(testAgentId);
+
+    expect(status.pendingCount).toBe(1);
+    expect(status.inProgressCount).toBe(0);
+
+    await cleanupTasks([pending.id, completed.id]);
+  });
+
+  test('excludes failed tasks from counts', async () => {
+    const pending = await queueUserTask(testAgentId, testTeamId, 'Pending');
+    const failed = await queueUserTask(testAgentId, testTeamId, 'Failed');
+    await startTask(failed.id);
+    await failTask(failed.id, 'Error');
+
+    const status = await getQueueStatus(testAgentId);
+
+    expect(status.pendingCount).toBe(1);
+    expect(status.inProgressCount).toBe(0);
+
+    await cleanupTasks([pending.id, failed.id]);
+  });
+
+  test('hasPendingWork is true with any actionable task', async () => {
+    // Only in_progress
+    const inProgress = await queueUserTask(testAgentId, testTeamId, 'In progress');
+    await startTask(inProgress.id);
+
+    let status = await getQueueStatus(testAgentId);
+    expect(status.hasPendingWork).toBe(true);
+
+    await cleanupTasks([inProgress.id]);
+
+    // Only pending
+    const pending = await queueUserTask(testAgentId, testTeamId, 'Pending');
+
+    status = await getQueueStatus(testAgentId);
+    expect(status.hasPendingWork).toBe(true);
+
+    await cleanupTasks([pending.id]);
+  });
+
+  test('returns status for specific agent only', async () => {
+    const agent1Task = await queueUserTask(testAgentId, testTeamId, 'Agent 1 task');
+    const agent2Task = await queueUserTask(testAgent2Id, testTeamId, 'Agent 2 task');
+
+    const agent1Status = await getQueueStatus(testAgentId);
+    const agent2Status = await getQueueStatus(testAgent2Id);
+
+    expect(agent1Status.pendingCount).toBe(1);
+    expect(agent2Status.pendingCount).toBe(1);
+
+    await cleanupTasks([agent1Task.id, agent2Task.id]);
+  });
+});
+
+// ============================================================================
+// claimNextTask Tests
+// ============================================================================
+
+describe('claimNextTask', () => {
+  test('returns null when no pending tasks', async () => {
+    const claimed = await claimNextTask(testAgentId);
+    expect(claimed).toBeNull();
+  });
+
+  test('claims oldest pending task (FIFO)', async () => {
+    const task1 = await queueUserTask(testAgentId, testTeamId, 'First task');
+    await new Promise(resolve => setTimeout(resolve, 10));
+    const task2 = await queueUserTask(testAgentId, testTeamId, 'Second task');
+
+    const claimed = await claimNextTask(testAgentId);
+
+    expect(claimed).not.toBeNull();
+    expect(claimed!.id).toBe(task1.id);
+    expect(claimed!.status).toBe('in_progress');
+
+    await cleanupTasks([task1.id, task2.id]);
+  });
+
+  test('marks claimed task as in_progress', async () => {
+    const task = await queueUserTask(testAgentId, testTeamId, 'Task to claim');
+
+    const claimed = await claimNextTask(testAgentId);
+
+    expect(claimed!.status).toBe('in_progress');
+
+    await cleanupTasks([task.id]);
+  });
+
+  test('subsequent claims get next pending task', async () => {
+    const task1 = await queueUserTask(testAgentId, testTeamId, 'First');
+    await new Promise(resolve => setTimeout(resolve, 10));
+    const task2 = await queueUserTask(testAgentId, testTeamId, 'Second');
+    await new Promise(resolve => setTimeout(resolve, 10));
+    const task3 = await queueUserTask(testAgentId, testTeamId, 'Third');
+
+    const claimed1 = await claimNextTask(testAgentId);
+    expect(claimed1!.id).toBe(task1.id);
+
+    const claimed2 = await claimNextTask(testAgentId);
+    expect(claimed2!.id).toBe(task2.id);
+
+    const claimed3 = await claimNextTask(testAgentId);
+    expect(claimed3!.id).toBe(task3.id);
+
+    const claimed4 = await claimNextTask(testAgentId);
+    expect(claimed4).toBeNull();
+
+    await cleanupTasks([task1.id, task2.id, task3.id]);
+  });
+
+  test('does not claim completed tasks', async () => {
+    const completed = await queueUserTask(testAgentId, testTeamId, 'Completed');
+    await startTask(completed.id);
+    await completeTaskWithResult(completed.id, 'Done');
+
+    const pending = await queueUserTask(testAgentId, testTeamId, 'Pending');
+
+    const claimed = await claimNextTask(testAgentId);
+
+    expect(claimed!.id).toBe(pending.id);
+
+    await cleanupTasks([completed.id, pending.id]);
+  });
+
+  test('only claims tasks for the specific agent', async () => {
+    const agent2Task = await queueUserTask(testAgent2Id, testTeamId, 'Agent 2 task');
+
+    const claimedAgent1 = await claimNextTask(testAgentId);
+    expect(claimedAgent1).toBeNull();
+
+    const claimedAgent2 = await claimNextTask(testAgent2Id);
+    expect(claimedAgent2).not.toBeNull();
+    expect(claimedAgent2!.id).toBe(agent2Task.id);
+
+    await cleanupTasks([agent2Task.id]);
+  });
+});
+
+// ============================================================================
+// Integration Tests - Full Workflow
+// ============================================================================
+
+describe('Full Workflow', () => {
+  test('user task workflow: queue -> claim -> complete', async () => {
+    // 1. User sends message
+    const task = await queueUserTask(testAgentId, testTeamId, 'User: What is 2+2?');
+    expect(task.source).toBe('user');
+    expect(task.status).toBe('pending');
+
+    // 2. Check queue status
+    let status = await getQueueStatus(testAgentId);
+    expect(status.hasPendingWork).toBe(true);
+    expect(status.pendingCount).toBe(1);
+
+    // 3. Claim task
+    const claimed = await claimNextTask(testAgentId);
+    expect(claimed!.id).toBe(task.id);
+    expect(claimed!.status).toBe('in_progress');
+
+    // 4. Check status during processing
+    status = await getQueueStatus(testAgentId);
+    expect(status.pendingCount).toBe(0);
+    expect(status.inProgressCount).toBe(1);
+    expect(status.hasPendingWork).toBe(true);
+
+    // 5. Complete task
+    await completeTaskWithResult(task.id, 'The answer is 4');
+
+    // 6. Final status
+    status = await getQueueStatus(testAgentId);
+    expect(status.hasPendingWork).toBe(false);
+
+    await cleanupTasks([task.id]);
+  });
+
+  test('system bootstrap workflow', async () => {
+    // 1. System queues bootstrap task when team activated
+    const task = await queueSystemTask(
+      testAgentId,
+      testTeamId,
+      'Your team has been activated. Review your mission and begin proactive work.'
+    );
+    expect(task.source).toBe('system');
+
+    // 2. Claim and process
+    const claimed = await claimNextTask(testAgentId);
+    expect(claimed!.source).toBe('system');
+
+    await completeTaskWithResult(task.id, 'Initialized and ready');
+
+    await cleanupTasks([task.id]);
+  });
+
+  test('proactive self-task workflow', async () => {
+    // 1. Agent queues proactive work
+    const task = await queueSelfTask(testAgentId, testTeamId, 'Check for new market data');
+    expect(task.source).toBe('self');
+    expect(task.assignedById).toBe(testAgentId);
+
+    // 2. Process
+    const claimed = await claimNextTask(testAgentId);
+    expect(claimed!.source).toBe('self');
+
+    await completeTaskWithResult(task.id, 'No significant changes detected');
+
+    await cleanupTasks([task.id]);
+  });
+
+  test('delegation workflow', async () => {
+    // 1. Team lead delegates to worker
+    const task = await queueDelegationTask(
+      testAgentId,    // worker
+      testTeamId,
+      'Research NVIDIA earnings report',
+      testAgent2Id    // team lead
+    );
+    expect(task.source).toBe('delegation');
+    expect(task.assignedById).toBe(testAgent2Id);
+
+    // 2. Worker claims and processes
+    const claimed = await claimNextTask(testAgentId);
+    expect(claimed!.id).toBe(task.id);
+
+    await completeTaskWithResult(task.id, 'NVIDIA reported $X billion revenue');
+
+    await cleanupTasks([task.id]);
+  });
+
+  test('mixed task sources maintain FIFO ordering', async () => {
+    // Queue tasks from different sources
+    const userTask = await queueUserTask(testAgentId, testTeamId, 'User task');
+    await new Promise(resolve => setTimeout(resolve, 10));
+    const systemTask = await queueSystemTask(testAgentId, testTeamId, 'System task');
+    await new Promise(resolve => setTimeout(resolve, 10));
+    const selfTask = await queueSelfTask(testAgentId, testTeamId, 'Self task');
+
+    // Claim in FIFO order regardless of source
+    const claim1 = await claimNextTask(testAgentId);
+    expect(claim1!.id).toBe(userTask.id);
+
+    const claim2 = await claimNextTask(testAgentId);
+    expect(claim2!.id).toBe(systemTask.id);
+
+    const claim3 = await claimNextTask(testAgentId);
+    expect(claim3!.id).toBe(selfTask.id);
+
+    await cleanupTasks([userTask.id, systemTask.id, selfTask.id]);
+  });
+
+  test('failed task workflow', async () => {
+    const task = await queueUserTask(testAgentId, testTeamId, 'Task that will fail');
+
+    const claimed = await claimNextTask(testAgentId);
+    await failTask(claimed!.id, 'External API unavailable');
+
+    const status = await getQueueStatus(testAgentId);
+    expect(status.hasPendingWork).toBe(false);
+    expect(status.inProgressCount).toBe(0);
+
+    await cleanupTasks([task.id]);
+  });
+});
+
+// ============================================================================
+// Edge Cases
+// ============================================================================
+
+describe('Edge Cases', () => {
+  test('handles rapid task creation', async () => {
+    const tasks = await Promise.all([
+      queueUserTask(testAgentId, testTeamId, 'Task 1'),
+      queueUserTask(testAgentId, testTeamId, 'Task 2'),
+      queueUserTask(testAgentId, testTeamId, 'Task 3'),
+    ]);
+
+    const status = await getQueueStatus(testAgentId);
+    expect(status.pendingCount).toBe(3);
+
+    await cleanupTasks(tasks.map(t => t.id));
+  });
+
+  test('handles empty task content', async () => {
+    const task = await queueUserTask(testAgentId, testTeamId, '');
+
+    expect(task.task).toBe('');
+
+    await cleanupTasks([task.id]);
+  });
+
+  test('handles agent with no team context', async () => {
+    // Create a task for an agent and verify team association
+    const task = await queueUserTask(testAgentId, testTeamId, 'Task with team');
+
+    expect(task.teamId).toBe(testTeamId);
+
+    await cleanupTasks([task.id]);
+  });
+});
