@@ -75,7 +75,7 @@ export interface TeamWithAgents extends Team {
 // LLM Provider Types
 // ============================================================================
 
-export type LLMProvider = 'openai' | 'anthropic';
+export type LLMProvider = 'openai' | 'anthropic' | 'google';
 
 // ============================================================================
 // LLM Types

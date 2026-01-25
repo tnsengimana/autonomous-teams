@@ -1,5 +1,6 @@
 import { createOpenAI } from '@ai-sdk/openai';
 import { createAnthropic } from '@ai-sdk/anthropic';
+import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { streamText, generateText, generateObject } from 'ai';
 import { z } from 'zod';
 import {
@@ -16,6 +17,7 @@ import type { LLMProvider, LLMMessage } from '@/lib/types';
 const DEFAULT_MODEL = {
   openai: 'gpt-4o',
   anthropic: 'claude-sonnet-4-20250514',
+  google: 'gemini-3-pro-preview',
 } as const;
 
 const MOCK_ENABLED = process.env.MOCK_LLM === 'true';
@@ -46,6 +48,9 @@ async function getApiKey(
   if (provider === 'anthropic') {
     return process.env.ANTHROPIC_API_KEY ?? null;
   }
+  if (provider === 'google') {
+    return process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY ?? null;
+  }
 
   return null;
 }
@@ -70,6 +75,17 @@ async function createAnthropicProvider(userId?: string) {
     throw new Error('No Anthropic API key available');
   }
   return createAnthropic({ apiKey });
+}
+
+/**
+ * Create a Google (Gemini) provider instance
+ */
+async function createGoogleProvider(userId?: string) {
+  const apiKey = await getApiKey('google', userId);
+  if (!apiKey) {
+    throw new Error('No Google/Gemini API key available');
+  }
+  return createGoogleGenerativeAI({ apiKey });
 }
 
 // ============================================================================
@@ -128,7 +144,14 @@ export async function streamLLMResponse(
     return mockStreamResponse();
   }
 
-  const provider = options.provider ?? 'openai';
+  // Auto-detect provider if not specified
+  let provider = options.provider;
+  if (!provider) {
+    provider = await getDefaultProvider(options.userId);
+    if (!provider) {
+      throw new Error('No LLM provider available. Please configure an API key.');
+    }
+  }
 
   // Get userId from teamId if not directly provided
   let userId = options.userId;
@@ -164,6 +187,19 @@ export async function streamLLMResponse(
     return result.textStream;
   }
 
+  if (provider === 'google') {
+    const google = await createGoogleProvider(userId);
+    const result = streamText({
+      model: google(model),
+      messages,
+      system: systemPrompt,
+      temperature: options.temperature,
+      maxOutputTokens: options.maxOutputTokens,
+    });
+
+    return result.textStream;
+  }
+
   throw new Error(`Unsupported provider: ${provider}`);
 }
 
@@ -180,7 +216,14 @@ export async function generateLLMResponse(
     return { content: getMockResponse() };
   }
 
-  const provider = options.provider ?? 'openai';
+  // Auto-detect provider if not specified
+  let provider = options.provider;
+  if (!provider) {
+    provider = await getDefaultProvider(options.userId);
+    if (!provider) {
+      throw new Error('No LLM provider available. Please configure an API key.');
+    }
+  }
 
   // Get userId from teamId if not directly provided
   let userId = options.userId;
@@ -207,6 +250,19 @@ export async function generateLLMResponse(
     const anthropic = await createAnthropicProvider(userId);
     const result = await generateText({
       model: anthropic(model),
+      messages,
+      system: systemPrompt,
+      temperature: options.temperature,
+      maxOutputTokens: options.maxOutputTokens,
+    });
+
+    return { content: result.text };
+  }
+
+  if (provider === 'google') {
+    const google = await createGoogleProvider(userId);
+    const result = await generateText({
+      model: google(model),
       messages,
       system: systemPrompt,
       temperature: options.temperature,
@@ -245,7 +301,14 @@ export async function generateLLMObject<T>(
     }
   }
 
-  const provider = options.provider ?? 'openai';
+  // Auto-detect provider if not specified
+  let provider = options.provider;
+  if (!provider) {
+    provider = await getDefaultProvider(options.userId);
+    if (!provider) {
+      throw new Error('No LLM provider available. Please configure an API key.');
+    }
+  }
 
   // Get userId from teamId if not directly provided
   let userId = options.userId;
@@ -283,6 +346,20 @@ export async function generateLLMObject<T>(
     return result.object;
   }
 
+  if (provider === 'google') {
+    const google = await createGoogleProvider(userId);
+    const result = await generateObject({
+      model: google(model),
+      messages,
+      system: systemPrompt,
+      schema,
+      temperature: options.temperature,
+      maxOutputTokens: options.maxOutputTokens,
+    });
+
+    return result.object;
+  }
+
   throw new Error(`Unsupported provider: ${provider}`);
 }
 
@@ -303,7 +380,11 @@ export async function isProviderAvailable(
 export async function getDefaultProvider(
   userId?: string
 ): Promise<LLMProvider | null> {
-  // Prefer OpenAI, fall back to Anthropic
+  // Check available providers in priority order
+  // Google/Gemini first (most reliable free tier), then OpenAI, then Anthropic
+  if (await isProviderAvailable('google', userId)) {
+    return 'google';
+  }
   if (await isProviderAvailable('openai', userId)) {
     return 'openai';
   }
