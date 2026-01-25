@@ -319,6 +319,109 @@ Always be professional, concise, and focused on your role.`;
     for (const child of childAgents) {
       await processWorkerPendingTasks(child.id);
     }
+
+    // 3. Check if we should generate a proactive briefing
+    await this.maybeGenerateProactiveBriefing();
+  }
+
+  /**
+   * Check if it's time to generate a proactive briefing and create one if so
+   */
+  private async maybeGenerateProactiveBriefing(): Promise<void> {
+    // Import dynamically to avoid circular dependencies
+    const { getMemoriesByAgentId } = await import('@/lib/db/queries/memories');
+    const { getTeamUserId } = await import('@/lib/db/queries/teams');
+    const { createInboxItem } = await import('@/lib/db/queries/inboxItems');
+
+    // Check for a "last_briefing" memory to determine if we should generate one
+    const memories = await getMemoriesByAgentId(this.id);
+    const lastBriefingMemory = memories.find(
+      (m) => m.type === 'fact' && m.content.startsWith('LAST_BRIEFING:')
+    );
+
+    // Parse the last briefing timestamp
+    let lastBriefingTime: Date | null = null;
+    if (lastBriefingMemory) {
+      const timestampStr = lastBriefingMemory.content.replace(
+        'LAST_BRIEFING:',
+        ''
+      );
+      lastBriefingTime = new Date(timestampStr);
+    }
+
+    // Calculate hours since last briefing
+    const now = new Date();
+    const hoursSinceLastBriefing = lastBriefingTime
+      ? (now.getTime() - lastBriefingTime.getTime()) / (1000 * 60 * 60)
+      : Infinity;
+
+    // Generate a briefing every 24 hours (configurable)
+    const BRIEFING_INTERVAL_HOURS = 24;
+
+    if (hoursSinceLastBriefing < BRIEFING_INTERVAL_HOURS) {
+      return; // Not time for a briefing yet
+    }
+
+    console.log(`[Agent ${this.name}] Generating proactive briefing...`);
+
+    try {
+      // Get user ID for this team
+      const userId = await getTeamUserId(this.teamId);
+      if (!userId) {
+        console.error(`[Agent ${this.name}] No user found for team`);
+        return;
+      }
+
+      // Load memories for context
+      await this.loadMemories();
+      const memoryContext = this.memories
+        .slice(0, 10) // Last 10 memories
+        .map((m) => `- [${m.type}] ${m.content}`)
+        .join('\n');
+
+      // Generate a briefing based on recent memories
+      const briefingPrompt = `Based on your recent interactions and stored knowledge, generate a brief summary briefing for the user. Include:
+1. Key insights or patterns you've noticed
+2. Any pending items or follow-ups
+3. Suggestions for next steps
+
+Recent memories:
+${memoryContext || 'No recent memories to summarize.'}
+
+Keep the briefing concise (2-3 paragraphs max).`;
+
+      const briefingContent = await this.handleMessageSync(briefingPrompt);
+
+      // Create inbox item
+      await createInboxItem({
+        userId,
+        teamId: this.teamId,
+        type: 'briefing',
+        title: `Daily Briefing from ${this.name}`,
+        content: briefingContent,
+      });
+
+      // Update last briefing time in memory
+      const { createMemory, deleteMemory } = await import(
+        '@/lib/db/queries/memories'
+      );
+
+      // Delete old briefing memory if it exists
+      if (lastBriefingMemory) {
+        await deleteMemory(lastBriefingMemory.id);
+      }
+
+      // Create new briefing timestamp memory
+      await createMemory({
+        agentId: this.id,
+        type: 'fact',
+        content: `LAST_BRIEFING:${now.toISOString()}`,
+      });
+
+      console.log(`[Agent ${this.name}] Briefing created successfully`);
+    } catch (error) {
+      console.error(`[Agent ${this.name}] Failed to generate briefing:`, error);
+    }
   }
 
   /**

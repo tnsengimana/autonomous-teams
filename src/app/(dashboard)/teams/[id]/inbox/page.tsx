@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -71,9 +73,12 @@ function formatTimeAgo(dateString: string): string {
   return date.toLocaleDateString();
 }
 
-export default function InboxPage() {
+export default function TeamInboxPage() {
+  const params = useParams();
+  const teamId = params.id as string;
+
   const [items, setItems] = useState<InboxItem[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const [teamName, setTeamName] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [selectedItem, setSelectedItem] = useState<InboxItem | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -82,15 +87,18 @@ export default function InboxPage() {
   useEffect(() => {
     async function fetchInbox() {
       try {
+        // Fetch all inbox items and filter by team on client
+        // In a production app, you'd add a teamId query param to the API
         const response = await fetch("/api/inbox");
         if (!response.ok) {
           throw new Error("Failed to fetch inbox");
         }
         const data: InboxResponse = await response.json();
-        setItems(data.items);
-        setUnreadCount(data.unreadCount);
-        if (data.items.length > 0) {
-          setSelectedItem((current) => current ?? data.items[0]);
+        const teamItems = data.items.filter((item) => item.teamId === teamId);
+        setItems(teamItems);
+        if (teamItems.length > 0) {
+          setTeamName(teamItems[0].teamName);
+          setSelectedItem((current) => current ?? teamItems[0]);
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : "An error occurred");
@@ -99,7 +107,7 @@ export default function InboxPage() {
       }
     }
     fetchInbox();
-  }, []);
+  }, [teamId]);
 
   // Mark item as read when selected
   const handleSelectItem = async (item: InboxItem) => {
@@ -115,7 +123,6 @@ export default function InboxPage() {
           setItems((prev) =>
             prev.map((i) => (i.id === item.id ? { ...i, read: true } : i))
           );
-          setUnreadCount((prev) => Math.max(0, prev - 1));
         }
       } catch (err) {
         console.error("Failed to mark as read:", err);
@@ -135,7 +142,6 @@ export default function InboxPage() {
         setItems((prev) =>
           prev.map((i) => (i.id === item.id ? { ...i, read: !item.read } : i))
         );
-        setUnreadCount((prev) => (item.read ? prev + 1 : Math.max(0, prev - 1)));
         if (selectedItem?.id === item.id) {
           setSelectedItem({ ...item, read: !item.read });
         }
@@ -152,11 +158,7 @@ export default function InboxPage() {
         method: "DELETE",
       });
       if (response.ok) {
-        const deletedItem = items.find((i) => i.id === itemId);
         setItems((prev) => prev.filter((i) => i.id !== itemId));
-        if (!deletedItem?.read) {
-          setUnreadCount((prev) => Math.max(0, prev - 1));
-        }
         if (selectedItem?.id === itemId) {
           const remaining = items.filter((i) => i.id !== itemId);
           setSelectedItem(remaining.length > 0 ? remaining[0] : null);
@@ -167,23 +169,7 @@ export default function InboxPage() {
     }
   };
 
-  // Mark all as read
-  const handleMarkAllRead = async () => {
-    try {
-      const response = await fetch("/api/inbox/mark-all-read", {
-        method: "POST",
-      });
-      if (response.ok) {
-        setItems((prev) => prev.map((i) => ({ ...i, read: true })));
-        setUnreadCount(0);
-        if (selectedItem) {
-          setSelectedItem({ ...selectedItem, read: true });
-        }
-      }
-    } catch (err) {
-      console.error("Failed to mark all as read:", err);
-    }
-  };
+  const unreadCount = items.filter((i) => !i.read).length;
 
   if (loading) {
     return (
@@ -205,32 +191,34 @@ export default function InboxPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Inbox</h1>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+            <Link href={`/teams/${teamId}`} className="hover:underline">
+              {teamName || "Team"}
+            </Link>
+            <span>/</span>
+            <span>Inbox</span>
+          </div>
+          <h1 className="text-3xl font-bold">Team Inbox</h1>
           <p className="text-muted-foreground">
             {unreadCount > 0
               ? `${unreadCount} unread message${unreadCount !== 1 ? "s" : ""}`
               : "All caught up!"}
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleMarkAllRead}
-            disabled={unreadCount === 0}
-          >
-            Mark All Read
+        <Link href="/inbox">
+          <Button variant="outline" size="sm">
+            View All Inbox
           </Button>
-        </div>
+        </Link>
       </div>
 
       {items.length === 0 ? (
         <Card>
           <CardContent className="py-12">
             <div className="text-center text-muted-foreground">
-              <p className="text-lg font-medium">Your inbox is empty</p>
+              <p className="text-lg font-medium">No messages from this team</p>
               <p className="text-sm mt-2">
-                Your agents will send briefings, signals, and alerts here.
+                This team&apos;s agents will send briefings, signals, and alerts here.
               </p>
             </div>
           </CardContent>
@@ -242,7 +230,7 @@ export default function InboxPage() {
             <CardHeader>
               <CardTitle>Messages</CardTitle>
               <CardDescription>
-                Briefings, signals, and alerts from your teams
+                Briefings, signals, and alerts from {teamName || "this team"}
               </CardDescription>
             </CardHeader>
             <CardContent className="p-0">
@@ -268,7 +256,7 @@ export default function InboxPage() {
                             {item.title}
                           </h3>
                           <p className="mt-1 text-xs text-muted-foreground">
-                            {item.teamName} - {formatTimeAgo(item.createdAt)}
+                            {formatTimeAgo(item.createdAt)}
                           </p>
                         </div>
                       </div>

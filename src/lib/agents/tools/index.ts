@@ -81,9 +81,14 @@ export function getAllTools(): Tool[] {
  */
 export function getTeamLeadTools(): Tool[] {
   return getAllTools().filter((tool) =>
-    ['delegateToAgent', 'getTeamStatus', 'createInboxItem'].includes(
-      tool.schema.name
-    )
+    [
+      'delegateToAgent',
+      'getTeamStatus',
+      'createInboxItem',
+      'tavilySearch',
+      'tavilyExtract',
+      'tavilyResearch',
+    ].includes(tool.schema.name)
   );
 }
 

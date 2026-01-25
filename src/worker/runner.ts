@@ -159,9 +159,13 @@ export async function startRunner(): Promise<void> {
   const { registerWorkerTools } = await import(
     '@/lib/agents/tools/worker-tools'
   );
+  const { registerTavilyTools } = await import(
+    '@/lib/agents/tools/tavily-tools'
+  );
 
   registerTeamLeadTools();
   registerWorkerTools();
+  registerTavilyTools();
   log('Tools registered');
 
   while (!isShuttingDown) {
