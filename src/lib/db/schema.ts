@@ -135,6 +135,7 @@ export const memories = pgTable('memories', {
   agentId: uuid('agent_id')
     .notNull()
     .references(() => agents.id, { onDelete: 'cascade' }),
+  type: text('type').notNull(), // 'preference' | 'insight' | 'fact'
   content: text('content').notNull(),
   sourceMessageId: uuid('source_message_id').references(() => messages.id, {
     onDelete: 'set null',

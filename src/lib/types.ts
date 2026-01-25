@@ -1,0 +1,112 @@
+/**
+ * Core types for the Autonomous Teams agent system
+ *
+ * Database types are inferred from the Drizzle schema to ensure type safety.
+ * Application-specific types are defined here for domain logic.
+ */
+
+import type { InferSelectModel } from 'drizzle-orm';
+import type {
+  agents,
+  conversations,
+  memories,
+  messages,
+  teams,
+  userApiKeys,
+} from '@/lib/db/schema';
+
+// ============================================================================
+// Database Model Types (inferred from Drizzle schema)
+// ============================================================================
+
+export type Agent = InferSelectModel<typeof agents>;
+export type Conversation = InferSelectModel<typeof conversations>;
+export type Memory = InferSelectModel<typeof memories>;
+export type Message = InferSelectModel<typeof messages>;
+export type Team = InferSelectModel<typeof teams>;
+export type UserApiKey = InferSelectModel<typeof userApiKeys>;
+
+// ============================================================================
+// Status Types
+// ============================================================================
+
+export type AgentStatus = 'idle' | 'running' | 'paused';
+export type TeamStatus = 'active' | 'paused' | 'archived';
+export type MemoryType = 'preference' | 'insight' | 'fact';
+export type MessageRole = 'user' | 'assistant' | 'system';
+
+// ============================================================================
+// Extended Types
+// ============================================================================
+
+export interface ExtractedMemory {
+  type: MemoryType;
+  content: string;
+}
+
+export interface NewMessage {
+  conversationId: string;
+  role: MessageRole;
+  content: string;
+  thinking?: string | null;
+  sequenceNumber: number;
+}
+
+export interface ConversationWithMessages extends Conversation {
+  messages: Message[];
+}
+
+export interface AgentWithRelations extends Agent {
+  team?: Team;
+  parentAgent?: Agent | null;
+  childAgents?: Agent[];
+  conversations?: Conversation[];
+  memories?: Memory[];
+}
+
+export interface TeamWithAgents extends Team {
+  agents: Agent[];
+}
+
+// ============================================================================
+// LLM Provider Types
+// ============================================================================
+
+export type LLMProvider = 'openai' | 'anthropic';
+
+// ============================================================================
+// LLM Types
+// ============================================================================
+
+export interface LLMMessage {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+}
+
+export interface LLMStreamOptions {
+  model?: string;
+  temperature?: number;
+  maxTokens?: number;
+}
+
+export interface LLMResponse {
+  content: string;
+  thinking?: string;
+}
+
+// ============================================================================
+// Inbox Types
+// ============================================================================
+
+export type InboxItemType = 'insight' | 'question' | 'alert' | 'briefing' | 'signal';
+
+export interface InboxItem {
+  id: string;
+  userId: string;
+  teamId: string;
+  type: InboxItemType;
+  title: string;
+  content: string;
+  readAt: Date | null;
+  createdAt: Date;
+}

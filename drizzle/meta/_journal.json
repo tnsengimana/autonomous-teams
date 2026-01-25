@@ -15,6 +15,13 @@
       "when": 1769334804459,
       "tag": "0001_eager_azazel",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1769335545412,
+      "tag": "0002_aspiring_fantastic_four",
+      "breakpoints": true
     }
   ]
 }
