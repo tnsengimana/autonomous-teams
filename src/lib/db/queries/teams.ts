@@ -113,6 +113,14 @@ export async function updateTeamStatus(
 }
 
 /**
+ * Activate a team (set status to 'active')
+ * This enables the team to run autonomous research cycles
+ */
+export async function activateTeam(teamId: string): Promise<void> {
+  await updateTeamStatus(teamId, 'active');
+}
+
+/**
  * Delete a team (cascades to agents, conversations, etc.)
  */
 export async function deleteTeam(teamId: string): Promise<void> {
