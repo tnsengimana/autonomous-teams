@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -8,39 +9,29 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { auth } from "@/lib/auth/config";
+import { getTeamsByUserId } from "@/lib/db/queries/teams";
+import { getAgentsByTeamId } from "@/lib/db/queries/agents";
 
-// Placeholder data - will be replaced with database queries
-const mockTeams = [
-  {
-    id: "1",
-    name: "Research Team",
-    description: "Market research and competitive analysis",
-    mission: "Monitor industry trends and provide weekly market insights",
-    status: "active",
-    agentCount: 3,
-    createdAt: "2024-01-15",
-  },
-  {
-    id: "2",
-    name: "Content Team",
-    description: "Blog posts and social media content",
-    mission: "Create engaging content aligned with our brand voice",
-    status: "active",
-    agentCount: 2,
-    createdAt: "2024-01-20",
-  },
-  {
-    id: "3",
-    name: "Customer Support",
-    description: "Handle customer inquiries and feedback",
-    mission: "Provide timely and helpful responses to customer questions",
-    status: "paused",
-    agentCount: 4,
-    createdAt: "2024-01-10",
-  },
-];
+export default async function TeamsPage() {
+  const session = await auth();
+  if (!session?.user?.id) {
+    redirect("/auth/signin");
+  }
 
-export default function TeamsPage() {
+  const teams = await getTeamsByUserId(session.user.id);
+
+  // Fetch agent counts for each team
+  const teamsWithAgentCount = await Promise.all(
+    teams.map(async (team) => {
+      const agents = await getAgentsByTeamId(team.id);
+      return {
+        ...team,
+        agentCount: agents.length,
+      };
+    })
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -55,7 +46,7 @@ export default function TeamsPage() {
         </Link>
       </div>
 
-      {mockTeams.length === 0 ? (
+      {teamsWithAgentCount.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16">
             <h3 className="text-lg font-semibold">No teams yet</h3>
@@ -69,7 +60,7 @@ export default function TeamsPage() {
         </Card>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {mockTeams.map((team) => (
+          {teamsWithAgentCount.map((team) => (
             <Link key={team.id} href={`/teams/${team.id}`}>
               <Card className="h-full transition-colors hover:bg-accent/50">
                 <CardHeader>
@@ -83,21 +74,28 @@ export default function TeamsPage() {
                       {team.status}
                     </Badge>
                   </div>
-                  <CardDescription>{team.description}</CardDescription>
+                  <CardDescription>
+                    {team.purpose?.split("\n")[0] || "No description"}
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2 text-sm">
                     <div>
                       <span className="font-medium">Mission:</span>
                       <p className="text-muted-foreground line-clamp-2">
-                        {team.mission}
+                        {team.purpose?.includes("Mission:")
+                          ? team.purpose.split("Mission:")[1]?.trim()
+                          : team.purpose || "No mission set"}
                       </p>
                     </div>
                     <div className="flex justify-between text-muted-foreground">
                       <span>
                         {team.agentCount} agent{team.agentCount !== 1 && "s"}
                       </span>
-                      <span>Created {team.createdAt}</span>
+                      <span>
+                        Created{" "}
+                        {new Date(team.createdAt).toLocaleDateString()}
+                      </span>
                     </div>
                   </div>
                 </CardContent>

@@ -17,6 +17,7 @@ import {
 export default function NewTeamPage() {
   const router = useRouter();
   const [isCreating, setIsCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -28,13 +29,28 @@ export default function NewTeamPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsCreating(true);
+    setError(null);
 
-    // TODO: Implement actual team creation
-    // For now, just simulate a delay and redirect
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    try {
+      const response = await fetch("/api/teams", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(formData),
+      });
 
-    // Redirect to teams page
-    router.push("/teams");
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Failed to create team");
+      }
+
+      const team = await response.json();
+      router.push(`/teams/${team.id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create team");
+      setIsCreating(false);
+    }
   };
 
   const handleChange = (
@@ -60,6 +76,12 @@ export default function NewTeamPage() {
           Set up your autonomous AI team with a mission and team lead
         </p>
       </div>
+
+      {error && (
+        <div className="rounded-md bg-destructive/10 p-4 text-destructive">
+          {error}
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <Card>

@@ -14,7 +14,10 @@ const ExtractedMemorySchema = z.object({
   content: z.string().describe('The memory content to store'),
 });
 
-const MemoryExtractionResultSchema = z.array(ExtractedMemorySchema);
+// Wrap in object because OpenAI's generateObject requires object at root
+const MemoryExtractionResultSchema = z.object({
+  memories: z.array(ExtractedMemorySchema).describe('Array of extracted memories'),
+});
 
 // ============================================================================
 // Memory Extraction Prompts
@@ -75,7 +78,7 @@ Extract memories that will help the agent perform its role better in future inte
       }
     );
 
-    return result;
+    return result.memories;
   } catch (error) {
     console.error('Memory extraction failed:', error);
     return [];

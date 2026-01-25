@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -10,62 +10,31 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-
-// Placeholder data - will be replaced with database queries
-const mockTeams: Record<string, {
-  id: string;
-  name: string;
-  description: string;
-  mission: string;
-  status: string;
-  createdAt: string;
-  agents: Array<{
-    id: string;
-    name: string;
-    type: string;
-    status: string;
-  }>;
-}> = {
-  "1": {
-    id: "1",
-    name: "Research Team",
-    description: "Market research and competitive analysis",
-    mission:
-      "Monitor industry trends, track competitor activities, and provide weekly market insights to inform strategic decisions.",
-    status: "active",
-    createdAt: "2024-01-15",
-    agents: [
-      { id: "a1", name: "Research Lead", type: "lead", status: "running" },
-      { id: "a2", name: "Web Researcher", type: "worker", status: "idle" },
-      { id: "a3", name: "Data Analyst", type: "worker", status: "idle" },
-    ],
-  },
-  "2": {
-    id: "2",
-    name: "Content Team",
-    description: "Blog posts and social media content",
-    mission:
-      "Create engaging content aligned with our brand voice and publish across all channels.",
-    status: "active",
-    createdAt: "2024-01-20",
-    agents: [
-      { id: "a4", name: "Content Lead", type: "lead", status: "running" },
-      { id: "a5", name: "Writer", type: "worker", status: "idle" },
-    ],
-  },
-};
+import { auth } from "@/lib/auth/config";
+import { getTeamWithAgents } from "@/lib/db/queries/teams";
 
 export default async function TeamDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { id } = await params;
-  const team = mockTeams[id];
+  const session = await auth();
+  if (!session?.user?.id) {
+    redirect("/auth/signin");
+  }
 
-  if (!team) {
+  const { id } = await params;
+  const team = await getTeamWithAgents(id);
+
+  if (!team || team.userId !== session.user.id) {
     notFound();
   }
+
+  // Parse mission from purpose field
+  const description = team.purpose?.split("\n")[0] || "";
+  const mission = team.purpose?.includes("Mission:")
+    ? team.purpose.split("Mission:")[1]?.trim()
+    : team.purpose || "No mission set";
 
   return (
     <div className="space-y-6">
@@ -78,7 +47,7 @@ export default async function TeamDetailPage({
             Back to Teams
           </Link>
           <h1 className="mt-2 text-3xl font-bold">{team.name}</h1>
-          <p className="text-muted-foreground">{team.description}</p>
+          <p className="text-muted-foreground">{description}</p>
         </div>
         <div className="flex items-center gap-2">
           <Badge variant={team.status === "active" ? "default" : "secondary"}>
@@ -97,7 +66,7 @@ export default async function TeamDetailPage({
             <CardTitle>Mission</CardTitle>
           </CardHeader>
           <CardContent>
-            <p>{team.mission}</p>
+            <p>{mission}</p>
           </CardContent>
         </Card>
 
@@ -115,7 +84,7 @@ export default async function TeamDetailPage({
             <div>
               <div className="text-sm font-medium">Created</div>
               <div className="text-sm text-muted-foreground">
-                {team.createdAt}
+                {new Date(team.createdAt).toLocaleDateString()}
               </div>
             </div>
           </CardContent>
@@ -140,33 +109,40 @@ export default async function TeamDetailPage({
           </div>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {team.agents.map((agent) => (
-              <Link
-                key={agent.id}
-                href={`/teams/${team.id}/agents/${agent.id}`}
-                className="block"
-              >
-                <div className="flex items-center justify-between rounded-lg border p-4 transition-colors hover:bg-accent">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{agent.name}</span>
-                      <Badge variant="outline" className="text-xs">
-                        {agent.type}
-                      </Badge>
+          {team.agents.length === 0 ? (
+            <p className="text-muted-foreground">No agents yet.</p>
+          ) : (
+            <div className="space-y-4">
+              {team.agents.map((agent) => (
+                <Link
+                  key={agent.id}
+                  href={`/teams/${team.id}/agents/${agent.id}`}
+                  className="block"
+                >
+                  <div className="flex items-center justify-between rounded-lg border p-4 transition-colors hover:bg-accent">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{agent.name}</span>
+                        <Badge variant="outline" className="text-xs">
+                          {agent.parentAgentId ? "worker" : "lead"}
+                        </Badge>
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        {agent.role}
+                      </div>
                     </div>
+                    <Badge
+                      variant={
+                        agent.status === "running" ? "default" : "secondary"
+                      }
+                    >
+                      {agent.status}
+                    </Badge>
                   </div>
-                  <Badge
-                    variant={
-                      agent.status === "running" ? "default" : "secondary"
-                    }
-                  >
-                    {agent.status}
-                  </Badge>
-                </div>
-              </Link>
-            ))}
-          </div>
+                </Link>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 
