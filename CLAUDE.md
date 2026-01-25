@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Autonomous Teams is a TypeScript/Next.js application where users create teams of AI agents that run continuously to fulfill a mission. Teams have hierarchical agents (team leads run continuously, workers spawn on-demand) that collaborate, extract memories from conversations, and proactively deliver insights to users.
+Autonomous Teams is a TypeScript/Next.js application where users create teams of AI agents that run continuously to fulfill a mission. Teams have hierarchical agents (team leads run continuously, workers spawn on-demand) that collaborate, extract insights from work sessions, and proactively deliver briefings to users.
 
 ## Commands
 
@@ -26,21 +26,44 @@ npx drizzle-kit studio            # Open Drizzle Studio UI
 
 ## Architecture
 
+### Foreground/Background Architecture
+
+The system separates user interactions (foreground) from agent work (background):
+
+**Conversations vs Threads**:
+- **Conversations**: User-Agent interaction (permanent, UI-visible, one per agent). Used for foreground communication.
+- **Threads**: Background work sessions (ephemeral, internal only, many per agent). Created when processing tasks, discarded after insight extraction.
+
+**Memories vs Insights**:
+- **Memories**: User interaction context (preferences, past requests). Extracted from user conversations. Sent to LLM in **foreground only**.
+- **Insights**: Professional knowledge base (domain expertise, techniques, patterns, facts). Extracted from work threads. Sent to LLM in **background only**.
+
 ### Core Components
 
 **Agent Runtime** (`src/lib/agents/`)
-- `agent.ts` - Base Agent class with conversation management, memory loading, and LLM interaction
-- `memory.ts` - Synchronous memory extraction after each LLM response using Vercel AI SDK's `generateObject()`
-- `llm.ts` - Provider abstraction layer (OpenAI implemented, Anthropic-ready). Looks up user's encrypted API keys, falls back to env vars
+- `agent.ts` - Agent class with foreground/background separation:
+  - `handleUserMessage()` - Foreground: quick ack + queue task, returns immediately
+  - `runWorkSession()` - Background: process queue in thread, extract insights, decide briefing
+  - `processTaskInThread()` - Per-task processing with tools within a thread
+  - `extractInsightsFromThread()` - Post-session professional learning (via `insights.ts`)
+  - `decideBriefing()` - Team lead briefing decision after work session
+- `memory.ts` - Memory extraction from user conversations using `generateObject()`
+- `insights.ts` - Insight extraction from work threads (professional knowledge)
+- `thread.ts` - Thread lifecycle management (create, add messages, compact, complete)
+- `taskQueue.ts` - Task queue operations (queue, claim, complete)
+- `llm.ts` - Provider abstraction (OpenAI, Anthropic, Gemini). Looks up user's encrypted API keys, falls back to env vars
 
 **Database** (`src/lib/db/`)
 - PostgreSQL with Drizzle ORM
-- Schema: users, teams, agents (hierarchical via parentAgentId), conversations (one per agent lifetime), messages, memories, inboxItems
+- Schema: users, teams, agents, conversations, messages, memories, threads, threadMessages, insights, agentTasks, inboxItems
 - `drizzle.config.ts` points to `src/lib/db/schema.ts`
 
 **Background Worker** (`src/worker/runner.ts`)
-- Event-driven + timer-based execution for agent work sessions
-- Processes agents with pending tasks or team leads due for scheduled run
+- Event-driven + timer-based execution:
+  - **Event-driven**: Tasks queued via `notifyTaskQueued()` trigger immediate processing
+  - **Timer-based**: Team leads scheduled for 1-hour proactive runs via `nextRunAt`
+- Workers are purely reactive (only triggered when work in queue)
+- Team leads are proactive (1-hour trigger to further mission)
 - Calls `agent.runWorkSession()` for thread-based task processing
 
 **Authentication** (`src/lib/auth/config.ts`)
@@ -50,13 +73,21 @@ npx drizzle-kit studio            # Open Drizzle Studio UI
 
 ### Data Flow
 
-1. User sends message → Team Lead Agent
-2. Agent loads memories from DB
-3. Builds context: system prompt + memories + conversation history
-4. Calls LLM via Vercel AI SDK
-5. Extracts memories synchronously from response
-6. Persists message + new memories to DB
-7. Response streamed to user
+**Foreground (User Interaction)**:
+1. User sends message to Team Lead
+2. Agent loads MEMORIES (user context)
+3. Generates quick contextual acknowledgment
+4. Queues task for background processing
+5. Returns acknowledgment immediately
+
+**Background (Work Session)**:
+1. Task picked up from queue (event-driven or scheduled)
+2. New thread created for work session
+3. Agent loads INSIGHTS (professional knowledge)
+4. Processes task with tools in thread
+5. After queue empty: extracts insights from thread
+6. Team lead only: decides whether to brief user
+7. Thread marked completed, next run scheduled
 
 ### Key Patterns
 
@@ -64,18 +95,23 @@ npx drizzle-kit studio            # Open Drizzle Studio UI
 - **Mock mode**: Set `MOCK_LLM=true` in `.env.local` to run without real API calls
 - **Encrypted API keys**: User API keys stored encrypted in `userApiKeys` table
 - **Team hierarchy**: Team leads have `parentAgentId = null`, workers reference their lead
+- **Memories vs Insights**: Memories store user interaction context. Insights are the agent's professional knowledge base.
+- **Thread lifecycle**: created -> active -> insight extraction -> completed
+- **Thread compaction**: Mid-session context management when thread exceeds 50 messages
+- **Professional growth**: Insights accumulate as expertise from work sessions
 
 ## Autonomous Operation
 
 For teams to run autonomously and deliver proactive insights:
 
 1. **Team status must be 'active'** - Set via UI or database
-2. **Worker process must be running** - Start separately from dev server with:
+2. **Worker process must be running** - Start separately from dev server:
    ```bash
    npx ts-node --project tsconfig.json src/worker/index.ts
    ```
-3. Worker processes agents with pending tasks and team leads due for scheduled runs via `runWorkSession()`
-4. Team leads can delegate to workers and push items to user inbox
+3. **Event-driven**: Tasks queued trigger immediate processing via `notifyTaskQueued()`
+4. **Timer-based**: Team leads auto-scheduled for 1-hour proactive runs
+5. Team leads can delegate to workers and push briefings to user inbox
 
 ## Design Document
 
