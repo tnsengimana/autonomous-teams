@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -9,82 +9,30 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-
-// Placeholder data
-const mockTeams: Record<string, {
-  id: string;
-  name: string;
-  agents: Array<{
-    id: string;
-    name: string;
-    type: string;
-    status: string;
-    description: string;
-  }>;
-}> = {
-  "1": {
-    id: "1",
-    name: "Research Team",
-    agents: [
-      {
-        id: "a1",
-        name: "Research Lead",
-        type: "lead",
-        status: "running",
-        description: "Coordinates research activities and synthesizes findings",
-      },
-      {
-        id: "a2",
-        name: "Web Researcher",
-        type: "worker",
-        status: "idle",
-        description: "Searches the web for relevant information and sources",
-      },
-      {
-        id: "a3",
-        name: "Data Analyst",
-        type: "worker",
-        status: "idle",
-        description: "Analyzes data and generates insights",
-      },
-    ],
-  },
-  "2": {
-    id: "2",
-    name: "Content Team",
-    agents: [
-      {
-        id: "a4",
-        name: "Content Lead",
-        type: "lead",
-        status: "running",
-        description: "Plans content strategy and coordinates writers",
-      },
-      {
-        id: "a5",
-        name: "Writer",
-        type: "worker",
-        status: "idle",
-        description: "Creates blog posts and social media content",
-      },
-    ],
-  },
-};
+import { auth } from "@/lib/auth/config";
+import { getTeamById } from "@/lib/db/queries/teams";
+import { getAgentsByTeamId } from "@/lib/db/queries/agents";
 
 export default async function TeamAgentsPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { id } = await params;
-  const team = mockTeams[id];
+  const session = await auth();
+  if (!session?.user?.id) {
+    redirect("/auth/signin");
+  }
 
-  if (!team) {
+  const { id } = await params;
+  const team = await getTeamById(id);
+
+  if (!team || team.userId !== session.user.id) {
     notFound();
   }
 
-  const leadAgent = team.agents.find((a) => a.type === "lead");
-  const workerAgents = team.agents.filter((a) => a.type === "worker");
+  const agents = await getAgentsByTeamId(id);
+  const leadAgent = agents.find((a) => !a.parentAgentId);
+  const workerAgents = agents.filter((a) => a.parentAgentId);
 
   return (
     <div className="space-y-6">
@@ -101,7 +49,9 @@ export default async function TeamAgentsPage({
             Manage agents in {team.name}
           </p>
         </div>
-        <Button>Add Worker Agent</Button>
+        <Link href={`/teams/${team.id}/agents/new`}>
+          <Button>Add Worker Agent</Button>
+        </Link>
       </div>
 
       {/* Team Lead */}
@@ -120,11 +70,11 @@ export default async function TeamAgentsPage({
                   <div className="flex items-center gap-2">
                     <span className="font-medium">{leadAgent.name}</span>
                     <Badge variant="outline" className="text-xs">
-                      {leadAgent.type}
+                      lead
                     </Badge>
                   </div>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    {leadAgent.description}
+                    {leadAgent.role}
                   </p>
                 </div>
                 <Badge
@@ -152,9 +102,11 @@ export default async function TeamAgentsPage({
           {workerAgents.length === 0 ? (
             <div className="py-8 text-center text-muted-foreground">
               <p>No worker agents yet.</p>
-              <Button variant="link" className="mt-2">
-                Add your first worker agent
-              </Button>
+              <Link href={`/teams/${team.id}/agents/new`}>
+                <Button variant="link" className="mt-2">
+                  Add your first worker agent
+                </Button>
+              </Link>
             </div>
           ) : (
             <div className="space-y-4">
@@ -168,11 +120,11 @@ export default async function TeamAgentsPage({
                       <div className="flex items-center gap-2">
                         <span className="font-medium">{agent.name}</span>
                         <Badge variant="outline" className="text-xs">
-                          {agent.type}
+                          worker
                         </Badge>
                       </div>
                       <p className="mt-1 text-sm text-muted-foreground">
-                        {agent.description}
+                        {agent.role}
                       </p>
                     </div>
                     <Badge
