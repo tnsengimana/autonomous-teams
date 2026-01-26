@@ -110,7 +110,7 @@ export {
 // Knowledge extraction and management
 export {
   extractKnowledgeFromMessages,
-  extractKnowledgeFromThread,
+  extractKnowledgeFromConversation,
   formatKnowledgeForContext,
   buildKnowledgeContextBlock,
   loadKnowledgeContext,

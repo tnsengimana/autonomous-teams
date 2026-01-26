@@ -10,7 +10,7 @@ export async function createKnowledgeItem(
   agentId: string,
   type: KnowledgeItemType,
   content: string,
-  sourceThreadId?: string,
+  sourceConversationId?: string,
   confidence?: number
 ): Promise<KnowledgeItem> {
   const result = await db
@@ -19,7 +19,7 @@ export async function createKnowledgeItem(
       agentId,
       type,
       content,
-      sourceThreadId: sourceThreadId ?? null,
+      sourceConversationId: sourceConversationId ?? null,
       confidence: confidence ?? null,
     })
     .returning();
@@ -122,15 +122,15 @@ export async function updateKnowledgeItem(
 }
 
 /**
- * Get all knowledge items from a specific source thread
+ * Get all knowledge items from a specific source conversation
  */
-export async function getKnowledgeItemsBySourceThread(
-  threadId: string
+export async function getKnowledgeItemsBySourceConversation(
+  conversationId: string
 ): Promise<KnowledgeItem[]> {
   return db
     .select()
     .from(knowledgeItems)
-    .where(eq(knowledgeItems.sourceThreadId, threadId))
+    .where(eq(knowledgeItems.sourceConversationId, conversationId))
     .orderBy(desc(knowledgeItems.createdAt));
 }
 

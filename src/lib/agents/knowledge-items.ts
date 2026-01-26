@@ -1,7 +1,7 @@
 /**
  * Knowledge Extraction and Management
  *
- * This module handles extracting knowledge items from agent work sessions (threads).
+ * This module handles extracting knowledge items from agent work sessions (background conversations).
  * Knowledge items represent professional knowledge learned during background work:
  * - Facts: Domain-specific knowledge
  * - Techniques: Approaches that work well
@@ -12,8 +12,8 @@
 import { z } from 'zod';
 import { generateLLMObject, type StreamOptions } from './llm';
 import { createKnowledgeItem, getKnowledgeItemsByAgentId, getRecentKnowledgeItems } from '@/lib/db/queries/knowledge-items';
-import { getThreadMessages } from '@/lib/db/queries/threads';
-import type { KnowledgeItem, KnowledgeItemType, LLMMessage, ThreadMessage } from '@/lib/types';
+import { getConversationContext } from '@/lib/db/queries/messages';
+import type { KnowledgeItem, KnowledgeItemType, LLMMessage, Message } from '@/lib/types';
 
 // ============================================================================
 // Knowledge Extraction Schema
@@ -60,10 +60,10 @@ Return a JSON object with an array of knowledge items, or an empty array if noth
 // ============================================================================
 
 /**
- * Extract knowledge items from a completed thread's messages
+ * Extract knowledge items from conversation messages
  */
 export async function extractKnowledgeFromMessages(
-  messages: ThreadMessage[],
+  messages: Message[],
   agentRole: string,
   options: StreamOptions = {}
 ): Promise<ExtractedKnowledgeItem[]> {
@@ -117,24 +117,24 @@ Only extract knowledge items that are genuinely valuable and not obvious.`,
 }
 
 /**
- * Extract and persist knowledge items from a thread
+ * Extract and persist knowledge items from a conversation
  */
-export async function extractKnowledgeFromThread(
-  threadId: string,
+export async function extractKnowledgeFromConversation(
+  conversationId: string,
   agentId: string,
   agentRole: string,
   options: StreamOptions = {}
 ): Promise<KnowledgeItem[]> {
-  // Load thread messages
-  const messages = await getThreadMessages(threadId);
+  // Load conversation messages (with compaction awareness)
+  const conversationMessages = await getConversationContext(conversationId);
 
-  if (messages.length === 0) {
+  if (conversationMessages.length === 0) {
     return [];
   }
 
   // Extract knowledge items
   const extractedKnowledge = await extractKnowledgeFromMessages(
-    messages,
+    conversationMessages,
     agentRole,
     options
   );
@@ -150,7 +150,7 @@ export async function extractKnowledgeFromThread(
       agentId,
       item.type as KnowledgeItemType,
       item.content,
-      threadId,
+      conversationId,
       item.confidence
     );
     persistedKnowledgeItems.push(persisted);
