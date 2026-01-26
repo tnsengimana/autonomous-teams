@@ -15,6 +15,7 @@
     "@ai-sdk/anthropic": "^3.0.23",
     "@ai-sdk/google": "^3.0.13",
     "@ai-sdk/openai": "^3.0.18",
+    "@ai-sdk/openai-compatible": "^2.0.18",
     "@auth/drizzle-adapter": "^1.11.1",
     "@hookform/resolvers": "^5.2.2",
     "@radix-ui/react-avatar": "^1.1.11",

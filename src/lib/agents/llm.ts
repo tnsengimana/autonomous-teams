@@ -1,6 +1,7 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import {
   streamText,
   generateText,
@@ -30,6 +31,7 @@ const DEFAULT_MODEL = {
   openai: "gpt-4o",
   anthropic: "claude-sonnet-4-20250514",
   google: "gemini-3-flash-preview", // Using flash as default since pro has reliability issues
+  lmstudio: "mistralai/ministral-3-14b-reasoning",
 } as const;
 
 const FALLBACK_MODEL = {
@@ -68,6 +70,10 @@ async function getApiKey(
   if (provider === "google") {
     return process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY ?? null;
   }
+  if (provider === "lmstudio") {
+    // LM Studio doesn't need an API key (local server)
+    return null;
+  }
 
   return null;
 }
@@ -103,6 +109,21 @@ async function createGoogleProvider(userId?: string) {
     throw new Error("No Google/Gemini API key available");
   }
   return createGoogleGenerativeAI({ apiKey });
+}
+
+/**
+ * Create an LM Studio provider instance (local OpenAI-compatible server)
+ */
+function createLMStudioProvider() {
+  const baseURL = process.env.LMSTUDIO_BASE_URL;
+  if (!baseURL) {
+    throw new Error("LMSTUDIO_BASE_URL is not defined");
+  }
+  return createOpenAICompatible({
+    name: "lmstudio",
+    baseURL,
+    supportsStructuredOutputs: true,
+  });
 }
 
 // ============================================================================
@@ -343,6 +364,19 @@ export async function streamLLMResponse(
     return result.textStream;
   }
 
+  if (provider === "lmstudio") {
+    const lmstudio = createLMStudioProvider();
+    const result = streamText({
+      model: lmstudio(model),
+      messages,
+      system: systemPrompt,
+      temperature: options.temperature,
+      maxOutputTokens: options.maxOutputTokens,
+    });
+
+    return result.textStream;
+  }
+
   throw new Error(`Unsupported provider: ${provider}`);
 }
 
@@ -520,6 +554,11 @@ export async function streamLLMResponseWithTools(
     return callStreamTextWithTools(google(model));
   }
 
+  if (provider === "lmstudio") {
+    const lmstudio = createLMStudioProvider();
+    return callStreamTextWithTools(lmstudio(model));
+  }
+
   throw new Error(`Unsupported provider: ${provider}`);
 }
 
@@ -585,6 +624,19 @@ export async function generateLLMResponse(
     const google = await createGoogleProvider(userId);
     const result = await generateText({
       model: google(model),
+      messages,
+      system: systemPrompt,
+      temperature: options.temperature,
+      maxOutputTokens: options.maxOutputTokens,
+    });
+
+    return { content: result.text };
+  }
+
+  if (provider === "lmstudio") {
+    const lmstudio = createLMStudioProvider();
+    const result = await generateText({
+      model: lmstudio(model),
       messages,
       system: systemPrompt,
       temperature: options.temperature,
@@ -730,6 +782,20 @@ export async function generateLLMObject<T>(
     }
   }
 
+  if (provider === "lmstudio") {
+    const lmstudio = createLMStudioProvider();
+    const result = await generateObject({
+      model: lmstudio(model),
+      messages,
+      system: systemPrompt,
+      schema,
+      temperature: options.temperature,
+      maxOutputTokens: options.maxOutputTokens,
+    });
+
+    return result.object;
+  }
+
   throw new Error(`Unsupported provider: ${provider}`);
 }
 
@@ -740,6 +806,10 @@ export async function isProviderAvailable(
   provider: LLMProvider,
   userId?: string,
 ): Promise<boolean> {
+  // LM Studio doesn't need an API key, just check if base URL is configured
+  if (provider === "lmstudio") {
+    return process.env.LMSTUDIO_BASE_URL !== undefined;
+  }
   const apiKey = await getApiKey(provider, userId);
   return apiKey !== null;
 }
@@ -751,7 +821,10 @@ export async function getDefaultProvider(
   userId?: string,
 ): Promise<LLMProvider | undefined> {
   // Check available providers in priority order
-  // Google/Gemini first (most reliable free tier), then OpenAI, then Anthropic
+  // TODO: Need to move this in the UI as the user configuration
+  if (await isProviderAvailable("lmstudio", userId)) {
+    return "lmstudio";
+  }
   if (await isProviderAvailable("google", userId)) {
     return "google";
   }

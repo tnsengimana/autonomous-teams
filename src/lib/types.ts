@@ -93,7 +93,7 @@ export interface AideWithAgents extends Aide {
 // LLM Provider Types
 // ============================================================================
 
-export type LLMProvider = 'openai' | 'anthropic' | 'google';
+export type LLMProvider = 'openai' | 'anthropic' | 'google' | 'lmstudio';
 
 // ============================================================================
 // LLM Types
