@@ -5,18 +5,18 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useUnreadCount } from "@/hooks/useUnreadCount";
+import { useUnreadInboxItemsCount } from "@/hooks/useUnreadInboxItemsCount";
 
 const navItems = [
-  { href: "/inbox", label: "Inbox", showUnreadCount: true },
-  { href: "/teams", label: "Teams" },
+  { href: "/inbox", label: "Inbox" },
   { href: "/aides", label: "Aides" },
+  { href: "/teams", label: "Teams" },
   { href: "/settings", label: "Settings" },
 ];
 
 export function Nav() {
   const pathname = usePathname();
-  const unreadCount = useUnreadCount();
+  const unreadCount = useUnreadInboxItemsCount();
 
   return (
     <nav className="flex flex-col gap-1 p-4">
@@ -27,13 +27,10 @@ export function Nav() {
           <Link key={item.href} href={item.href}>
             <Button
               variant={isActive ? "secondary" : "ghost"}
-              className={cn(
-                "w-full justify-start",
-                isActive && "bg-secondary"
-              )}
+              className={cn("w-full justify-start", isActive && "bg-secondary")}
             >
               <span className="flex-1 text-left">{item.label}</span>
-              {item.showUnreadCount && unreadCount > 0 && (
+              {unreadCount > 0 && (
                 <Badge variant="destructive" className="ml-2 px-2 py-0 text-xs">
                   {unreadCount > 99 ? "99+" : unreadCount}
                 </Badge>
@@ -48,7 +45,7 @@ export function Nav() {
 
 export function MobileNav() {
   const pathname = usePathname();
-  const unreadCount = useUnreadCount();
+  const unreadCount = useUnreadInboxItemsCount();
 
   return (
     <nav className="flex gap-1 overflow-x-auto p-2">
@@ -63,7 +60,7 @@ export function MobileNav() {
               className={cn(isActive && "bg-secondary", "relative")}
             >
               {item.label}
-              {item.showUnreadCount && unreadCount > 0 && (
+              {unreadCount > 0 && (
                 <Badge
                   variant="destructive"
                   className="ml-1 px-1.5 py-0 text-xs min-w-[1.25rem] h-5"

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 const POLL_INTERVAL = 30000; // 30 seconds
 
-export function useUnreadCount() {
+export function useUnreadInboxItemsCount() {
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
