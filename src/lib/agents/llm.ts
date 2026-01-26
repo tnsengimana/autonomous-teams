@@ -132,6 +132,7 @@ export interface StreamOptions {
   maxOutputTokens?: number;
   userId?: string;
   teamId?: string;
+  aideId?: string;
 }
 
 export interface GenerateOptions extends StreamOptions {

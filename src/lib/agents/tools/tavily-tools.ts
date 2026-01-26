@@ -46,20 +46,30 @@ export type TavilyResearchParams = z.infer<typeof TavilyResearchParamsSchema>;
 // Helper Functions
 // ============================================================================
 
-async function getTavilyApiKey(teamId: string): Promise<string | null> {
+import type { ToolContext } from './index';
+
+async function getTavilyApiKeyFromContext(context: ToolContext): Promise<string | null> {
   // First try environment variable
   if (process.env.TAVILY_API_KEY) {
     return process.env.TAVILY_API_KEY;
   }
 
-  // Then try to get from user's stored keys via team
+  // Then try to get from user's stored keys via team or aide
   try {
-    const { getTeamUserId } = await import('@/lib/db/queries/teams');
     const { getUserApiKeyForProvider, decryptApiKey } = await import(
       '@/lib/db/queries/userApiKeys'
     );
 
-    const userId = await getTeamUserId(teamId);
+    let userId: string | null = null;
+
+    if (context.teamId) {
+      const { getTeamUserId } = await import('@/lib/db/queries/teams');
+      userId = await getTeamUserId(context.teamId);
+    } else if (context.aideId) {
+      const { getAideUserId } = await import('@/lib/db/queries/aides');
+      userId = await getAideUserId(context.aideId);
+    }
+
     if (!userId) {
       return null;
     }
@@ -163,7 +173,7 @@ const searchTool: Tool = {
       };
     }
 
-    const apiKey = await getTavilyApiKey(context.teamId);
+    const apiKey = await getTavilyApiKeyFromContext(context);
     if (!apiKey) {
       return {
         success: false,
@@ -228,7 +238,7 @@ const extractTool: Tool = {
       };
     }
 
-    const apiKey = await getTavilyApiKey(context.teamId);
+    const apiKey = await getTavilyApiKeyFromContext(context);
     if (!apiKey) {
       return {
         success: false,
@@ -301,7 +311,7 @@ const researchTool: Tool = {
       };
     }
 
-    const apiKey = await getTavilyApiKey(context.teamId);
+    const apiKey = await getTavilyApiKeyFromContext(context);
     if (!apiKey) {
       return {
         success: false,

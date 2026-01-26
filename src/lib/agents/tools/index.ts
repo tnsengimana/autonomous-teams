@@ -29,7 +29,8 @@ export interface ToolSchema {
 
 export interface ToolContext {
   agentId: string;
-  teamId: string;
+  teamId: string | null;
+  aideId: string | null;
   isTeamLead: boolean;
 }
 

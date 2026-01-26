@@ -14,8 +14,12 @@ import {
   getInProgressTasksForAgent,
   getNextTask,
   startTask,
+  type TaskOwnerInfo,
 } from '@/lib/db/queries/agentTasks';
 import type { AgentTask } from '@/lib/types';
+
+// Re-export TaskOwnerInfo for convenience
+export type { TaskOwnerInfo };
 
 /**
  * Notify the worker runner that a task has been queued.
@@ -39,10 +43,10 @@ async function notifyWorkerRunner(agentId: string): Promise<void> {
  */
 export async function queueUserTask(
   agentId: string,
-  teamId: string,
+  ownerInfo: TaskOwnerInfo,
   userMessage: string
 ): Promise<AgentTask> {
-  const task = await queueTask(agentId, teamId, userMessage, 'user');
+  const task = await queueTask(agentId, ownerInfo, userMessage, 'user');
   await notifyWorkerRunner(agentId);
   return task;
 }
@@ -52,10 +56,10 @@ export async function queueUserTask(
  */
 export async function queueSystemTask(
   agentId: string,
-  teamId: string,
+  ownerInfo: TaskOwnerInfo,
   taskContent: string
 ): Promise<AgentTask> {
-  const task = await queueTask(agentId, teamId, taskContent, 'system');
+  const task = await queueTask(agentId, ownerInfo, taskContent, 'system');
   await notifyWorkerRunner(agentId);
   return task;
 }
@@ -65,10 +69,10 @@ export async function queueSystemTask(
  */
 export async function queueSelfTask(
   agentId: string,
-  teamId: string,
+  ownerInfo: TaskOwnerInfo,
   taskContent: string
 ): Promise<AgentTask> {
-  const task = await queueTask(agentId, teamId, taskContent, 'self');
+  const task = await queueTask(agentId, ownerInfo, taskContent, 'self');
   await notifyWorkerRunner(agentId);
   return task;
 }
@@ -78,14 +82,14 @@ export async function queueSelfTask(
  */
 export async function queueDelegationTask(
   agentId: string,
-  teamId: string,
+  ownerInfo: TaskOwnerInfo,
   taskContent: string,
   assignedById: string
 ): Promise<AgentTask> {
   // For delegation, we need to use createAgentTask with the correct assignedById
   const { createAgentTask } = await import('@/lib/db/queries/agentTasks');
   const task = await createAgentTask({
-    teamId,
+    ...ownerInfo,
     assignedToId: agentId,
     assignedById,
     task: taskContent,

@@ -12,7 +12,8 @@ import { ChatMessages, type Message } from "./ChatMessages";
 import { ChatInput } from "./ChatInput";
 
 export interface ChatProps {
-  teamId: string;
+  teamId?: string;
+  aideId?: string;
   agentId?: string;
   agentName?: string;
   title?: string;
@@ -23,6 +24,7 @@ export interface ChatProps {
 
 export function Chat({
   teamId,
+  aideId,
   agentId,
   agentName,
   title = "Conversation",
@@ -90,7 +92,7 @@ export function Chat({
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            teamId,
+            ...(teamId ? { teamId } : { aideId }),
             agentId,
             content,
           }),
@@ -137,7 +139,7 @@ export function Chat({
         setStreamingContent("");
       }
     },
-    [teamId, agentId, isLoading],
+    [teamId, aideId, agentId, isLoading],
   );
 
   return (

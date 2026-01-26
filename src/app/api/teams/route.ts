@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
     // This triggers the agent to review its mission and start working
     await queueSystemTask(
       teamLead.id,
-      team.id,
+      { teamId: team.id },
       'Get to work on your mission. Review your purpose and start taking actions to fulfill it.'
     );
 

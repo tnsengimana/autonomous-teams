@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth/config';
 import { getTeamById } from '@/lib/db/queries/teams';
+import { getAideById, getAideLead } from '@/lib/db/queries/aides';
 import { getTeamLead, getAgentById } from '@/lib/db/queries/agents';
 import { Agent } from '@/lib/agents/agent';
 
@@ -14,6 +15,11 @@ import { Agent } from '@/lib/agents/agent';
  * 4. Returns acknowledgment stream immediately
  *
  * The actual work happens in background via worker runner.
+ *
+ * Supports both teams and aides:
+ * - Provide teamId for team agents
+ * - Provide aideId for aide agents
+ * - Exactly one of teamId or aideId is required
  */
 export async function POST(request: NextRequest) {
   try {
@@ -25,11 +31,12 @@ export async function POST(request: NextRequest) {
 
     // 2. Parse request body
     const body = await request.json();
-    const { teamId, agentId, content } = body;
+    const { teamId, aideId, agentId, content } = body;
 
-    if (!teamId || typeof teamId !== 'string') {
+    // Validate: exactly one of teamId or aideId is required
+    if ((!teamId && !aideId) || (teamId && aideId)) {
       return NextResponse.json(
-        { error: 'teamId is required' },
+        { error: 'Exactly one of teamId or aideId is required' },
         { status: 400 }
       );
     }
@@ -41,30 +48,74 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 3. Verify user owns the team
-    const team = await getTeamById(teamId);
-    if (!team) {
-      return NextResponse.json({ error: 'Team not found' }, { status: 404 });
-    }
-
-    if (team.userId !== session.user.id) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-
-    // 4. Get the agent (team lead or specific agent)
+    // 3. Verify ownership based on which owner type was provided
     let agentData;
-    if (agentId) {
-      agentData = await getAgentById(agentId);
-      if (!agentData || agentData.teamId !== teamId) {
-        return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
+
+    if (teamId) {
+      // Team-based message
+      if (typeof teamId !== 'string') {
+        return NextResponse.json(
+          { error: 'teamId must be a string' },
+          { status: 400 }
+        );
+      }
+
+      const team = await getTeamById(teamId);
+      if (!team) {
+        return NextResponse.json({ error: 'Team not found' }, { status: 404 });
+      }
+
+      if (team.userId !== session.user.id) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+
+      // Get the agent (team lead or specific agent)
+      if (agentId) {
+        agentData = await getAgentById(agentId);
+        if (!agentData || agentData.teamId !== teamId) {
+          return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
+        }
+      } else {
+        agentData = await getTeamLead(teamId);
+        if (!agentData) {
+          return NextResponse.json(
+            { error: 'No team lead found' },
+            { status: 404 }
+          );
+        }
       }
     } else {
-      agentData = await getTeamLead(teamId);
-      if (!agentData) {
+      // Aide-based message
+      if (typeof aideId !== 'string') {
         return NextResponse.json(
-          { error: 'No team lead found' },
-          { status: 404 }
+          { error: 'aideId must be a string' },
+          { status: 400 }
         );
+      }
+
+      const aide = await getAideById(aideId);
+      if (!aide) {
+        return NextResponse.json({ error: 'Aide not found' }, { status: 404 });
+      }
+
+      if (aide.userId !== session.user.id) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+
+      // Get the agent (aide lead or specific agent)
+      if (agentId) {
+        agentData = await getAgentById(agentId);
+        if (!agentData || agentData.aideId !== aideId) {
+          return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
+        }
+      } else {
+        agentData = await getAideLead(aideId);
+        if (!agentData) {
+          return NextResponse.json(
+            { error: 'No aide lead found' },
+            { status: 404 }
+          );
+        }
       }
     }
 

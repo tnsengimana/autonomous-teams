@@ -8,16 +8,40 @@ import {
   registerTool,
   type Tool,
   type ToolResult,
+  type ToolContext,
   DelegateToAgentParamsSchema,
   CreateInboxItemParamsSchema,
 } from './index';
 import { createAgentTask } from '@/lib/db/queries/agentTasks';
 import { getChildAgents } from '@/lib/db/queries/agents';
 import { getTeamUserId } from '@/lib/db/queries/teams';
+import { getAideUserId } from '@/lib/db/queries/aides';
 import { getOrCreateConversation } from '@/lib/db/queries/conversations';
 import { appendMessage } from '@/lib/db/queries/messages';
 import { db } from '@/lib/db/client';
 import { inboxItems } from '@/lib/db/schema';
+
+/**
+ * Helper to get owner info from context
+ */
+function getOwnerInfo(context: ToolContext): { teamId: string } | { aideId: string } {
+  if (context.teamId) return { teamId: context.teamId };
+  if (context.aideId) return { aideId: context.aideId };
+  throw new Error('Tool context has no team or aide');
+}
+
+/**
+ * Helper to get user ID from context's owner
+ */
+async function getOwnerUserId(context: ToolContext): Promise<string | null> {
+  if (context.teamId) {
+    return getTeamUserId(context.teamId);
+  }
+  if (context.aideId) {
+    return getAideUserId(context.aideId);
+  }
+  return null;
+}
 
 // ============================================================================
 // delegateToAgent
@@ -75,9 +99,9 @@ const delegateToAgentTool: Tool = {
       };
     }
 
-    // Create the task
+    // Create the task with appropriate owner
     const agentTask = await createAgentTask({
-      teamId: context.teamId,
+      ...getOwnerInfo(context),
       assignedToId: agentId,
       assignedById: context.agentId,
       task,
@@ -139,7 +163,9 @@ const getTeamStatusTool: Tool = {
     return {
       success: true,
       data: {
-        teamId: context.teamId,
+        // Include whichever owner type exists
+        ...(context.teamId ? { teamId: context.teamId } : {}),
+        ...(context.aideId ? { aideId: context.aideId } : {}),
         agents: agentStatuses,
         summary: {
           totalAgents: agentStatuses.length,
@@ -201,21 +227,23 @@ const createInboxItemTool: Tool = {
 
     const { type, title, summary, fullMessage } = parsed.data;
 
-    // Get the user ID for this team
-    const userId = await getTeamUserId(context.teamId);
+    // Get the user ID for this team/aide
+    const userId = await getOwnerUserId(context);
     if (!userId) {
       return {
         success: false,
-        error: 'Could not find user for this team',
+        error: 'Could not find user for this team/aide',
       };
     }
 
-    // 1. Create the inbox item with summary
+    // 1. Create the inbox item with summary and appropriate owner
+    const ownerInfo = getOwnerInfo(context);
     const result = await db
       .insert(inboxItems)
       .values({
         userId,
-        teamId: context.teamId,
+        teamId: 'teamId' in ownerInfo ? ownerInfo.teamId : null,
+        aideId: 'aideId' in ownerInfo ? ownerInfo.aideId : null,
         agentId: context.agentId,
         type,
         title,
