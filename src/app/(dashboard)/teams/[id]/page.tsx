@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { auth } from "@/lib/auth/config";
 import { getTeamWithAgents } from "@/lib/db/queries/teams";
+import { getRecentBriefingsByOwner } from "@/lib/db/queries/briefings";
 import { EntityActions } from "@/components/entity-actions";
 
 export default async function TeamDetailPage({
@@ -30,6 +31,11 @@ export default async function TeamDetailPage({
   if (!team || team.userId !== session.user.id) {
     notFound();
   }
+
+  const recentBriefings = await getRecentBriefingsByOwner(
+    { userId: session.user.id, teamId: team.id },
+    5,
+  );
 
   // Parse mission from purpose field
   const description = team.purpose?.split("\n")[0] || "";
@@ -175,6 +181,43 @@ export default async function TeamDetailPage({
                     >
                       {agent.status}
                     </Badge>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Briefings */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="mb-2">Briefings</CardTitle>
+          <CardDescription>Recent briefings from this team.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {recentBriefings.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No briefings yet.
+            </p>
+          ) : (
+            <div className="space-y-4">
+              {recentBriefings.map((briefing) => (
+                <Link
+                  key={briefing.id}
+                  href={`/teams/${team.id}/briefings/${briefing.id}`}
+                  className="block"
+                >
+                  <div className="rounded-lg border p-4 transition-colors hover:bg-accent">
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="font-medium">{briefing.title}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(briefing.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      {briefing.summary}
+                    </p>
                   </div>
                 </Link>
               ))}

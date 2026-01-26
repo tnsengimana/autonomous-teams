@@ -1,14 +1,14 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth/config';
-import { createAide, getAidesByUserId } from '@/lib/db/queries/aides';
-import { createAgentForAide, getAgentsByAideId } from '@/lib/db/queries/agents';
-import { queueSystemTask } from '@/lib/agents/taskQueue';
-import { generateAideConfiguration } from '@/lib/agents/aide-configuration';
-import { z } from 'zod';
+import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/lib/auth/config";
+import { createAide, getAidesByUserId } from "@/lib/db/queries/aides";
+import { createAgentForAide, getAgentsByAideId } from "@/lib/db/queries/agents";
+import { queueSystemTask } from "@/lib/agents/taskQueue";
+import { generateAideConfiguration } from "@/lib/agents/aide-configuration";
+import { z } from "zod";
 
 const createAideSchema = z.object({
-  name: z.string().min(1, 'Aide name is required'),
-  purpose: z.string().min(1, 'Purpose is required'),
+  name: z.string().min(1, "Aide name is required"),
+  purpose: z.string().min(1, "Purpose is required"),
 });
 
 /**
@@ -18,7 +18,7 @@ export async function GET() {
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const aides = await getAidesByUserId(session.user.id);
@@ -31,15 +31,15 @@ export async function GET() {
           ...aide,
           agentCount: agents.length,
         };
-      })
+      }),
     );
 
     return NextResponse.json(aidesWithAgentCount);
   } catch (error) {
-    console.error('Error fetching aides:', error);
+    console.error("Error fetching aides:", error);
     return NextResponse.json(
-      { error: 'Failed to fetch aides' },
-      { status: 500 }
+      { error: "Failed to fetch aides" },
+      { status: 500 },
     );
   }
 }
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const body = await request.json();
@@ -60,21 +60,23 @@ export async function POST(request: NextRequest) {
     if (!validation.success) {
       return NextResponse.json(
         { error: validation.error.issues[0].message },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     const { name, purpose } = validation.data;
 
     // Generate aide configuration using LLM
-    const config = await generateAideConfiguration(name, purpose, { userId: session.user.id });
+    const config = await generateAideConfiguration(name, purpose, {
+      userId: session.user.id,
+    });
 
     // Create the aide with generated description
     const aide = await createAide({
       userId: session.user.id,
       name,
       purpose: `${config.aideDescription}\n\nPurpose: ${purpose}`,
-      status: 'active',
+      status: "active",
     });
 
     // Create the lead agent with generated name and prompt
@@ -82,9 +84,9 @@ export async function POST(request: NextRequest) {
       aideId: aide.id,
       parentAgentId: null,
       name: config.leadAgentName,
-      type: 'lead',
+      type: "lead",
       systemPrompt: config.leadAgentSystemPrompt,
-      status: 'idle',
+      status: "idle",
     });
 
     // Queue bootstrap task to get the aide started
@@ -92,15 +94,15 @@ export async function POST(request: NextRequest) {
     await queueSystemTask(
       aideLead.id,
       { aideId: aide.id },
-      'Get to work on your purpose. Review what the user needs and start serving them.'
+      "Get to work on your purpose. Review what the user needs, come up with a plan on how to make it happen, and and start serving them.",
     );
 
     return NextResponse.json(aide, { status: 201 });
   } catch (error) {
-    console.error('Error creating aide:', error);
+    console.error("Error creating aide:", error);
     return NextResponse.json(
-      { error: 'Failed to create aide' },
-      { status: 500 }
+      { error: "Failed to create aide" },
+      { status: 500 },
     );
   }
 }
