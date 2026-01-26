@@ -107,6 +107,7 @@ The system separates user interactions (foreground) from agent work (background)
 - **Memories vs Knowledge Items**: Memories store user interaction context. Knowledge items are the agent's professional knowledge base.
 - **Conversation compaction**: Summary messages compress old context via linked list (`previousMessageId`). Context loading returns latest summary + recent messages.
 - **Professional growth**: Knowledge items accumulate as expertise from background work sessions
+- **Atomic turns + retries**: Persist user+assistant messages together; only complete tasks after turn is saved, with exponential backoff for task retries
 
 ## Autonomous Operation
 
