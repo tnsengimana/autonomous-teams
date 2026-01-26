@@ -14,8 +14,6 @@ import type {
   memories,
   messages,
   teams,
-  threadMessages,
-  threads,
   userApiKeys,
 } from '@/lib/db/schema';
 
@@ -30,8 +28,6 @@ export type KnowledgeItem = InferSelectModel<typeof knowledgeItems>;
 export type Memory = InferSelectModel<typeof memories>;
 export type Message = InferSelectModel<typeof messages>;
 export type Team = InferSelectModel<typeof teams>;
-export type Thread = InferSelectModel<typeof threads>;
-export type ThreadMessage = InferSelectModel<typeof threadMessages>;
 export type UserApiKey = InferSelectModel<typeof userApiKeys>;
 
 // ============================================================================
@@ -43,8 +39,8 @@ export type AgentTaskStatus = 'pending' | 'in_progress' | 'completed' | 'failed'
 export type AgentTaskSource = 'delegation' | 'user' | 'system' | 'self';
 export type TeamStatus = 'active' | 'paused' | 'archived';
 export type MemoryType = 'preference' | 'insight' | 'fact';
-export type MessageRole = 'user' | 'assistant' | 'system';
-export type ThreadStatus = 'active' | 'completed' | 'compacted';
+export type MessageRole = 'user' | 'assistant' | 'tool' | 'summary';
+export type ConversationMode = 'foreground' | 'background';
 export type KnowledgeItemType = 'fact' | 'technique' | 'pattern' | 'lesson';
 
 // ============================================================================
@@ -61,7 +57,9 @@ export interface NewMessage {
   role: MessageRole;
   content: string;
   thinking?: string | null;
-  sequenceNumber: number;
+  toolCalls?: unknown;
+  toolCallId?: string;
+  previousMessageId?: string;
 }
 
 export interface ConversationWithMessages extends Conversation {
