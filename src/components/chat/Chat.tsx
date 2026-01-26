@@ -1,15 +1,15 @@
-'use client';
+"use client";
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect } from "react";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
-import { ChatMessages, type Message } from './ChatMessages';
-import { ChatInput } from './ChatInput';
+} from "@/components/ui/card";
+import { ChatMessages, type Message } from "./ChatMessages";
+import { ChatInput } from "./ChatInput";
 
 export interface ChatProps {
   teamId: string;
@@ -17,19 +17,23 @@ export interface ChatProps {
   agentName?: string;
   title?: string;
   description?: string;
+  mode?: "foreground" | "background";
+  readOnly?: boolean;
 }
 
 export function Chat({
   teamId,
   agentId,
   agentName,
-  title = 'Conversation',
-  description = 'Chat with your AI assistant.',
+  title = "Conversation",
+  description = "Chat with your AI assistant.",
+  mode = "foreground",
+  readOnly = false,
 }: ChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
-  const [streamingContent, setStreamingContent] = useState('');
+  const [streamingContent, setStreamingContent] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   // Load existing conversation history on mount
@@ -38,7 +42,9 @@ export function Chat({
       if (!agentId) return;
 
       try {
-        const response = await fetch(`/api/conversations/${agentId}`);
+        const response = await fetch(
+          `/api/conversations/${agentId}?mode=${mode}`,
+        );
         if (response.ok) {
           const data = await response.json();
           if (data.messages && Array.isArray(data.messages)) {
@@ -46,20 +52,20 @@ export function Chat({
               data.messages.map(
                 (m: { id: string; role: string; content: string }) => ({
                   id: m.id,
-                  role: m.role as 'user' | 'assistant',
+                  role: m.role as "user" | "assistant",
                   content: m.content,
-                })
-              )
+                }),
+              ),
             );
           }
         }
       } catch (err) {
-        console.error('Failed to load conversation history:', err);
+        console.error("Failed to load conversation history:", err);
       }
     };
 
     loadHistory();
-  }, [agentId]);
+  }, [agentId, mode]);
 
   const handleSendMessage = useCallback(
     async (content: string) => {
@@ -68,20 +74,20 @@ export function Chat({
       // Add user message immediately
       const userMessage: Message = {
         id: `temp-${Date.now()}`,
-        role: 'user',
+        role: "user",
         content,
       };
       setMessages((prev) => [...prev, userMessage]);
       setIsLoading(true);
       setIsStreaming(true);
-      setStreamingContent('');
+      setStreamingContent("");
       setError(null);
 
       try {
-        const response = await fetch('/api/messages', {
-          method: 'POST',
+        const response = await fetch("/api/messages", {
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({
             teamId,
@@ -92,17 +98,17 @@ export function Chat({
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.error || 'Failed to send message');
+          throw new Error(errorData.error || "Failed to send message");
         }
 
         // Handle streaming response
         const reader = response.body?.getReader();
         if (!reader) {
-          throw new Error('No response body');
+          throw new Error("No response body");
         }
 
         const decoder = new TextDecoder();
-        let fullContent = '';
+        let fullContent = "";
 
         while (true) {
           const { done, value } = await reader.read();
@@ -116,22 +122,22 @@ export function Chat({
         // Add the complete assistant message
         const assistantMessage: Message = {
           id: `msg-${Date.now()}`,
-          role: 'assistant',
+          role: "assistant",
           content: fullContent,
         };
         setMessages((prev) => [...prev, assistantMessage]);
       } catch (err) {
-        console.error('Failed to send message:', err);
-        setError(err instanceof Error ? err.message : 'Failed to send message');
+        console.error("Failed to send message:", err);
+        setError(err instanceof Error ? err.message : "Failed to send message");
         // Remove the user message on error
         setMessages((prev) => prev.filter((m) => m.id !== userMessage.id));
       } finally {
         setIsLoading(false);
         setIsStreaming(false);
-        setStreamingContent('');
+        setStreamingContent("");
       }
     },
-    [teamId, agentId, isLoading]
+    [teamId, agentId, isLoading],
   );
 
   return (
@@ -156,13 +162,15 @@ export function Chat({
           </div>
         )}
 
-        <ChatInput
-          onSendMessage={handleSendMessage}
-          disabled={isLoading}
-          placeholder={
-            isLoading ? 'Waiting for response...' : 'Type your message...'
-          }
-        />
+        {!readOnly && (
+          <ChatInput
+            onSendMessage={handleSendMessage}
+            disabled={isLoading}
+            placeholder={
+              isLoading ? "Waiting for response..." : "Type your message..."
+            }
+          />
+        )}
       </CardContent>
     </Card>
   );
