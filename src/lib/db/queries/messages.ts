@@ -1,7 +1,28 @@
-import { eq, asc, desc, sql } from 'drizzle-orm';
+import { eq, asc, desc, and, gt } from 'drizzle-orm';
 import { db } from '../client';
 import { messages } from '../schema';
-import type { Message, NewMessage, MessageRole } from '@/lib/types';
+import type { Message } from '@/lib/types';
+
+// Message role type for the new schema (no 'system', added 'tool' and 'summary')
+export type MessageRole = 'user' | 'assistant' | 'tool' | 'summary';
+
+// Tool call type for assistant messages
+export interface ToolCall {
+  toolCallId: string;
+  toolName: string;
+  args: Record<string, unknown>;
+}
+
+// Parameters for creating a new message
+export interface CreateMessageParams {
+  conversationId: string;
+  role: MessageRole;
+  content: string;
+  thinking?: string | null;
+  toolCalls?: ToolCall[] | null;
+  toolCallId?: string | null;
+  previousMessageId?: string | null;
+}
 
 /**
  * Get a message by ID
@@ -17,7 +38,7 @@ export async function getMessageById(messageId: string): Promise<Message | null>
 }
 
 /**
- * Get all messages for a conversation, ordered by sequence
+ * Get all messages for a conversation, ordered by creation time
  */
 export async function getMessagesByConversationId(
   conversationId: string
@@ -26,21 +47,7 @@ export async function getMessagesByConversationId(
     .select()
     .from(messages)
     .where(eq(messages.conversationId, conversationId))
-    .orderBy(asc(messages.sequenceNumber));
-}
-
-/**
- * Get the next sequence number for a conversation
- */
-export async function getNextSequenceNumber(
-  conversationId: string
-): Promise<number> {
-  const result = await db
-    .select({ maxSeq: sql<number>`COALESCE(MAX(${messages.sequenceNumber}), 0)` })
-    .from(messages)
-    .where(eq(messages.conversationId, conversationId));
-
-  return (result[0]?.maxSeq ?? 0) + 1;
+    .orderBy(asc(messages.createdAt));
 }
 
 /**
@@ -55,16 +62,16 @@ export async function getRecentMessages(
     .select()
     .from(messages)
     .where(eq(messages.conversationId, conversationId))
-    .orderBy(desc(messages.sequenceNumber))
+    .orderBy(desc(messages.createdAt))
     .limit(limit);
 
   return result.reverse();
 }
 
 /**
- * Create a new message
+ * Create a new message with all supported fields
  */
-export async function createMessage(data: NewMessage): Promise<Message> {
+export async function createMessage(data: CreateMessageParams): Promise<Message> {
   const result = await db
     .insert(messages)
     .values({
@@ -72,7 +79,9 @@ export async function createMessage(data: NewMessage): Promise<Message> {
       role: data.role,
       content: data.content,
       thinking: data.thinking ?? null,
-      sequenceNumber: data.sequenceNumber,
+      toolCalls: data.toolCalls ?? null,
+      toolCallId: data.toolCallId ?? null,
+      previousMessageId: data.previousMessageId ?? null,
     })
     .returning();
 
@@ -80,21 +89,29 @@ export async function createMessage(data: NewMessage): Promise<Message> {
 }
 
 /**
- * Append a message to a conversation with auto-incrementing sequence number
+ * Append a message to a conversation, automatically linking to the previous message
  */
 export async function appendMessage(
   conversationId: string,
   role: MessageRole,
   content: string,
-  thinking?: string | null
+  options?: {
+    thinking?: string | null;
+    toolCalls?: ToolCall[] | null;
+    toolCallId?: string | null;
+  }
 ): Promise<Message> {
-  const sequenceNumber = await getNextSequenceNumber(conversationId);
+  // Get the last message to link to it
+  const lastMessage = await getLastMessage(conversationId);
+
   return createMessage({
     conversationId,
     role,
     content,
-    thinking,
-    sequenceNumber,
+    thinking: options?.thinking,
+    toolCalls: options?.toolCalls,
+    toolCallId: options?.toolCallId,
+    previousMessageId: lastMessage?.id ?? null,
   });
 }
 
@@ -108,8 +125,101 @@ export async function getLastMessage(
     .select()
     .from(messages)
     .where(eq(messages.conversationId, conversationId))
-    .orderBy(desc(messages.sequenceNumber))
+    .orderBy(desc(messages.createdAt))
     .limit(1);
 
   return result[0] ?? null;
+}
+
+/**
+ * Get the latest summary message in a conversation
+ */
+export async function getLatestSummary(
+  conversationId: string
+): Promise<Message | null> {
+  const result = await db
+    .select()
+    .from(messages)
+    .where(
+      and(
+        eq(messages.conversationId, conversationId),
+        eq(messages.role, 'summary')
+      )
+    )
+    .orderBy(desc(messages.createdAt))
+    .limit(1);
+
+  return result[0] ?? null;
+}
+
+/**
+ * Get conversation context with compaction awareness
+ * Returns: latest summary (if any) + all messages created after it
+ * If no summary exists, returns all messages
+ */
+export async function getConversationContext(
+  conversationId: string
+): Promise<Message[]> {
+  const latestSummary = await getLatestSummary(conversationId);
+
+  if (latestSummary) {
+    // Get messages created after the summary
+    const recentMessages = await db
+      .select()
+      .from(messages)
+      .where(
+        and(
+          eq(messages.conversationId, conversationId),
+          gt(messages.createdAt, latestSummary.createdAt)
+        )
+      )
+      .orderBy(asc(messages.createdAt));
+
+    return [latestSummary, ...recentMessages];
+  }
+
+  // No summary yet, return all messages
+  return getMessagesByConversationId(conversationId);
+}
+
+/**
+ * Add a tool result message to a conversation
+ * Links the result to the tool call via toolCallId
+ */
+export async function addToolResultMessage(
+  conversationId: string,
+  toolCallId: string,
+  content: string,
+  previousMessageId?: string
+): Promise<Message> {
+  // If no previousMessageId provided, get the last message
+  const prevId = previousMessageId ?? (await getLastMessage(conversationId))?.id ?? null;
+
+  return createMessage({
+    conversationId,
+    role: 'tool',
+    content,
+    toolCallId,
+    previousMessageId: prevId,
+  });
+}
+
+/**
+ * Add a summary message to a conversation (for compaction)
+ * The summary includes all context up to and including the previous message
+ */
+export async function addSummaryMessage(
+  conversationId: string,
+  summaryContent: string,
+  previousMessageId?: string
+): Promise<Message> {
+  // If no previousMessageId provided, get the last message
+  const prevId = previousMessageId ?? (await getLastMessage(conversationId))?.id ?? null;
+
+  return createMessage({
+    conversationId,
+    role: 'summary',
+    content: summaryContent,
+    previousMessageId: prevId,
+  });
 }
