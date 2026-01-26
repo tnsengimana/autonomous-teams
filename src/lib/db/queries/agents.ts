@@ -24,9 +24,9 @@ export async function getAgentsByTeamId(teamId: string): Promise<Agent[]> {
 }
 
 /**
- * Get the team lead for a team (agent with no parent)
+ * Get the lead for a team (agent with no parent)
  */
-export async function getTeamLead(teamId: string): Promise<Agent | null> {
+export async function getLead(teamId: string): Promise<Agent | null> {
   const result = await db
     .select()
     .from(agents)
@@ -37,10 +37,10 @@ export async function getTeamLead(teamId: string): Promise<Agent | null> {
 }
 
 /**
- * Get all active team leads (for worker runner)
- * Returns team leads for active teams regardless of agent status
+ * Get all active leads (for worker runner)
+ * Returns leads for active teams regardless of agent status
  */
-export async function getActiveTeamLeads(): Promise<Agent[]> {
+export async function getActiveLeads(): Promise<Agent[]> {
   return db
     .select({
       id: agents.id,
@@ -48,7 +48,7 @@ export async function getActiveTeamLeads(): Promise<Agent[]> {
       aideId: agents.aideId,
       parentAgentId: agents.parentAgentId,
       name: agents.name,
-      role: agents.role,
+      type: agents.type,
       systemPrompt: agents.systemPrompt,
       status: agents.status,
       leadNextRunAt: agents.leadNextRunAt,
@@ -92,13 +92,13 @@ export async function updateAgentStatus(
 }
 
 /**
- * Update agent details (name, role, systemPrompt)
+ * Update agent details (name, type, systemPrompt)
  */
 export async function updateAgent(
   agentId: string,
   data: {
     name?: string;
-    role?: string;
+    type?: string;
     systemPrompt?: string;
   }
 ): Promise<void> {
@@ -115,7 +115,7 @@ export async function createAgent(data: {
   teamId: string;
   parentAgentId?: string | null;
   name: string;
-  role: string;
+  type: string;
   systemPrompt?: string | null;
   status?: AgentStatus;
 }): Promise<Agent> {
@@ -125,7 +125,7 @@ export async function createAgent(data: {
       teamId: data.teamId,
       parentAgentId: data.parentAgentId ?? null,
       name: data.name,
-      role: data.role,
+      type: data.type,
       systemPrompt: data.systemPrompt ?? null,
       status: data.status ?? 'idle',
     })
@@ -219,10 +219,10 @@ export async function getAgentsWithPendingTasks(): Promise<string[]> {
 }
 
 /**
- * Get team lead agent IDs where leadNextRunAt <= now
- * Only includes team leads from active teams
+ * Get lead agent IDs where leadNextRunAt <= now
+ * Only includes leads from active teams
  */
-export async function getTeamLeadsDueToRun(): Promise<string[]> {
+export async function getLeadsDueToRun(): Promise<string[]> {
   const now = new Date();
   const result = await db
     .select({ id: agents.id })
@@ -230,7 +230,7 @@ export async function getTeamLeadsDueToRun(): Promise<string[]> {
     .innerJoin(teams, eq(agents.teamId, teams.id))
     .where(
       and(
-        isNull(agents.parentAgentId), // Team leads only
+        isNull(agents.parentAgentId), // Leads only
         eq(teams.status, 'active'),   // Active teams only
         lte(agents.leadNextRunAt, now),   // Due to run
         or(
@@ -254,7 +254,7 @@ export async function createAgentForAide(data: {
   aideId: string;
   parentAgentId: string | null;
   name: string;
-  role: string;
+  type: string;
   systemPrompt?: string | null;
   status?: AgentStatus;
 }): Promise<Agent> {
@@ -265,7 +265,7 @@ export async function createAgentForAide(data: {
       teamId: null, // Explicitly null for aide agents
       parentAgentId: data.parentAgentId,
       name: data.name,
-      role: data.role,
+      type: data.type,
       systemPrompt: data.systemPrompt ?? null,
       status: data.status ?? 'idle',
     })
@@ -293,7 +293,7 @@ export async function getActiveAideLeads(): Promise<Agent[]> {
       aideId: agents.aideId,
       parentAgentId: agents.parentAgentId,
       name: agents.name,
-      role: agents.role,
+      type: agents.type,
       systemPrompt: agents.systemPrompt,
       status: agents.status,
       leadNextRunAt: agents.leadNextRunAt,
@@ -344,7 +344,7 @@ export async function getAideLeadsDueToRun(): Promise<string[]> {
  */
 export async function getAllLeadsDueToRun(): Promise<string[]> {
   const [teamLeads, aideLeads] = await Promise.all([
-    getTeamLeadsDueToRun(),
+    getLeadsDueToRun(),
     getAideLeadsDueToRun(),
   ]);
   return [...teamLeads, ...aideLeads];
