@@ -57,6 +57,13 @@
       "when": 1769387109706,
       "tag": "0007_eager_squadron_supreme",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1769396293843,
+      "tag": "0008_boring_phalanx",
+      "breakpoints": true
     }
   ]
 }

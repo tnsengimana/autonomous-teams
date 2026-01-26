@@ -121,6 +121,7 @@ export const conversations = pgTable('conversations', {
   agentId: uuid('agent_id')
     .notNull()
     .references(() => agents.id, { onDelete: 'cascade' }),
+  mode: text('mode').notNull().default('foreground'), // 'foreground' | 'background'
   createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { mode: 'date' }).defaultNow().notNull(),
 });
@@ -130,10 +131,12 @@ export const messages = pgTable('messages', {
   conversationId: uuid('conversation_id')
     .notNull()
     .references(() => conversations.id, { onDelete: 'cascade' }),
-  role: text('role').notNull(), // 'user', 'assistant', 'system'
+  role: text('role').notNull(), // 'user' | 'assistant' | 'tool' | 'summary'
   content: text('content').notNull(),
   thinking: text('thinking'), // for extended thinking/reasoning
-  sequenceNumber: integer('sequence_number').notNull(),
+  toolCalls: jsonb('tool_calls'), // For assistant messages with tool calls
+  toolCallId: text('tool_call_id'), // For tool role - links result to call
+  previousMessageId: uuid('previous_message_id').references((): AnyPgColumn => messages.id), // Linked list for compaction
   createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
 });
 
@@ -189,40 +192,16 @@ export const agentTasks = pgTable('agent_tasks', {
 });
 
 // ============================================================================
-// Threads and Knowledge Items (Background Work)
+// Knowledge Items (Professional Knowledge)
 // ============================================================================
 
-// Threads - ephemeral work sessions
-export const threads = pgTable('threads', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  agentId: uuid('agent_id').notNull().references(() => agents.id, { onDelete: 'cascade' }),
-  status: text('status').notNull().default('active'), // 'active', 'completed', 'compacted'
-  createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
-  completedAt: timestamp('completed_at', { mode: 'date' }),
-}, (table) => [
-  index('threads_agent_id_idx').on(table.agentId),
-]);
-
-// Thread messages
-export const threadMessages = pgTable('thread_messages', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  threadId: uuid('thread_id').notNull().references(() => threads.id, { onDelete: 'cascade' }),
-  role: text('role').notNull(), // 'user' (agent as user), 'assistant' (LLM response), 'system'
-  content: text('content').notNull(),
-  toolCalls: jsonb('tool_calls'),
-  sequenceNumber: integer('sequence_number').notNull(),
-  createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
-}, (table) => [
-  index('thread_messages_thread_id_idx').on(table.threadId),
-]);
-
-// Knowledge Items - professional knowledge extracted from work threads
+// Knowledge Items - professional knowledge extracted from background conversations
 export const knowledgeItems = pgTable('knowledge_items', {
   id: uuid('id').primaryKey().defaultRandom(),
   agentId: uuid('agent_id').notNull().references(() => agents.id, { onDelete: 'cascade' }),
   type: text('type').notNull(), // 'fact', 'technique', 'pattern', 'lesson'
   content: text('content').notNull(),
-  sourceThreadId: uuid('source_thread_id').references(() => threads.id, { onDelete: 'set null' }),
+  sourceConversationId: uuid('source_conversation_id').references(() => conversations.id, { onDelete: 'set null' }),
   confidence: real('confidence'),
   createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
 }, (table) => [
@@ -294,7 +273,6 @@ export const agentsRelations = relations(agents, ({ one, many }) => ({
   delegatedTasks: many(agentTasks, {
     relationName: 'delegatedTasks',
   }),
-  threads: many(threads),
   knowledgeItems: many(knowledgeItems),
 }));
 
@@ -304,12 +282,21 @@ export const conversationsRelations = relations(conversations, ({ one, many }) =
     references: [agents.id],
   }),
   messages: many(messages),
+  knowledgeItems: many(knowledgeItems),
 }));
 
 export const messagesRelations = relations(messages, ({ one, many }) => ({
   conversation: one(conversations, {
     fields: [messages.conversationId],
     references: [conversations.id],
+  }),
+  previousMessage: one(messages, {
+    fields: [messages.previousMessageId],
+    references: [messages.id],
+    relationName: 'messageChain',
+  }),
+  nextMessages: many(messages, {
+    relationName: 'messageChain',
   }),
   sourceMemories: many(memories),
 }));
@@ -357,29 +344,13 @@ export const agentTasksRelations = relations(agentTasks, ({ one }) => ({
   }),
 }));
 
-export const threadsRelations = relations(threads, ({ one, many }) => ({
-  agent: one(agents, {
-    fields: [threads.agentId],
-    references: [agents.id],
-  }),
-  messages: many(threadMessages),
-  knowledgeItems: many(knowledgeItems),
-}));
-
-export const threadMessagesRelations = relations(threadMessages, ({ one }) => ({
-  thread: one(threads, {
-    fields: [threadMessages.threadId],
-    references: [threads.id],
-  }),
-}));
-
 export const knowledgeItemsRelations = relations(knowledgeItems, ({ one }) => ({
   agent: one(agents, {
     fields: [knowledgeItems.agentId],
     references: [agents.id],
   }),
-  sourceThread: one(threads, {
-    fields: [knowledgeItems.sourceThreadId],
-    references: [threads.id],
+  sourceConversation: one(conversations, {
+    fields: [knowledgeItems.sourceConversationId],
+    references: [conversations.id],
   }),
 }));
