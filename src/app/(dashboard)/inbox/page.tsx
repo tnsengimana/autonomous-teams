@@ -65,17 +65,11 @@ function InboxItemBadge({ type }: { type: string }) {
     "default" | "secondary" | "destructive" | "outline"
   > = {
     briefing: "default",
-    signal: "secondary",
-    alert: "destructive",
-    insight: "outline",
-    question: "outline",
+    feedback: "secondary",
   };
   const labels: Record<string, string> = {
     briefing: "Briefing",
-    signal: "Signal",
-    alert: "Alert",
-    insight: "Insight",
-    question: "Question",
+    feedback: "Feedback",
   };
   return (
     <Badge variant={variants[type] || "outline"}>
@@ -264,7 +258,7 @@ export default function InboxPage() {
             <div className="text-center text-muted-foreground">
               <p className="text-lg font-medium">Your inbox is empty</p>
               <p className="text-sm mt-2">
-                Your agents will send briefings, signals, and alerts here.
+                Your agents will send briefings and feedback here.
               </p>
             </div>
           </CardContent>
@@ -276,7 +270,7 @@ export default function InboxPage() {
             <CardHeader>
               <CardTitle>Messages</CardTitle>
               <CardDescription>
-                Briefings, signals, and alerts from your teams
+                Briefings and feedback from your teams
               </CardDescription>
             </CardHeader>
             <CardContent className="p-0">

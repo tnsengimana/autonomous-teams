@@ -11,7 +11,7 @@ import {
   type ToolContext,
   DelegateToAgentParamsSchema,
   CreateBriefingParamsSchema,
-  CreateInboxItemParamsSchema,
+  RequestUserInputParamsSchema,
 } from './index';
 import { createAgentTask } from '@/lib/db/queries/agentTasks';
 import { getChildAgents } from '@/lib/db/queries/agents';
@@ -278,26 +278,19 @@ const createBriefingTool: Tool = {
 };
 
 // ============================================================================
-// createInboxItem
+// requestUserInput
 // ============================================================================
 
-const createInboxItemTool: Tool = {
+const requestUserInputTool: Tool = {
   schema: {
-    name: 'createInboxItem',
+    name: 'requestUserInput',
     description:
-      "Push a notification to the user's inbox and add the full message to your conversation. The inbox shows a summary that links to the conversation where the user can reply.",
+      "Request feedback from the user by creating a concise inbox item and appending the full message to the foreground conversation.",
     parameters: [
-      {
-        name: 'type',
-        type: 'string',
-        description: 'The type of inbox item',
-        required: true,
-        enum: ['signal', 'alert'],
-      },
       {
         name: 'title',
         type: 'string',
-        description: 'A concise title for the inbox item',
+        description: 'A concise title for the feedback request',
         required: true,
       },
       {
@@ -316,7 +309,7 @@ const createInboxItemTool: Tool = {
   },
   handler: async (params, context): Promise<ToolResult> => {
     // Validate params
-    const parsed = CreateInboxItemParamsSchema.safeParse(params);
+    const parsed = RequestUserInputParamsSchema.safeParse(params);
     if (!parsed.success) {
       return {
         success: false,
@@ -324,7 +317,7 @@ const createInboxItemTool: Tool = {
       };
     }
 
-    const { type, title, summary, fullMessage } = parsed.data;
+    const { title, summary, fullMessage } = parsed.data;
 
     // Get the user ID for this team/aide
     const userId = await getOwnerUserId(context);
@@ -341,7 +334,7 @@ const createInboxItemTool: Tool = {
       .values({
         userId,
         agentId: context.agentId,
-        type,
+        type: 'feedback',
         title,
         content: summary,
       })
@@ -358,7 +351,7 @@ const createInboxItemTool: Tool = {
       success: true,
       data: {
         inboxItemId: result[0].id,
-        message: `Created ${type} notification and added message to conversation: ${title}`,
+        message: `Requested user feedback and added message to conversation: ${title}`,
       },
     };
   },
@@ -375,7 +368,7 @@ export function registerLeadTools(): void {
   registerTool(delegateToAgentTool);
   registerTool(getTeamStatusTool);
   registerTool(createBriefingTool);
-  registerTool(createInboxItemTool);
+  registerTool(requestUserInputTool);
 }
 
 // Export individual tools for testing
@@ -383,5 +376,5 @@ export {
   delegateToAgentTool,
   getTeamStatusTool,
   createBriefingTool,
-  createInboxItemTool,
+  requestUserInputTool,
 };

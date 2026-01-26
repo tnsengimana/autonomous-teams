@@ -57,6 +57,13 @@
       "when": 1769605000000,
       "tag": "0007_remove_inbox_owner_ids",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1769610000000,
+      "tag": "0008_inbox_item_feedback_type",
+      "breakpoints": true
     }
   ]
 }

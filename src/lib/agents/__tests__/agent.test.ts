@@ -554,6 +554,47 @@ describe('createBriefing tool', () => {
 });
 
 // ============================================================================
+// requestUserInput Tool Tests
+// ============================================================================
+
+describe('requestUserInput tool', () => {
+  test('creates feedback inbox item and appends foreground message', async () => {
+    const toolContext: ToolContext = {
+      agentId: testTeamLeadId,
+      teamId: testTeamId,
+      aideId: null,
+      isLead: true,
+    };
+
+    const fgConversation = await getOrCreateConversation(
+      testTeamLeadId,
+      'foreground'
+    );
+    const beforeMessages = await db.select().from(messages)
+      .where(eq(messages.conversationId, fgConversation.id));
+
+    const result = await executeTool('requestUserInput', {
+      title: 'Need your preference',
+      summary: 'Please confirm which option you prefer.',
+      fullMessage: 'I need your input on which option you prefer before proceeding.',
+    }, toolContext);
+
+    expect(result.success).toBe(true);
+    expect(result.data).toHaveProperty('inboxItemId');
+
+    const [inboxItem] = await db.select().from(inboxItems)
+      .where(eq(inboxItems.userId, testUserId));
+    expect(inboxItem).toBeDefined();
+    expect(inboxItem.type).toBe('feedback');
+    expect(inboxItem.briefingId).toBeNull();
+
+    const afterMessages = await db.select().from(messages)
+      .where(eq(messages.conversationId, fgConversation.id));
+    expect(afterMessages.length).toBe(beforeMessages.length + 1);
+  });
+});
+
+// ============================================================================
 // Knowledge Item Tools Tests
 // ============================================================================
 

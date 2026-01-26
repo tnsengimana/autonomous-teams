@@ -85,7 +85,8 @@ export function getLeadTools(): Tool[] {
     [
       "delegateToAgent",
       "getTeamStatus",
-      "createInboxItem",
+      "createBriefing",
+      "requestUserInput",
       "tavilySearch",
       "tavilyExtract",
       "tavilyResearch",
@@ -113,9 +114,9 @@ export function getForegroundTools(): Tool[] {
   const backgroundOnlyTools = [
     "delegateToAgent",
     "createBriefing",
-    "createInboxItem",
+    "requestUserInput",
     "reportToLead",
-    "requestLeadInputTool",
+    "requestLeadInput",
   ];
 
   return getAllTools().filter(
@@ -139,7 +140,7 @@ export function getBackgroundTools(isLead: boolean): Tool[] {
  */
 export function getSubordinateTools(): Tool[] {
   return getAllTools().filter((tool) =>
-    ["reportToLead", "requestLeadInputTool"].includes(tool.schema.name),
+    ["reportToLead", "requestLeadInput"].includes(tool.schema.name),
   );
 }
 
@@ -193,9 +194,8 @@ export const DelegateToAgentParamsSchema = z.object({
   task: z.string().min(1).describe("The task description"),
 });
 
-export const CreateInboxItemParamsSchema = z.object({
-  type: z.enum(["signal", "alert"]).describe("The type of inbox item"),
-  title: z.string().min(1).describe("The title of the inbox item"),
+export const RequestUserInputParamsSchema = z.object({
+  title: z.string().min(1).describe("A concise title for the feedback request"),
   summary: z
     .string()
     .min(1)
@@ -228,8 +228,10 @@ export const RequestLeadInputParamsSchema = z.object({
 });
 
 export type DelegateToAgentParams = z.infer<typeof DelegateToAgentParamsSchema>;
-export type CreateInboxItemParams = z.infer<typeof CreateInboxItemParamsSchema>;
 export type CreateBriefingParams = z.infer<typeof CreateBriefingParamsSchema>;
+export type RequestUserInputParams = z.infer<
+  typeof RequestUserInputParamsSchema
+>;
 export type ReportToLeadParams = z.infer<typeof ReportToLeadParamsSchema>;
 export type RequestLeadInputParams = z.infer<
   typeof RequestLeadInputParamsSchema

@@ -73,7 +73,7 @@ export default async function Home() {
                 <h3 className="mb-2 text-xl font-semibold">Get Proactive Insights</h3>
                 <p className="text-muted-foreground">
                   Your agents run continuously, extracting memories and delivering
-                  briefings, signals, and alerts to your inbox.
+                  briefings and feedback to your inbox.
                 </p>
               </div>
             </div>

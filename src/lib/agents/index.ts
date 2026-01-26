@@ -75,7 +75,7 @@ export {
   delegateToAgentTool,
   getTeamStatusTool,
   createBriefingTool,
-  createInboxItemTool,
+  requestUserInputTool,
 } from "./tools/lead-tools";
 
 // Subordinate tools

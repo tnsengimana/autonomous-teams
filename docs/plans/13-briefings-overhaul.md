@@ -29,14 +29,14 @@ Briefings today are created via `createInboxItem` and the full message is append
 2. **Tooling: createBriefing**
    - Add a `createBriefing` tool (likely in `src/lib/agents/tools/lead-tools.ts`) with params `{ title, summary, fullMessage }`.
    - Tool behavior: create `briefings` row + `inbox_items` row (type `briefing`, content = summary, briefingId set) in a single transaction. No foreground conversation writes.
-   - Update tool registry (`src/lib/agents/tools/index.ts`) to include `createBriefing` for leads; consider keeping `createInboxItem` for signals/alerts if still needed.
+   - Update tool registry (`src/lib/agents/tools/index.ts`) to include `createBriefing` and `requestUserInput` (feedback) for leads.
 
 3. **Briefing decision as a background conversation turn**
    - Replace `generateLLMObject` flow in `decideBriefing` with a tool-driven prompt using `streamLLMResponseWithTools`.
    - Build a dedicated prompt that:
      - Summarizes recent background work.
      - Includes recent briefings (e.g., last 5) to avoid repetition.
-     - Explicitly instructs the model to *avoid* briefings unless there is material progress, a significant insight, or a time-sensitive alert.
+    - Explicitly instructs the model to *avoid* briefings unless there is material progress or a significant insight the user should act on.
    - Append this turn to the background conversation (persist user + assistant/tool messages via `createTurnMessagesInTransaction`).
    - Update `runWorkSession` flow to call this briefing-decision turn **before** knowledge extraction, and only for leads.
 
@@ -52,4 +52,4 @@ Briefings today are created via `createInboxItem` and the full message is append
    - Ensure mock LLM behavior doesn’t accidentally create briefings unless explicitly intended.
 
 ## Open Questions
-- Do we need separate tools for `signal`/`alert` or should `createInboxItem` remain for non-briefing notifications?
+- None currently.

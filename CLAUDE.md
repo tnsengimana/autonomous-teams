@@ -66,7 +66,7 @@ The system separates user interactions (foreground) from agent work (background)
 - PostgreSQL with Drizzle ORM
 - Schema: users, teams, agents, conversations (with mode), messages (with toolCalls, previousMessageId), memories, knowledgeItems (with sourceConversationId), agentTasks, inboxItems
 - `drizzle.config.ts` points to `src/lib/db/schema.ts`
- - `inbox_items` stores `userId` and `agentId` only; owner (team/aide) is derived via the agent relation
+- `inbox_items` stores `userId` and `agentId` only; owner (team/aide) is derived via the agent relation; types are `briefing` or `feedback`
 
 **Background Worker** (`src/worker/runner.ts`)
 - Event-driven + timer-based execution:
@@ -97,8 +97,9 @@ The system separates user interactions (foreground) from agent work (background)
 4. Processes task with tools in background conversation
 5. After queue empty: lead appends a briefing-decision turn in the background conversation
 6. Lead only: may call `createBriefing` (writes `briefings` + inbox item; no foreground message)
-7. After briefing-decision turn: extracts knowledge from conversation
-8. Next run scheduled
+7. Leads can call `requestUserInput` to create a `feedback` inbox item and append the full message to the foreground conversation
+8. After briefing-decision turn: extracts knowledge from conversation
+9. Next run scheduled
 
 ### Key Patterns
 

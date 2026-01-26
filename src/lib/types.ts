@@ -119,7 +119,7 @@ export interface LLMResponse {
 // Inbox Types
 // ============================================================================
 
-export type InboxItemType = 'insight' | 'question' | 'alert' | 'briefing' | 'signal';
+export type InboxItemType = 'briefing' | 'feedback';
 
 export interface InboxItem {
   id: string;

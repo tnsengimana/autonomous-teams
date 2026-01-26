@@ -1,7 +1,7 @@
 /**
  * Inbox Items Database Queries
  *
- * CRUD operations for inbox items (briefings, signals, alerts).
+ * CRUD operations for inbox items (briefings and feedback).
  */
 
 import { eq, desc, and, isNull, count } from 'drizzle-orm';

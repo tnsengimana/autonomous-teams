@@ -182,7 +182,7 @@ export const inboxItems = pgTable('inbox_items', {
   briefingId: uuid('briefing_id').references(() => briefings.id, {
     onDelete: 'set null',
   }),
-  type: text('type').notNull(), // 'insight', 'question', 'alert', etc.
+  type: text('type').notNull(), // 'briefing' | 'feedback'
   title: text('title').notNull(),
   content: text('content').notNull(),
   readAt: timestamp('read_at', { mode: 'date' }),
