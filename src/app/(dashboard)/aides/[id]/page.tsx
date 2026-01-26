@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { auth } from "@/lib/auth/config";
 import { getAideWithAgents } from "@/lib/db/queries/aides";
+import { EntityActions } from "@/components/entity-actions";
 
 export default async function AideDetailPage({
   params,
@@ -53,23 +54,13 @@ export default async function AideDetailPage({
             <h1 className="text-3xl font-bold">{aide.name}</h1>
             <p className="text-muted-foreground">Personal AI assistant</p>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm">
-              Edit Aide
-            </Button>
-            {aide.status === "active" ? (
-              <Button variant="outline" size="sm">
-                Pause Aide
-              </Button>
-            ) : (
-              <Button variant="outline" size="sm">
-                Resume Aide
-              </Button>
-            )}
-            <Button variant="destructive" size="sm">
-              Delete Aide
-            </Button>
-          </div>
+          <EntityActions
+            entityType="aide"
+            entityId={aide.id}
+            entityName={aide.name}
+            currentStatus={aide.status as "active" | "paused" | "archived"}
+            backUrl="/aides"
+          />
         </div>
       </div>
 

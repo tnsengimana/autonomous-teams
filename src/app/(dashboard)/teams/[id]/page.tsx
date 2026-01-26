@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { auth } from "@/lib/auth/config";
 import { getTeamWithAgents } from "@/lib/db/queries/teams";
+import { EntityActions } from "@/components/entity-actions";
 
 export default async function TeamDetailPage({
   params,
@@ -56,23 +57,13 @@ export default async function TeamDetailPage({
             <h1 className="text-3xl font-bold">{team.name}</h1>
             <p className="text-muted-foreground">{description}</p>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm">
-              Edit Team
-            </Button>
-            {team.status === "active" ? (
-              <Button variant="outline" size="sm">
-                Pause Team
-              </Button>
-            ) : (
-              <Button variant="outline" size="sm">
-                Resume Team
-              </Button>
-            )}
-            <Button variant="destructive" size="sm">
-              Delete Team
-            </Button>
-          </div>
+          <EntityActions
+            entityType="team"
+            entityId={team.id}
+            entityName={team.name}
+            currentStatus={team.status as "active" | "paused" | "archived"}
+            backUrl="/teams"
+          />
         </div>
       </div>
 
