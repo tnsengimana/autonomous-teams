@@ -18,21 +18,21 @@ Agent work:   threads + threadMessages tables
 
 **New:**
 ```
-User ↔ Agent: conversations (type='foreground') + messages
-Agent work:   conversations (type='background') + messages
+User ↔ Agent: conversations (mode='foreground') + messages
+Agent work:   conversations (mode='background') + messages
 ```
 
 ---
 
 ## Database Schema Changes
 
-### 1. Conversations Table - Add Type
+### 1. Conversations Table - Add Mode
 
 ```typescript
 export const conversations = pgTable('conversations', {
   id: uuid('id').primaryKey().defaultRandom(),
   agentId: uuid('agent_id').notNull().references(() => agents.id, { onDelete: 'cascade' }),
-  type: text('type').notNull().default('foreground'), // 'foreground' | 'background'
+  mode: text('mode').notNull().default('foreground'), // 'foreground' | 'background'
   createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { mode: 'date' }).defaultNow().notNull(),
 });
@@ -49,7 +49,6 @@ export const messages = pgTable('messages', {
   toolCalls: jsonb('tool_calls'), // For assistant messages with tool calls
   toolCallId: text('tool_call_id'), // For tool role - links result to call
   previousMessageId: uuid('previous_message_id').references(() => messages.id), // Linked list for compaction
-  sequenceNumber: integer('sequence_number').notNull(),
   createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
 });
 ```
@@ -189,16 +188,16 @@ async function compactIfNeeded(conversationId: string, contextLimit: number = 50
 
 ---
 
-## Conversation Types
+## Conversation Modes
 
-### Foreground Conversation
+### Foreground Conversation (mode='foreground')
 
 - **Purpose:** User ↔ Agent chat
 - **Participants:** Human user (role='user'), Agent via LLM (role='assistant')
 - **Tools:** Available (Tavily, knowledge items, etc.)
 - **Created:** On first user interaction with agent
 
-### Background Conversation
+### Background Conversation (mode='background')
 
 - **Purpose:** Agent work sessions
 - **Participants:** Agent as requester (role='user'), LLM as worker (role='assistant')
@@ -262,19 +261,18 @@ Inbox:
 
 ### Phase 1: Schema Migration
 
-1. Add `type` field to `conversations` table
+1. Add `mode` field to `conversations` table
 2. Add `toolCalls`, `toolCallId`, `previousMessageId` fields to `messages` table
-3. Update `role` type to include `'tool' | 'summary'`
+3. Update `role` to include `'tool' | 'summary'` and remove `'system'`
 4. Remove `threads` and `threadMessages` tables
 5. Clear existing data (fresh start)
 
 ### Phase 2: Conversation Queries
 
-1. Create `ensureBackgroundConversation(agentId)` - get or create background conversation
-2. Update `ensureConversation(agentId)` to be `ensureForegroundConversation(agentId)`
-3. Create `getConversationContext(conversationId)` - load context with compaction awareness
-4. Create `addToolResultMessage(conversationId, toolCallId, result)`
-5. Update `addAssistantMessage` to support `toolCalls` parameter
+1. Update `ensureConversation(agentId)` to accept `mode` parameter: `ensureConversation(agentId, mode)`
+2. Create `getConversationContext(conversationId)` - load context with compaction awareness
+3. Create `addToolResultMessage(conversationId, toolCallId, result)`
+4. Update `addAssistantMessage` to support `toolCalls` parameter
 
 ### Phase 3: Compaction System
 
@@ -316,7 +314,7 @@ Inbox:
 
 | File | Changes |
 |------|---------|
-| `src/lib/db/schema.ts` | Add conversation type, message fields, remove threads |
+| `src/lib/db/schema.ts` | Add conversation mode, message fields, remove threads |
 | `src/lib/db/queries/conversations.ts` | Add background conversation queries |
 | `src/lib/db/queries/messages.ts` | Add tool message, context loading, compaction |
 | `src/lib/agents/agent.ts` | Replace thread methods with conversation methods |
