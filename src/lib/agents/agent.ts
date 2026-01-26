@@ -1,14 +1,14 @@
-import { eq } from 'drizzle-orm';
-import { getAgentById, updateAgentStatus } from '@/lib/db/queries/agents';
-import { getMemoriesByAgentId } from '@/lib/db/queries/memories';
-import { getOrCreateConversation } from '@/lib/db/queries/conversations';
+import { eq } from "drizzle-orm";
+import { getAgentById, updateAgentStatus } from "@/lib/db/queries/agents";
+import { getMemoriesByAgentId } from "@/lib/db/queries/memories";
+import { getOrCreateConversation } from "@/lib/db/queries/conversations";
 import {
   getConversationContext,
   createTurnMessages,
   createTurnMessagesInTransaction,
-} from '@/lib/db/queries/messages';
-import { db } from '@/lib/db/client';
-import { agentTasks } from '@/lib/db/schema';
+} from "@/lib/db/queries/messages";
+import { db } from "@/lib/db/client";
+import { agentTasks } from "@/lib/db/schema";
 import {
   getActiveConversation,
   buildMessageContext,
@@ -16,31 +16,28 @@ import {
   trimMessagesToTokenBudget,
   loadConversationHistory,
   messagesToLLMFormat,
-} from './conversation';
+} from "./conversation";
 import {
   streamLLMResponse,
   streamLLMResponseWithTools,
   generateLLMResponse,
   generateLLMObject,
   type StreamOptions,
-} from './llm';
+} from "./llm";
 import {
   getBackgroundTools,
   getForegroundTools,
   type ToolContext,
-} from './tools';
-import {
-  extractAndPersistMemories,
-  buildMemoryContextBlock,
-} from './memory';
+} from "./tools";
+import { extractAndPersistMemories, buildMemoryContextBlock } from "./memory";
 import {
   extractKnowledgeFromMessages,
   buildKnowledgeContextBlock,
   loadKnowledge,
-} from './knowledge-items';
-import { compactIfNeeded } from './compaction';
-import { queueUserTask, claimNextTask, getQueueStatus } from './taskQueue';
-import { clearAgentBackoff, setAgentBackoff } from '@/lib/db/queries/agents';
+} from "./knowledge-items";
+import { compactIfNeeded } from "./compaction";
+import { queueUserTask, claimNextTask, getQueueStatus } from "./taskQueue";
+import { clearAgentBackoff, setAgentBackoff } from "@/lib/db/queries/agents";
 import type {
   Agent as AgentData,
   AgentTask,
@@ -49,8 +46,8 @@ import type {
   Conversation,
   Message,
   LLMMessage,
-} from '@/lib/types';
-import { z } from 'zod';
+} from "@/lib/types";
+import { z } from "zod";
 
 // ============================================================================
 // Agent Configuration
@@ -68,11 +65,11 @@ const LEAD_NEXT_RUN_HOURS = 24; // 1 day
 // ============================================================================
 
 const UserIntentSchema = z.object({
-  intent: z.enum(['work_request', 'regular_chat']),
-  reasoning: z.string().describe('Brief explanation of classification'),
+  intent: z.enum(["work_request", "regular_chat"]),
+  reasoning: z.string().describe("Brief explanation of classification"),
 });
 
-type UserIntent = 'work_request' | 'regular_chat';
+type UserIntent = "work_request" | "regular_chat";
 
 // ============================================================================
 // Agent Class
@@ -122,7 +119,7 @@ export class Agent {
    */
   static async fromId(
     agentId: string,
-    llmOptions: StreamOptions = {}
+    llmOptions: StreamOptions = {},
   ): Promise<Agent | null> {
     const data = await getAgentById(agentId);
     if (!data) {
@@ -266,7 +263,7 @@ Do NOT automatically queue background work - let the user decide if they want de
    * Build the complete context for an LLM call
    */
   async buildContext(
-    maxTokens: number = DEFAULT_MAX_CONTEXT_TOKENS
+    maxTokens: number = DEFAULT_MAX_CONTEXT_TOKENS,
   ): Promise<LLMMessage[]> {
     const conversation = await this.ensureConversation();
     const messages = await buildMessageContext(conversation.id);
@@ -293,10 +290,10 @@ Do NOT automatically queue background work - let the user decide if they want de
   Examples: "Hi", "Thanks!", "What do you think about tech stocks?", "What's TSLA at?"`;
 
     const result = await generateLLMObject(
-      [{ role: 'user', content: prompt }],
+      [{ role: "user", content: prompt }],
       UserIntentSchema,
-      'Classify user intent',
-      { ...this.llmOptions, maxOutputTokens: 100, temperature: 0 }
+      "Classify user intent",
+      { ...this.llmOptions, temperature: 0 },
     );
 
     return result.intent;
@@ -318,9 +315,9 @@ Examples:
 - "I'll analyze your portfolio performance. You'll get a notification in your inbox once I'm done."`;
 
     const response = await generateLLMResponse(
-      [{ role: 'user', content: prompt }],
+      [{ role: "user", content: prompt }],
       this.buildSystemPrompt(),
-      { ...this.llmOptions, maxOutputTokens: 100, temperature: 0.7 }
+      { ...this.llmOptions, maxOutputTokens: 100, temperature: 0.7 },
     );
 
     return response.content;
@@ -331,14 +328,17 @@ Examples:
    */
   private async generateChatResponse(
     content: string,
-    conversation: Conversation
+    conversation: Conversation,
   ): Promise<string> {
     // Load conversation history
     const history = await loadConversationHistory(conversation.id);
     const messages = messagesToLLMFormat(history);
 
     // Add the current user message
-    const messagesWithNew: LLMMessage[] = [...messages, { role: 'user', content }];
+    const messagesWithNew: LLMMessage[] = [
+      ...messages,
+      { role: "user", content },
+    ];
 
     const systemPrompt = this.buildForegroundSystemPrompt();
     const tools = getForegroundTools();
@@ -358,7 +358,7 @@ Examples:
         toolContext,
         maxSteps: 5,
         maxOutputTokens: DEFAULT_MAX_RESPONSE_TOKENS,
-      }
+      },
     );
 
     // Consume the stream and get full response
@@ -392,7 +392,7 @@ Examples:
 
     let response: string;
 
-    if (intent === 'work_request') {
+    if (intent === "work_request") {
       // 4a. Work request: Quick ack + queue task
       response = await this.generateWorkAcknowledgment(content);
     } else {
@@ -404,12 +404,12 @@ Examples:
     // 5. Persist full turn atomically
     const { assistantMessage } = await createTurnMessages(
       conversation.id,
-      { role: 'user', content },
-      { role: 'assistant', content: response }
+      { role: "user", content },
+      { role: "assistant", content: response },
     );
 
     // 6. Queue background task only after persistence succeeds
-    if (intent === 'work_request') {
+    if (intent === "work_request") {
       await queueUserTask(this.id, this.getOwnerInfo(), content);
     }
 
@@ -424,9 +424,9 @@ Examples:
    * Helper to stream a pre-generated response (for API compatibility)
    */
   private async *streamResponse(response: string): AsyncGenerator<string> {
-    const words = response.split(' ');
+    const words = response.split(" ");
     for (const word of words) {
-      yield word + ' ';
+      yield word + " ";
       await new Promise((resolve) => setTimeout(resolve, 20));
     }
   }
@@ -458,17 +458,20 @@ Examples:
     }
 
     console.log(
-      `[Agent ${this.name}] Starting work session with ${queueStatus.pendingCount} pending tasks`
+      `[Agent ${this.name}] Starting work session with ${queueStatus.pendingCount} pending tasks`,
     );
 
-    await this.setStatus('running');
+    await this.setStatus("running");
 
     let processedAnyTasks = false;
     let encounteredFailure = false;
 
     try {
       // 1. Get or create background conversation for this agent
-      const backgroundConversation = await getOrCreateConversation(this.id, 'background');
+      const backgroundConversation = await getOrCreateConversation(
+        this.id,
+        "background",
+      );
       const conversationId = backgroundConversation.id;
 
       // 2. Load KNOWLEDGE for work context (not memories)
@@ -484,13 +487,10 @@ Examples:
           processedAnyTasks = true;
           await clearAgentBackoff(this.id);
           console.log(
-            `[Agent ${this.name}] Task ${task.id} completed: ${result.slice(0, 100)}...`
+            `[Agent ${this.name}] Task ${task.id} completed: ${result.slice(0, 100)}...`,
           );
         } catch (error) {
-          console.error(
-            `[Agent ${this.name}] Task ${task.id} failed:`,
-            error
-          );
+          console.error(`[Agent ${this.name}] Task ${task.id} failed:`, error);
           await this.scheduleBackoff();
           encounteredFailure = true;
           break;
@@ -501,26 +501,30 @@ Examples:
       }
 
       if (!processedAnyTasks) {
-        console.log(`[Agent ${this.name}] No tasks processed, skipping wrap-up`);
+        console.log(
+          `[Agent ${this.name}] No tasks processed, skipping wrap-up`,
+        );
         return;
       }
 
       if (encounteredFailure) {
         console.log(
-          `[Agent ${this.name}] Task failed; backoff scheduled, leaving remaining tasks pending`
+          `[Agent ${this.name}] Task failed; backoff scheduled, leaving remaining tasks pending`,
         );
       } else {
-        console.log(`[Agent ${this.name}] All tasks processed, wrapping up session`);
+        console.log(
+          `[Agent ${this.name}] All tasks processed, wrapping up session`,
+        );
       }
 
       // Extract knowledge from background conversation
       const conversationMessages = await getConversationContext(conversationId);
       const newKnowledge = await this.extractKnowledgeFromConversation(
         conversationId,
-        conversationMessages
+        conversationMessages,
       );
       console.log(
-        `[Agent ${this.name}] Extracted ${newKnowledge.length} knowledge items from session`
+        `[Agent ${this.name}] Extracted ${newKnowledge.length} knowledge items from session`,
       );
 
       // No session to end - conversation persists across sessions
@@ -537,7 +541,7 @@ Examples:
     } catch (error) {
       console.error(`[Agent ${this.name}] Work session failed:`, error);
     } finally {
-      await this.setStatus('idle');
+      await this.setStatus("idle");
     }
   }
 
@@ -553,7 +557,7 @@ Examples:
     const systemPrompt = this.buildBackgroundSystemPrompt();
     const contextWithTask: LLMMessage[] = [
       ...this.messagesToLLMFormat(contextMessages),
-      { role: 'user', content: taskMessage },
+      { role: "user", content: taskMessage },
     ];
 
     // 3. Get tools for background work
@@ -575,7 +579,7 @@ Examples:
         toolContext,
         maxSteps: 10, // Allow multiple tool calls
         maxOutputTokens: DEFAULT_MAX_RESPONSE_TOKENS,
-      }
+      },
     );
 
     // 5. Consume stream and get response
@@ -586,13 +590,13 @@ Examples:
       await createTurnMessagesInTransaction(
         tx,
         conversationId,
-        { role: 'user', content: taskMessage },
-        { role: 'assistant', content: fullResponse.text }
+        { role: "user", content: taskMessage },
+        { role: "assistant", content: fullResponse.text },
       );
       await tx
         .update(agentTasks)
         .set({
-          status: 'completed',
+          status: "completed",
           result: fullResponse.text,
           completedAt: new Date(),
         })
@@ -600,7 +604,11 @@ Examples:
     });
 
     // 7. Check if should compact conversation
-    await compactIfNeeded(conversationId, MAX_MESSAGES_BEFORE_COMPACT, this.llmOptions);
+    await compactIfNeeded(
+      conversationId,
+      MAX_MESSAGES_BEFORE_COMPACT,
+      this.llmOptions,
+    );
 
     return fullResponse.text;
   }
@@ -628,7 +636,7 @@ Examples:
     await setAgentBackoff(this.id, nextAttempt, nextRun);
 
     console.log(
-      `[Agent ${this.name}] Backing off until ${nextRun.toISOString()} (attempt ${nextAttempt})`
+      `[Agent ${this.name}] Backing off until ${nextRun.toISOString()} (attempt ${nextAttempt})`,
     );
   }
 
@@ -646,16 +654,16 @@ Examples:
   /**
    * Map database message roles to LLM roles
    */
-  private mapRoleToLLMRole(role: string): 'user' | 'assistant' | 'system' {
+  private mapRoleToLLMRole(role: string): "user" | "assistant" | "system" {
     switch (role) {
-      case 'user':
-        return 'user';
-      case 'assistant':
-      case 'summary':
-      case 'tool':
-        return 'assistant';
+      case "user":
+        return "user";
+      case "assistant":
+      case "summary":
+      case "tool":
+        return "assistant";
       default:
-        return 'assistant';
+        return "assistant";
     }
   }
 
@@ -664,7 +672,7 @@ Examples:
    */
   private async extractKnowledgeFromConversation(
     conversationId: string,
-    messages: Message[]
+    messages: Message[],
   ): Promise<KnowledgeItem[]> {
     if (messages.length === 0) {
       return [];
@@ -674,7 +682,7 @@ Examples:
     const extractedKnowledge = await extractKnowledgeFromMessages(
       messages,
       this.type,
-      this.llmOptions
+      this.llmOptions,
     );
 
     if (extractedKnowledge.length === 0) {
@@ -682,15 +690,16 @@ Examples:
     }
 
     // Persist knowledge items to database
-    const { createKnowledgeItem } = await import('@/lib/db/queries/knowledge-items');
+    const { createKnowledgeItem } =
+      await import("@/lib/db/queries/knowledge-items");
     const persistedKnowledgeItems: KnowledgeItem[] = [];
     for (const item of extractedKnowledge) {
       const persisted = await createKnowledgeItem(
         this.id,
-        item.type as 'fact' | 'technique' | 'pattern' | 'lesson',
+        item.type as "fact" | "technique" | "pattern" | "lesson",
         item.content,
         conversationId, // Pass conversationId as sourceThreadId (will be renamed in Phase 7)
-        item.confidence
+        item.confidence,
       );
       persistedKnowledgeItems.push(persisted);
     }
@@ -714,23 +723,29 @@ Examples:
 
     // Build summary of work done
     const workSummary = messages
-      .filter((m) => m.role === 'assistant')
+      .filter((m) => m.role === "assistant")
       .map((m) => m.content)
-      .join('\n\n')
+      .join("\n\n")
       .slice(0, 2000); // Limit context size
 
     // Schema for briefing decision
     const BriefingDecisionSchema = z.object({
       shouldBrief: z
         .boolean()
-        .describe('Whether this work warrants notifying the user'),
-      reason: z.string().describe('Brief reason for the decision'),
-      title: z.string().optional().describe('Title for the briefing if shouldBrief is true'),
-      summary: z.string().optional().describe('Summary for inbox if shouldBrief is true'),
+        .describe("Whether this work warrants notifying the user"),
+      reason: z.string().describe("Brief reason for the decision"),
+      title: z
+        .string()
+        .optional()
+        .describe("Title for the briefing if shouldBrief is true"),
+      summary: z
+        .string()
+        .optional()
+        .describe("Summary for inbox if shouldBrief is true"),
       fullMessage: z
         .string()
         .optional()
-        .describe('Full briefing message if shouldBrief is true'),
+        .describe("Full briefing message if shouldBrief is true"),
     });
 
     // Ask LLM to decide
@@ -752,25 +767,32 @@ If briefing is warranted, provide:
 
     try {
       const decision = await generateLLMObject(
-        [{ role: 'user', content: decisionPrompt }],
+        [{ role: "user", content: decisionPrompt }],
         BriefingDecisionSchema,
-        'You are a thoughtful assistant deciding what warrants user attention.',
+        "You are a thoughtful assistant deciding what warrants user attention.",
         {
           ...this.llmOptions,
-          temperature: 0.3,
-        }
+          temperature: 0,
+        },
       );
 
-      if (decision.shouldBrief && decision.title && decision.summary && decision.fullMessage) {
-        console.log(`[Agent ${this.name}] Creating briefing: ${decision.title}`);
+      if (
+        decision.shouldBrief &&
+        decision.title &&
+        decision.summary &&
+        decision.fullMessage
+      ) {
+        console.log(
+          `[Agent ${this.name}] Creating briefing: ${decision.title}`,
+        );
 
         // Get user ID based on owner type
         let userId: string | null = null;
         if (this.teamId) {
-          const { getTeamUserId } = await import('@/lib/db/queries/teams');
+          const { getTeamUserId } = await import("@/lib/db/queries/teams");
           userId = await getTeamUserId(this.teamId);
         } else if (this.aideId) {
-          const { getAideUserId } = await import('@/lib/db/queries/aides');
+          const { getAideUserId } = await import("@/lib/db/queries/aides");
           userId = await getAideUserId(this.aideId);
         }
 
@@ -780,13 +802,13 @@ If briefing is warranted, provide:
         }
 
         // Create inbox item with appropriate owner
-        const { createInboxItem } = await import('@/lib/db/queries/inboxItems');
+        const { createInboxItem } = await import("@/lib/db/queries/inboxItems");
         const ownerInfo = this.getOwnerInfo();
         await createInboxItem({
           userId,
           ...ownerInfo,
           agentId: this.id,
-          type: 'briefing',
+          type: "briefing",
           title: decision.title,
           content: decision.summary,
         });
@@ -798,7 +820,7 @@ If briefing is warranted, provide:
         console.log(`[Agent ${this.name}] Briefing sent successfully`);
       } else {
         console.log(
-          `[Agent ${this.name}] No briefing needed: ${decision.reason}`
+          `[Agent ${this.name}] No briefing needed: ${decision.reason}`,
         );
       }
     } catch (error) {
@@ -810,10 +832,13 @@ If briefing is warranted, provide:
    * Schedule the next work session run (for leads only)
    */
   private async scheduleNextRun(hours: number): Promise<void> {
-    const { updateAgentLeadNextRunAt } = await import('@/lib/db/queries/agents');
+    const { updateAgentLeadNextRunAt } =
+      await import("@/lib/db/queries/agents");
     const nextRun = new Date(Date.now() + hours * 60 * 60 * 1000);
     await updateAgentLeadNextRunAt(this.id, nextRun);
-    console.log(`[Agent ${this.name}] Next run scheduled for ${nextRun.toISOString()}`);
+    console.log(
+      `[Agent ${this.name}] Next run scheduled for ${nextRun.toISOString()}`,
+    );
   }
 
   // ============================================================================
@@ -838,7 +863,7 @@ If briefing is warranted, provide:
     // Add the new user message to context
     const messagesWithNew: LLMMessage[] = [
       ...context,
-      { role: 'user', content },
+      { role: "user", content },
     ];
 
     // Stream response from LLM
@@ -848,14 +873,14 @@ If briefing is warranted, provide:
       {
         ...this.llmOptions,
         maxOutputTokens: DEFAULT_MAX_RESPONSE_TOKENS,
-      }
+      },
     );
 
     // Create a wrapper that collects the full response for memory extraction
     // Use arrow function to preserve 'this' context
     const extractMemories = this.extractMemoriesInBackground.bind(this);
     const wrappedStream = async function* (): AsyncGenerator<string> {
-      let fullResponse = '';
+      let fullResponse = "";
 
       for await (const chunk of responseStream) {
         fullResponse += chunk;
@@ -865,8 +890,8 @@ If briefing is warranted, provide:
       // After streaming completes, persist the full turn and extract memories
       const { assistantMessage } = await createTurnMessages(
         conversation.id,
-        { role: 'user', content },
-        { role: 'assistant', content: fullResponse }
+        { role: "user", content },
+        { role: "assistant", content: fullResponse },
       );
 
       // Extract and persist memories (async, don't block)
@@ -883,7 +908,7 @@ If briefing is warranted, provide:
    */
   async handleMessageSync(content: string): Promise<string> {
     const stream = await this.handleMessage(content);
-    let fullResponse = '';
+    let fullResponse = "";
 
     for await (const chunk of stream) {
       fullResponse += chunk;
@@ -898,7 +923,7 @@ If briefing is warranted, provide:
   private extractMemoriesInBackground(
     userMessage: string,
     assistantResponse: string,
-    sourceMessageId: string
+    sourceMessageId: string,
   ): void {
     extractAndPersistMemories(
       this.id,
@@ -906,7 +931,7 @@ If briefing is warranted, provide:
       assistantResponse,
       this.type,
       sourceMessageId,
-      this.llmOptions
+      this.llmOptions,
     ).catch((error) => {
       console.error(`Memory extraction failed for agent ${this.id}:`, error);
     });
@@ -919,7 +944,7 @@ If briefing is warranted, provide:
   /**
    * Update this agent's status in the database
    */
-  async setStatus(status: 'idle' | 'running' | 'paused'): Promise<void> {
+  async setStatus(status: "idle" | "running" | "paused"): Promise<void> {
     await updateAgentStatus(this.id, status);
   }
 }
@@ -933,7 +958,7 @@ If briefing is warranted, provide:
  */
 export async function createAgent(
   agentId: string,
-  llmOptions: StreamOptions = {}
+  llmOptions: StreamOptions = {},
 ): Promise<Agent | null> {
   return Agent.fromId(agentId, llmOptions);
 }
@@ -943,7 +968,7 @@ export async function createAgent(
  */
 export function createAgentFromData(
   data: AgentData,
-  llmOptions: StreamOptions = {}
+  llmOptions: StreamOptions = {},
 ): Agent {
   return new Agent(data, llmOptions);
 }
