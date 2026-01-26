@@ -1,37 +1,43 @@
-import { createOpenAI } from '@ai-sdk/openai';
-import { createAnthropic } from '@ai-sdk/anthropic';
-import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import { streamText, generateText, generateObject, stepCountIs, type Tool as AITool } from 'ai';
-import { z } from 'zod';
+import { createOpenAI } from "@ai-sdk/openai";
+import { createAnthropic } from "@ai-sdk/anthropic";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import {
+  streamText,
+  generateText,
+  generateObject,
+  stepCountIs,
+  type Tool as AITool,
+} from "ai";
+import { z } from "zod";
 import {
   getUserApiKeyForProvider,
   decryptApiKey,
-} from '@/lib/db/queries/userApiKeys';
-import { getTeamUserId } from '@/lib/db/queries/teams';
-import type { LLMProvider, LLMMessage } from '@/lib/types';
+} from "@/lib/db/queries/userApiKeys";
+import { getTeamUserId } from "@/lib/db/queries/teams";
+import type { LLMProvider, LLMMessage } from "@/lib/types";
 import {
   type Tool,
   type ToolContext,
   type ToolParameter,
   executeTool,
-} from '@/lib/agents/tools';
+} from "@/lib/agents/tools";
 
 // ============================================================================
 // Configuration
 // ============================================================================
 
 const DEFAULT_MODEL = {
-  openai: 'gpt-4o',
-  anthropic: 'claude-sonnet-4-20250514',
-  google: 'gemini-3-flash-preview',  // Using flash as default since pro has reliability issues
+  openai: "gpt-4o",
+  anthropic: "claude-sonnet-4-20250514",
+  google: "gemini-3-flash-preview", // Using flash as default since pro has reliability issues
 } as const;
 
 const FALLBACK_MODEL = {
-  google: 'gemini-3-pro-preview',  // Pro as fallback when flash fails
+  google: "gemini-3-pro-preview", // Pro as fallback when flash fails
 } as const;
 
 // Check mock mode dynamically to support testing
-const isMockEnabled = () => process.env.MOCK_LLM === 'true';
+const isMockEnabled = () => process.env.MOCK_LLM === "true";
 
 // ============================================================================
 // Provider Creation
@@ -42,7 +48,7 @@ const isMockEnabled = () => process.env.MOCK_LLM === 'true';
  */
 async function getApiKey(
   provider: LLMProvider,
-  userId?: string
+  userId?: string,
 ): Promise<string | null> {
   // First try user's API key if userId is provided
   if (userId) {
@@ -53,13 +59,13 @@ async function getApiKey(
   }
 
   // Fall back to environment variables
-  if (provider === 'openai') {
+  if (provider === "openai") {
     return process.env.OPENAI_API_KEY ?? null;
   }
-  if (provider === 'anthropic') {
+  if (provider === "anthropic") {
     return process.env.ANTHROPIC_API_KEY ?? null;
   }
-  if (provider === 'google') {
+  if (provider === "google") {
     return process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY ?? null;
   }
 
@@ -70,9 +76,9 @@ async function getApiKey(
  * Create an OpenAI provider instance
  */
 async function createOpenAIProvider(userId?: string) {
-  const apiKey = await getApiKey('openai', userId);
+  const apiKey = await getApiKey("openai", userId);
   if (!apiKey) {
-    throw new Error('No OpenAI API key available');
+    throw new Error("No OpenAI API key available");
   }
   return createOpenAI({ apiKey });
 }
@@ -81,9 +87,9 @@ async function createOpenAIProvider(userId?: string) {
  * Create an Anthropic provider instance
  */
 async function createAnthropicProvider(userId?: string) {
-  const apiKey = await getApiKey('anthropic', userId);
+  const apiKey = await getApiKey("anthropic", userId);
   if (!apiKey) {
-    throw new Error('No Anthropic API key available');
+    throw new Error("No Anthropic API key available");
   }
   return createAnthropic({ apiKey });
 }
@@ -92,9 +98,9 @@ async function createAnthropicProvider(userId?: string) {
  * Create a Google (Gemini) provider instance
  */
 async function createGoogleProvider(userId?: string) {
-  const apiKey = await getApiKey('google', userId);
+  const apiKey = await getApiKey("google", userId);
   if (!apiKey) {
-    throw new Error('No Google/Gemini API key available');
+    throw new Error("No Google/Gemini API key available");
   }
   return createGoogleGenerativeAI({ apiKey });
 }
@@ -117,9 +123,9 @@ function getMockResponse(): string {
 
 async function* mockStreamResponse(): AsyncGenerator<string> {
   const response = getMockResponse();
-  const words = response.split(' ');
+  const words = response.split(" ");
   for (const word of words) {
-    yield word + ' ';
+    yield word + " ";
     // Simulate network delay
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
@@ -175,7 +181,7 @@ function parameterTypeToZod(param: ToolParameter): z.ZodTypeAny {
   let schema: z.ZodTypeAny;
 
   switch (param.type) {
-    case 'string':
+    case "string":
       if (param.enum && param.enum.length > 0) {
         // Create enum schema for parameters with enum values
         schema = z.enum(param.enum as [string, ...string[]]);
@@ -183,16 +189,16 @@ function parameterTypeToZod(param: ToolParameter): z.ZodTypeAny {
         schema = z.string();
       }
       break;
-    case 'number':
+    case "number":
       schema = z.number();
       break;
-    case 'boolean':
+    case "boolean":
       schema = z.boolean();
       break;
-    case 'object':
+    case "object":
       schema = z.record(z.string(), z.unknown());
       break;
-    case 'array':
+    case "array":
       schema = z.array(z.unknown());
       break;
     default:
@@ -220,9 +226,12 @@ function parameterTypeToZod(param: ToolParameter): z.ZodTypeAny {
  */
 function convertToolsToVercelFormat(
   tools: Tool[],
-  toolContext: ToolContext
+  toolContext: ToolContext,
 ): Record<string, AITool<Record<string, unknown>, unknown>> {
-  const vercelTools: Record<string, AITool<Record<string, unknown>, unknown>> = {};
+  const vercelTools: Record<
+    string,
+    AITool<Record<string, unknown>, unknown>
+  > = {};
 
   for (const tool of tools) {
     const { schema } = tool;
@@ -241,13 +250,19 @@ function convertToolsToVercelFormat(
       description: schema.description,
       inputSchema: parametersSchema,
       execute: async (args: Record<string, unknown>) => {
-        console.log(`[Tool] Executing ${schema.name} with args:`, JSON.stringify(args));
+        console.log(
+          `[Tool] Executing ${schema.name} with args:`,
+          JSON.stringify(args),
+        );
         const result = await executeTool(schema.name, args, toolContext);
-        console.log(`[Tool] ${schema.name} result:`, result.success ? 'success' : `failed: ${result.error}`);
+        console.log(
+          `[Tool] ${schema.name} result:`,
+          result.success ? "success" : `failed: ${result.error}`,
+        );
         // Return just the data on success, or throw on failure
         // so the LLM can see tool errors and potentially retry
         if (!result.success) {
-          throw new Error(result.error || 'Tool execution failed');
+          throw new Error(result.error || "Tool execution failed");
         }
         return result.data;
       },
@@ -263,7 +278,7 @@ function convertToolsToVercelFormat(
 export async function streamLLMResponse(
   messages: LLMMessage[],
   systemPrompt?: string,
-  options: StreamOptions = {}
+  options: StreamOptions = {},
 ): Promise<AsyncIterable<string>> {
   // Mock mode for development
   if (isMockEnabled()) {
@@ -275,7 +290,9 @@ export async function streamLLMResponse(
   if (!provider) {
     provider = await getDefaultProvider(options.userId);
     if (!provider) {
-      throw new Error('No LLM provider available. Please configure an API key.');
+      throw new Error(
+        "No LLM provider available. Please configure an API key.",
+      );
     }
   }
 
@@ -287,7 +304,7 @@ export async function streamLLMResponse(
 
   const model = options.model ?? DEFAULT_MODEL[provider];
 
-  if (provider === 'openai') {
+  if (provider === "openai") {
     const openai = await createOpenAIProvider(userId);
     const result = streamText({
       model: openai(model),
@@ -300,7 +317,7 @@ export async function streamLLMResponse(
     return result.textStream;
   }
 
-  if (provider === 'anthropic') {
+  if (provider === "anthropic") {
     const anthropic = await createAnthropicProvider(userId);
     const result = streamText({
       model: anthropic(model),
@@ -313,7 +330,7 @@ export async function streamLLMResponse(
     return result.textStream;
   }
 
-  if (provider === 'google') {
+  if (provider === "google") {
     const google = await createGoogleProvider(userId);
     const result = streamText({
       model: google(model),
@@ -345,7 +362,7 @@ export async function streamLLMResponse(
 export async function streamLLMResponseWithTools(
   messages: LLMMessage[],
   systemPrompt: string | undefined,
-  options: StreamWithToolsOptions
+  options: StreamWithToolsOptions,
 ): Promise<StreamWithToolsResult> {
   const { tools, toolContext, maxSteps = 5 } = options;
 
@@ -353,9 +370,9 @@ export async function streamLLMResponseWithTools(
   if (isMockEnabled()) {
     const mockText = getMockResponse();
     const mockStream = (async function* () {
-      const words = mockText.split(' ');
+      const words = mockText.split(" ");
       for (const word of words) {
-        yield word + ' ';
+        yield word + " ";
         await new Promise((resolve) => setTimeout(resolve, 50));
       }
     })();
@@ -374,7 +391,9 @@ export async function streamLLMResponseWithTools(
   if (!provider) {
     provider = await getDefaultProvider(options.userId);
     if (!provider) {
-      throw new Error('No LLM provider available. Please configure an API key.');
+      throw new Error(
+        "No LLM provider available. Please configure an API key.",
+      );
     }
   }
 
@@ -390,8 +409,13 @@ export async function streamLLMResponseWithTools(
   const vercelTools = convertToolsToVercelFormat(tools, toolContext);
 
   // Debug: Log tools being passed
-  console.log(`[LLM] Tool calling enabled with ${Object.keys(vercelTools).length} tools:`, Object.keys(vercelTools));
-  console.log(`[LLM] Using provider: ${provider}, model: ${model}, maxSteps: ${maxSteps}`);
+  console.log(
+    `[LLM] Tool calling enabled with ${Object.keys(vercelTools).length} tools:`,
+    Object.keys(vercelTools),
+  );
+  console.log(
+    `[LLM] Using provider: ${provider}, model: ${model}, maxSteps: ${maxSteps}`,
+  );
 
   // Helper to call streamText with tools for any provider
   async function callStreamTextWithTools(
@@ -399,7 +423,7 @@ export async function streamLLMResponseWithTools(
       | ReturnType<typeof createOpenAI>
       | ReturnType<typeof createAnthropic>
       | ReturnType<typeof createGoogleGenerativeAI>
-    >
+    >,
   ) {
     const result = streamText({
       model: providerModel,
@@ -408,7 +432,7 @@ export async function streamLLMResponseWithTools(
       temperature: options.temperature,
       maxOutputTokens: options.maxOutputTokens,
       tools: vercelTools,
-      toolChoice: 'auto',
+      toolChoice: "auto",
       // stopWhen controls how many tool-calling rounds can happen
       // Default is stepCountIs(1) which stops after first step
       // We allow up to maxSteps for multi-turn tool calling
@@ -416,9 +440,13 @@ export async function streamLLMResponseWithTools(
     });
 
     // Collect all text chunks to build the full response
-    let fullText = '';
-    const collectedToolCalls: Array<{ toolName: string; args: Record<string, unknown> }> = [];
-    const collectedToolResults: Array<{ toolName: string; result: unknown }> = [];
+    let fullText = "";
+    const collectedToolCalls: Array<{
+      toolName: string;
+      args: Record<string, unknown>;
+    }> = [];
+    const collectedToolResults: Array<{ toolName: string; result: unknown }> =
+      [];
 
     // Create a wrapped stream that collects data as it's consumed
     const wrappedStream = (async function* () {
@@ -446,9 +474,14 @@ export async function streamLLMResponseWithTools(
       }
 
       // Debug: Log tool call summary
-      console.log(`[LLM] Stream complete. Tool calls: ${collectedToolCalls.length}, Tool results: ${collectedToolResults.length}`);
+      console.log(
+        `[LLM] Stream complete. Tool calls: ${collectedToolCalls.length}, Tool results: ${collectedToolResults.length}`,
+      );
       if (collectedToolCalls.length > 0) {
-        console.log(`[LLM] Tool calls made:`, collectedToolCalls.map(tc => tc.toolName));
+        console.log(
+          `[LLM] Tool calls made:`,
+          collectedToolCalls.map((tc) => tc.toolName),
+        );
       }
     })();
 
@@ -472,17 +505,17 @@ export async function streamLLMResponseWithTools(
     };
   }
 
-  if (provider === 'openai') {
+  if (provider === "openai") {
     const openai = await createOpenAIProvider(userId);
     return callStreamTextWithTools(openai(model));
   }
 
-  if (provider === 'anthropic') {
+  if (provider === "anthropic") {
     const anthropic = await createAnthropicProvider(userId);
     return callStreamTextWithTools(anthropic(model));
   }
 
-  if (provider === 'google') {
+  if (provider === "google") {
     const google = await createGoogleProvider(userId);
     return callStreamTextWithTools(google(model));
   }
@@ -496,7 +529,7 @@ export async function streamLLMResponseWithTools(
 export async function generateLLMResponse(
   messages: LLMMessage[],
   systemPrompt?: string,
-  options: StreamOptions = {}
+  options: StreamOptions = {},
 ): Promise<{ content: string; thinking?: string }> {
   // Mock mode for development
   if (isMockEnabled()) {
@@ -508,7 +541,9 @@ export async function generateLLMResponse(
   if (!provider) {
     provider = await getDefaultProvider(options.userId);
     if (!provider) {
-      throw new Error('No LLM provider available. Please configure an API key.');
+      throw new Error(
+        "No LLM provider available. Please configure an API key.",
+      );
     }
   }
 
@@ -520,7 +555,7 @@ export async function generateLLMResponse(
 
   const model = options.model ?? DEFAULT_MODEL[provider];
 
-  if (provider === 'openai') {
+  if (provider === "openai") {
     const openai = await createOpenAIProvider(userId);
     const result = await generateText({
       model: openai(model),
@@ -533,7 +568,7 @@ export async function generateLLMResponse(
     return { content: result.text };
   }
 
-  if (provider === 'anthropic') {
+  if (provider === "anthropic") {
     const anthropic = await createAnthropicProvider(userId);
     const result = await generateText({
       model: anthropic(model),
@@ -546,7 +581,7 @@ export async function generateLLMResponse(
     return { content: result.text };
   }
 
-  if (provider === 'google') {
+  if (provider === "google") {
     const google = await createGoogleProvider(userId);
     const result = await generateText({
       model: google(model),
@@ -569,7 +604,7 @@ export async function generateLLMObject<T>(
   messages: LLMMessage[],
   schema: z.ZodType<T>,
   systemPrompt?: string,
-  options: StreamOptions = {}
+  options: StreamOptions = {},
 ): Promise<T> {
   // Mock mode for development - return valid mock objects for common schemas
   if (isMockEnabled()) {
@@ -580,14 +615,19 @@ export async function generateLLMObject<T>(
       // Knowledge extraction result
       { knowledgeItems: [] },
       // Briefing decision (no briefing)
-      { shouldBrief: false, reason: 'Mock mode - no briefing' },
+      { shouldBrief: false, reason: "Mock mode - no briefing" },
       // User intent classification (default to regular_chat for most messages)
-      { intent: 'regular_chat', reasoning: 'Mock mode - default to regular chat' },
+      {
+        intent: "regular_chat",
+        reasoning: "Mock mode - default to regular chat",
+      },
       // Team configuration generation
       {
-        teamDescription: 'A team dedicated to achieving its mission through autonomous collaboration.',
-        leadAgentName: 'Alex',
-        leadAgentSystemPrompt: 'You are a capable team lead responsible for coordinating work and achieving the team mission. You communicate clearly, delegate effectively, and ensure quality outcomes.',
+        teamDescription:
+          "A team dedicated to achieving its mission through autonomous collaboration.",
+        leadAgentName: "Alex",
+        leadAgentSystemPrompt:
+          "You are a capable team lead responsible for coordinating work and achieving the team mission. You communicate clearly, delegate effectively, and ensure quality outcomes.",
       },
       // Empty array (fallback)
       [],
@@ -604,7 +644,7 @@ export async function generateLLMObject<T>(
     }
 
     // Last resort - let it fail naturally
-    throw new Error('Mock mode cannot satisfy schema');
+    throw new Error("Mock mode cannot satisfy schema");
   }
 
   // Auto-detect provider if not specified
@@ -612,7 +652,9 @@ export async function generateLLMObject<T>(
   if (!provider) {
     provider = await getDefaultProvider(options.userId);
     if (!provider) {
-      throw new Error('No LLM provider available. Please configure an API key.');
+      throw new Error(
+        "No LLM provider available. Please configure an API key.",
+      );
     }
   }
 
@@ -624,7 +666,7 @@ export async function generateLLMObject<T>(
 
   const model = options.model ?? DEFAULT_MODEL[provider];
 
-  if (provider === 'openai') {
+  if (provider === "openai") {
     const openai = await createOpenAIProvider(userId);
     const result = await generateObject({
       model: openai(model),
@@ -638,7 +680,7 @@ export async function generateLLMObject<T>(
     return result.object;
   }
 
-  if (provider === 'anthropic') {
+  if (provider === "anthropic") {
     const anthropic = await createAnthropicProvider(userId);
     const result = await generateObject({
       model: anthropic(model),
@@ -652,7 +694,7 @@ export async function generateLLMObject<T>(
     return result.object;
   }
 
-  if (provider === 'google') {
+  if (provider === "google") {
     const google = await createGoogleProvider(userId);
 
     // Try primary model first, fall back to flash model if it fails
@@ -670,7 +712,10 @@ export async function generateLLMObject<T>(
     } catch (error) {
       const fallbackModel = FALLBACK_MODEL.google;
       if (model !== fallbackModel) {
-        console.log(`[LLM] Primary model ${model} failed, falling back to ${fallbackModel}:`, error);
+        console.log(
+          `[LLM] Primary model ${model} failed, falling back to ${fallbackModel}:`,
+          error,
+        );
         const result = await generateObject({
           model: google(fallbackModel),
           messages,
@@ -693,7 +738,7 @@ export async function generateLLMObject<T>(
  */
 export async function isProviderAvailable(
   provider: LLMProvider,
-  userId?: string
+  userId?: string,
 ): Promise<boolean> {
   const apiKey = await getApiKey(provider, userId);
   return apiKey !== null;
@@ -703,18 +748,18 @@ export async function isProviderAvailable(
  * Get the default provider based on available API keys
  */
 export async function getDefaultProvider(
-  userId?: string
+  userId?: string,
 ): Promise<LLMProvider | undefined> {
   // Check available providers in priority order
   // Google/Gemini first (most reliable free tier), then OpenAI, then Anthropic
-  if (await isProviderAvailable('google', userId)) {
-    return 'google';
+  if (await isProviderAvailable("google", userId)) {
+    return "google";
   }
-  if (await isProviderAvailable('openai', userId)) {
-    return 'openai';
+  if (await isProviderAvailable("openai", userId)) {
+    return "openai";
   }
-  if (await isProviderAvailable('anthropic', userId)) {
-    return 'anthropic';
+  if (await isProviderAvailable("anthropic", userId)) {
+    return "anthropic";
   }
   return undefined;
 }
