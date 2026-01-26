@@ -578,6 +578,12 @@ export async function generateLLMObject<T>(
       { shouldBrief: false, reason: 'Mock mode - no briefing' },
       // User intent classification (default to regular_chat for most messages)
       { intent: 'regular_chat', reasoning: 'Mock mode - default to regular chat' },
+      // Team configuration generation
+      {
+        teamDescription: 'A team dedicated to achieving its mission through autonomous collaboration.',
+        leadAgentName: 'Alex',
+        leadAgentSystemPrompt: 'You are a capable team lead responsible for coordinating work and achieving the team mission. You communicate clearly, delegate effectively, and ensure quality outcomes.',
+      },
       // Empty array (fallback)
       [],
       // Empty object (fallback)

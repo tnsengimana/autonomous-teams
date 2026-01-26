@@ -3,14 +3,12 @@ import { auth } from '@/lib/auth/config';
 import { createTeam, getTeamsByUserId } from '@/lib/db/queries/teams';
 import { createAgent, getAgentsByTeamId } from '@/lib/db/queries/agents';
 import { queueSystemTask } from '@/lib/agents/taskQueue';
+import { generateTeamConfiguration } from '@/lib/agents/team-configuration';
 import { z } from 'zod';
 
 const createTeamSchema = z.object({
   name: z.string().min(1, 'Team name is required'),
-  description: z.string().optional(),
   mission: z.string().min(1, 'Mission is required'),
-  leadAgentName: z.string().min(1, 'Agent name is required'),
-  leadAgentPrompt: z.string().min(1, 'System prompt is required'),
 });
 
 /**
@@ -66,24 +64,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { name, description, mission, leadAgentName, leadAgentPrompt } =
-      validation.data;
+    const { name, mission } = validation.data;
 
-    // Create the team
+    // Generate team configuration using LLM
+    const config = await generateTeamConfiguration(name, mission, { userId: session.user.id });
+
+    // Create the team with generated description
     const team = await createTeam({
       userId: session.user.id,
       name,
-      purpose: `${description || ''}\n\nMission: ${mission}`.trim(),
+      purpose: `${config.teamDescription}\n\nMission: ${mission}`,
       status: 'active',
     });
 
-    // Create the team lead agent
+    // Create the team lead agent with generated name and prompt
     const teamLead = await createAgent({
       teamId: team.id,
       parentAgentId: null,
-      name: leadAgentName,
+      name: config.leadAgentName,
       role: 'team_lead',
-      systemPrompt: leadAgentPrompt,
+      systemPrompt: config.leadAgentSystemPrompt,
       status: 'idle',
     });
 

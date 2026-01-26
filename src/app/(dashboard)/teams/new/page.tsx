@@ -20,10 +20,7 @@ export default function NewTeamPage() {
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: "",
-    description: "",
     mission: "",
-    leadAgentName: "",
-    leadAgentPrompt: "",
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -73,7 +70,7 @@ export default function NewTeamPage() {
         </Link>
         <h1 className="mt-2 text-3xl font-bold">Create New Team</h1>
         <p className="text-muted-foreground">
-          Set up your autonomous AI team with a mission and team lead
+          Define your team&apos;s mission and we&apos;ll configure the team lead automatically
         </p>
       </div>
 
@@ -88,7 +85,7 @@ export default function NewTeamPage() {
           <CardHeader>
             <CardTitle>Team Details</CardTitle>
             <CardDescription>
-              Basic information about your team
+              Tell us what you want your team to accomplish
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -105,18 +102,6 @@ export default function NewTeamPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
-              <Input
-                id="description"
-                name="description"
-                placeholder="e.g., Market research and competitive analysis"
-                value={formData.description}
-                onChange={handleChange}
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
               <Label htmlFor="mission">Mission</Label>
               <textarea
                 id="mission"
@@ -124,51 +109,11 @@ export default function NewTeamPage() {
                 placeholder="What should this team accomplish? Be specific about goals and deliverables."
                 value={formData.mission}
                 onChange={handleChange}
-                className="min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                required
-              />
-              <p className="text-xs text-muted-foreground">
-                The mission guides all team activities and agent behaviors.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Team Lead Agent</CardTitle>
-            <CardDescription>
-              The team lead runs continuously and coordinates subordinate agents
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="leadAgentName">Agent Name</Label>
-              <Input
-                id="leadAgentName"
-                name="leadAgentName"
-                placeholder="e.g., Research Lead"
-                value={formData.leadAgentName}
-                onChange={handleChange}
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="leadAgentPrompt">System Prompt</Label>
-              <textarea
-                id="leadAgentPrompt"
-                name="leadAgentPrompt"
-                placeholder="Define the agent's personality, expertise, and approach. This shapes how the agent thinks and responds."
-                value={formData.leadAgentPrompt}
-                onChange={handleChange}
                 className="min-h-[150px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 required
               />
               <p className="text-xs text-muted-foreground">
-                Example: &quot;You are an expert market researcher with 10 years of
-                experience. You focus on identifying trends and providing
-                actionable insights.&quot;
+                The mission guides all team activities. We&apos;ll automatically configure a team lead based on your mission.
               </p>
             </div>
           </CardContent>
@@ -176,7 +121,7 @@ export default function NewTeamPage() {
 
         <div className="flex gap-4">
           <Button type="submit" disabled={isCreating}>
-            {isCreating ? "Creating..." : "Create Team"}
+            {isCreating ? "Creating team..." : "Create Team"}
           </Button>
           <Link href="/teams">
             <Button type="button" variant="outline">
