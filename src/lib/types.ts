@@ -9,6 +9,7 @@ import type { InferSelectModel } from 'drizzle-orm';
 import type {
   agents,
   agentTasks,
+  aides,
   conversations,
   knowledgeItems,
   memories,
@@ -23,6 +24,7 @@ import type {
 
 export type Agent = InferSelectModel<typeof agents>;
 export type AgentTask = InferSelectModel<typeof agentTasks>;
+export type Aide = InferSelectModel<typeof aides>;
 export type Conversation = InferSelectModel<typeof conversations>;
 export type KnowledgeItem = InferSelectModel<typeof knowledgeItems>;
 export type Memory = InferSelectModel<typeof memories>;
@@ -37,6 +39,7 @@ export type UserApiKey = InferSelectModel<typeof userApiKeys>;
 export type AgentStatus = 'idle' | 'running' | 'paused';
 export type AgentTaskStatus = 'pending' | 'in_progress' | 'completed' | 'failed';
 export type AgentTaskSource = 'delegation' | 'user' | 'system' | 'self';
+export type AideStatus = 'active' | 'paused' | 'archived';
 export type TeamStatus = 'active' | 'paused' | 'archived';
 export type MemoryType = 'preference' | 'insight' | 'fact';
 export type MessageRole = 'user' | 'assistant' | 'tool' | 'summary';
@@ -68,6 +71,7 @@ export interface ConversationWithMessages extends Conversation {
 
 export interface AgentWithRelations extends Agent {
   team?: Team;
+  aide?: Aide;
   parentAgent?: Agent | null;
   childAgents?: Agent[];
   conversations?: Conversation[];
@@ -75,6 +79,10 @@ export interface AgentWithRelations extends Agent {
 }
 
 export interface TeamWithAgents extends Team {
+  agents: Agent[];
+}
+
+export interface AideWithAgents extends Aide {
   agents: Agent[];
 }
 
@@ -113,7 +121,8 @@ export type InboxItemType = 'insight' | 'question' | 'alert' | 'briefing' | 'sig
 export interface InboxItem {
   id: string;
   userId: string;
-  teamId: string;
+  teamId: string | null;
+  aideId: string | null;
   agentId: string;
   type: InboxItemType;
   title: string;
