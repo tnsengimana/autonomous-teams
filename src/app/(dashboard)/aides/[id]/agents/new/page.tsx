@@ -23,7 +23,6 @@ export default function NewAideSubordinatePage() {
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: "",
-    role: "",
     systemPrompt: "",
   });
 
@@ -102,22 +101,6 @@ export default function NewAideSubordinatePage() {
                 onChange={handleChange}
                 required
               />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="role">Role / Specialty</Label>
-              <Input
-                id="role"
-                name="role"
-                placeholder="e.g., Analyzes data and generates reports"
-                value={formData.role}
-                onChange={handleChange}
-                required
-              />
-              <p className="text-xs text-muted-foreground">
-                Describe what this agent specializes in and its primary
-                function.
-              </p>
             </div>
 
             <div className="space-y-2">

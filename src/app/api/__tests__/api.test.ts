@@ -68,7 +68,7 @@ beforeAll(async () => {
     .values({
       teamId: testTeamId,
       name: 'API Test Team Lead',
-      role: 'Financial Analyst',
+      type: 'lead',
       parentAgentId: null,
     })
     .returning();
@@ -208,7 +208,7 @@ describe('Team Creation API (/api/teams)', () => {
       .values({
         teamId: newTeam.id,
         name: 'Bootstrap Team Lead',
-        role: 'team_lead',
+        type: 'lead',
         parentAgentId: null,
       })
       .returning();
@@ -498,7 +498,7 @@ describe('Edge Cases', () => {
       .values({
         teamId: testTeamId,
         name: 'No Conversation Agent',
-        role: 'Test Worker',
+        type: 'subordinate',
         parentAgentId: testTeamLeadId,
       })
       .returning();

@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Autonomous Teams is a TypeScript/Next.js application where users create teams of AI agents that run continuously to fulfill a mission. Teams have hierarchical agents (team leads run continuously, subordinates spawn on-demand) that collaborate, extract knowledge from work sessions, and proactively deliver insights to users.
+Autonomous Teams is a TypeScript/Next.js application where users create teams of AI agents that run continuously to fulfill a mission. Teams have hierarchical agents (leads run continuously, subordinates spawn on-demand) that collaborate, extract knowledge from work sessions, and proactively deliver insights to users.
 
-**Terminology Note**: "Subordinate" refers to team member agents (non-lead agents that report to the team lead). "Worker" refers to the background process (`src/worker/`) that runs agent cycles.
+**Terminology Note**: "Subordinate" refers to non-lead agents that report to the lead. "Worker" refers to the background process (`src/worker/`) that runs agent cycles.
 
 ## Commands
 
@@ -55,7 +55,7 @@ The system separates user interactions (foreground) from agent work (background)
   - `runWorkSession()` - Background: process queue in background conversation, extract knowledge, decide briefing
   - `processTask()` - Per-task processing with tools in background conversation
   - `extractKnowledgeFromConversation()` - Post-session professional learning (via `knowledge-items.ts`)
-  - `decideBriefing()` - Team lead briefing decision after work session
+  - `decideBriefing()` - Lead briefing decision after work session
 - `memory.ts` - Memory extraction from user conversations using `generateObject()`
 - `knowledge-items.ts` - Knowledge extraction from background conversations (professional knowledge)
 - `compaction.ts` - Conversation compaction via summary messages
@@ -70,9 +70,9 @@ The system separates user interactions (foreground) from agent work (background)
 **Background Worker** (`src/worker/runner.ts`)
 - Event-driven + timer-based execution:
   - **Event-driven**: Tasks queued via `notifyTaskQueued()` trigger immediate processing
-  - **Timer-based**: Team leads scheduled for daily proactive runs via `leadNextRunAt`
+  - **Timer-based**: Leads scheduled for daily proactive runs via `leadNextRunAt`
 - Subordinates are purely reactive (only triggered when work in queue)
-- Team leads are proactive (daily trigger to further mission)
+- Leads are proactive (daily trigger to further mission)
 - Calls `agent.runWorkSession()` for background conversation task processing
 
 **Authentication** (`src/lib/auth/config.ts`)
@@ -83,7 +83,7 @@ The system separates user interactions (foreground) from agent work (background)
 ### Data Flow
 
 **Foreground (User Interaction)**:
-1. User sends message to Team Lead
+1. User sends message to lead
 2. Agent loads MEMORIES (user context)
 3. Generates quick contextual acknowledgment
 4. Queues task for background processing
@@ -95,7 +95,7 @@ The system separates user interactions (foreground) from agent work (background)
 3. Agent loads KNOWLEDGE ITEMS (professional knowledge)
 4. Processes task with tools in background conversation
 5. After queue empty: extracts knowledge from conversation
-6. Team lead only: decides whether to brief user
+6. Lead only: decides whether to brief user
 7. Next run scheduled
 
 ### Key Patterns
@@ -103,7 +103,7 @@ The system separates user interactions (foreground) from agent work (background)
 - **Path alias**: `@/*` maps to `./src/*`
 - **Mock mode**: Set `MOCK_LLM=true` in `.env.local` to run without real API calls
 - **Encrypted API keys**: User API keys stored encrypted in `userApiKeys` table
-- **Team hierarchy**: Team leads have `parentAgentId = null`, subordinates reference their lead
+- **Agent hierarchy**: Leads have `parentAgentId = null`, subordinates reference their lead
 - **Memories vs Knowledge Items**: Memories store user interaction context. Knowledge items are the agent's professional knowledge base.
 - **Conversation compaction**: Summary messages compress old context via linked list (`previousMessageId`). Context loading returns latest summary + recent messages.
 - **Professional growth**: Knowledge items accumulate as expertise from background work sessions
@@ -121,8 +121,8 @@ For teams to run autonomously and deliver proactive insights:
    npx ts-node --project tsconfig.json src/worker/index.ts
    ```
 3. **Event-driven**: Tasks queued trigger immediate processing via `notifyTaskQueued()`
-4. **Timer-based**: Team leads auto-scheduled for daily proactive runs
-5. Team leads can delegate to subordinates and push briefings to user inbox
+4. **Timer-based**: Leads auto-scheduled for daily proactive runs
+5. Leads can delegate to subordinates and push briefings to user inbox
 
 ## Workflow Preferences
 

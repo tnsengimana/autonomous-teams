@@ -151,7 +151,7 @@ const getTeamStatusTool: Tool = {
         return {
           agentId: agent.id,
           name: agent.name,
-          role: agent.role,
+          type: agent.type,
           status: agent.status,
           pendingTasks: tasks.filter((t) => t.status === 'pending').length,
           inProgressTasks: 0,

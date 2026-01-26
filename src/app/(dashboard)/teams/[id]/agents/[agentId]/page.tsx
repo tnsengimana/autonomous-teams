@@ -147,9 +147,9 @@ export default async function AgentDetailPage({
           <CardContent className="grid gap-4 md:grid-cols-2">
             <div>
               <div className="text-sm font-medium text-muted-foreground">
-                Role
+                Type
               </div>
-              <p className="mt-1">{agent.role}</p>
+              <p className="mt-1">{agent.type}</p>
             </div>
             <div>
               <div className="text-sm font-medium text-muted-foreground">

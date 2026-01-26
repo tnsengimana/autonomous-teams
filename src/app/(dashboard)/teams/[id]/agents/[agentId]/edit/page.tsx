@@ -25,7 +25,6 @@ export default function EditAgentPage() {
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: "",
-    role: "",
     systemPrompt: "",
   });
 
@@ -40,7 +39,6 @@ export default function EditAgentPage() {
         const data = await response.json();
         setFormData({
           name: data.name,
-          role: data.role,
           systemPrompt: data.systemPrompt || "",
         });
       } catch (err) {
@@ -130,18 +128,6 @@ export default function EditAgentPage() {
                 name="name"
                 placeholder="e.g., Data Analyst"
                 value={formData.name}
-                onChange={handleChange}
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="role">Role / Specialty</Label>
-              <Input
-                id="role"
-                name="role"
-                placeholder="e.g., Analyzes data and generates reports"
-                value={formData.role}
                 onChange={handleChange}
                 required
               />

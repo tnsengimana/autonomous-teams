@@ -366,7 +366,8 @@ describe('deleteAide', () => {
     const agent = await createAgentForAide({
       aideId: aide.id,
       name: 'Agent To Delete',
-      role: 'Assistant',
+      type: 'lead',
+      parentAgentId: null,
     });
 
     await deleteAide(aide.id);
@@ -407,7 +408,7 @@ describe('getAideLead', () => {
     const lead = await createAgentForAide({
       aideId: aide.id,
       name: 'Aide Lead',
-      role: 'Professional Extension',
+      type: 'lead',
       parentAgentId: null,
     });
 
@@ -435,13 +436,13 @@ describe('getAideLead', () => {
     const lead = await createAgentForAide({
       aideId: aide.id,
       name: 'Lead',
-      role: 'Lead',
+      type: 'lead',
       parentAgentId: null,
     });
     await createAgentForAide({
       aideId: aide.id,
       name: 'Subordinate',
-      role: 'Assistant',
+      type: 'subordinate',
       parentAgentId: lead.id,
     });
 
@@ -464,12 +465,14 @@ describe('getAideWithAgents', () => {
     const agent1 = await createAgentForAide({
       aideId: aide.id,
       name: 'Agent 1',
-      role: 'Role 1',
+      type: 'lead',
+      parentAgentId: null,
     });
     const agent2 = await createAgentForAide({
       aideId: aide.id,
       name: 'Agent 2',
-      role: 'Role 2',
+      type: 'subordinate',
+      parentAgentId: agent1.id,
     });
 
     const aideWithAgents = await getAideWithAgents(aide.id);
@@ -510,14 +513,15 @@ describe('createAgentForAide', () => {
     const agent = await createAgentForAide({
       aideId: aide.id,
       name: 'My Agent',
-      role: 'Assistant',
+      type: 'lead',
+      parentAgentId: null,
     });
 
     expect(agent.id).toBeDefined();
     expect(agent.aideId).toBe(aide.id);
     expect(agent.teamId).toBeNull();
     expect(agent.name).toBe('My Agent');
-    expect(agent.role).toBe('Assistant');
+    expect(agent.type).toBe('lead');
     expect(agent.parentAgentId).toBeNull();
 
     await cleanupAides([aide.id]);
@@ -528,13 +532,14 @@ describe('createAgentForAide', () => {
     const lead = await createAgentForAide({
       aideId: aide.id,
       name: 'Lead',
-      role: 'Lead',
+      type: 'lead',
+      parentAgentId: null,
     });
 
     const subordinate = await createAgentForAide({
       aideId: aide.id,
       name: 'Subordinate',
-      role: 'Helper',
+      type: 'subordinate',
       parentAgentId: lead.id,
     });
 
@@ -549,7 +554,8 @@ describe('createAgentForAide', () => {
     const agent = await createAgentForAide({
       aideId: aide.id,
       name: 'Prompted Agent',
-      role: 'Role',
+      type: 'lead',
+      parentAgentId: null,
       systemPrompt: 'You are a helpful assistant.',
     });
 
@@ -566,9 +572,9 @@ describe('createAgentForAide', () => {
 describe('getAgentsByAideId', () => {
   test('returns all agents for an aide', async () => {
     const aide = await createAide({ userId: testUserId, name: 'Aide' });
-    const agent1 = await createAgentForAide({ aideId: aide.id, name: 'Agent 1', role: 'Role 1' });
-    const agent2 = await createAgentForAide({ aideId: aide.id, name: 'Agent 2', role: 'Role 2' });
-    const agent3 = await createAgentForAide({ aideId: aide.id, name: 'Agent 3', role: 'Role 3' });
+    const agent1 = await createAgentForAide({ aideId: aide.id, name: 'Agent 1', type: 'lead', parentAgentId: null });
+    const agent2 = await createAgentForAide({ aideId: aide.id, name: 'Agent 2', type: 'subordinate', parentAgentId: agent1.id });
+    const agent3 = await createAgentForAide({ aideId: aide.id, name: 'Agent 3', type: 'subordinate', parentAgentId: agent1.id });
 
     const aideAgents = await getAgentsByAideId(aide.id);
 
@@ -600,7 +606,7 @@ describe('getActiveAideLeads', () => {
     const activeLead = await createAgentForAide({
       aideId: activeAide.id,
       name: 'Active Lead',
-      role: 'Lead',
+      type: 'lead',
       parentAgentId: null,
     });
 
@@ -616,7 +622,7 @@ describe('getActiveAideLeads', () => {
     const pausedLead = await createAgentForAide({
       aideId: pausedAide.id,
       name: 'Paused Lead',
-      role: 'Lead',
+      type: 'lead',
       parentAgentId: null,
     });
 
@@ -632,13 +638,13 @@ describe('getActiveAideLeads', () => {
     const lead = await createAgentForAide({
       aideId: aide.id,
       name: 'Lead',
-      role: 'Lead',
+      type: 'lead',
       parentAgentId: null,
     });
     const subordinate = await createAgentForAide({
       aideId: aide.id,
       name: 'Subordinate',
-      role: 'Helper',
+      type: 'subordinate',
       parentAgentId: lead.id,
     });
 
@@ -661,7 +667,7 @@ describe('getAideLeadsDueToRun', () => {
     const lead = await createAgentForAide({
       aideId: aide.id,
       name: 'Due Lead',
-      role: 'Lead',
+      type: 'lead',
       parentAgentId: null,
     });
 
@@ -683,7 +689,7 @@ describe('getAideLeadsDueToRun', () => {
     const lead = await createAgentForAide({
       aideId: aide.id,
       name: 'Backoff Lead',
-      role: 'Lead',
+      type: 'lead',
       parentAgentId: null,
     });
 
@@ -705,7 +711,7 @@ describe('getAideLeadsDueToRun', () => {
     const lead = await createAgentForAide({
       aideId: aide.id,
       name: 'Future Lead',
-      role: 'Lead',
+      type: 'lead',
       parentAgentId: null,
     });
 
@@ -727,7 +733,7 @@ describe('getAideLeadsDueToRun', () => {
     const lead = await createAgentForAide({
       aideId: pausedAide.id,
       name: 'Paused Lead',
-      role: 'Lead',
+      type: 'lead',
       parentAgentId: null,
     });
 

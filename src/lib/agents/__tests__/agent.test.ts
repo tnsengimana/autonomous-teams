@@ -58,20 +58,20 @@ beforeAll(async () => {
   }).returning();
   testTeamId = team.id;
 
-  // Create team lead agent (no parent)
-  const [teamLead] = await db.insert(agents).values({
+  // Create lead agent (no parent)
+  const [leadAgent] = await db.insert(agents).values({
     teamId: testTeamId,
-    name: 'Test Team Lead',
-    role: 'Financial Analyst',
+    name: 'Test Lead',
+    type: 'lead',
     parentAgentId: null,
   }).returning();
-  testTeamLeadId = teamLead.id;
+  testTeamLeadId = leadAgent.id;
 
   // Create subordinate agent (has parent)
   const [subordinate] = await db.insert(agents).values({
     teamId: testTeamId,
     name: 'Test Subordinate',
-    role: 'Research Assistant',
+    type: 'subordinate',
     parentAgentId: testTeamLeadId,
   }).returning();
   testSubordinateId = subordinate.id;
@@ -110,8 +110,8 @@ describe('Agent Class', () => {
 
     expect(agent).not.toBeNull();
     expect(agent!.id).toBe(testTeamLeadId);
-    expect(agent!.name).toBe('Test Team Lead');
-    expect(agent!.role).toBe('Financial Analyst');
+    expect(agent!.name).toBe('Test Lead');
+    expect(agent!.type).toBe('lead');
   });
 
   test('returns null for non-existent agent ID', async () => {
@@ -119,14 +119,14 @@ describe('Agent Class', () => {
     expect(agent).toBeNull();
   });
 
-  test('isTeamLead() returns true for team lead', async () => {
+  test('isLead() returns true for team lead', async () => {
     const agent = await createAgent(testTeamLeadId);
-    expect(agent!.isTeamLead()).toBe(true);
+    expect(agent!.isLead()).toBe(true);
   });
 
-  test('isTeamLead() returns false for subordinate', async () => {
+  test('isLead() returns false for subordinate', async () => {
     const agent = await createAgent(testSubordinateId);
-    expect(agent!.isTeamLead()).toBe(false);
+    expect(agent!.isLead()).toBe(false);
   });
 
   test('creates agent from data object', () => {
@@ -135,7 +135,7 @@ describe('Agent Class', () => {
       teamId: testTeamId,
       aideId: null,
       name: 'Direct Agent',
-      role: 'Tester',
+      type: 'lead',
       parentAgentId: null,
       systemPrompt: null,
       status: 'idle' as const,
@@ -148,7 +148,7 @@ describe('Agent Class', () => {
     const agent = createAgentFromData(data);
     expect(agent.id).toBe('test-id');
     expect(agent.name).toBe('Direct Agent');
-    expect(agent.isTeamLead()).toBe(true);
+    expect(agent.isLead()).toBe(true);
   });
 });
 
@@ -471,8 +471,8 @@ describe('decideBriefing', () => {
     const subordinateAgent = await createAgent(testSubordinateId);
     const teamLeadAgent = await createAgent(testTeamLeadId);
 
-    expect(subordinateAgent!.isTeamLead()).toBe(false);
-    expect(teamLeadAgent!.isTeamLead()).toBe(true);
+    expect(subordinateAgent!.isLead()).toBe(false);
+    expect(teamLeadAgent!.isLead()).toBe(true);
   });
 });
 
@@ -1106,7 +1106,7 @@ describe('Aide Support', () => {
       aideId: testAideId,
       teamId: null,
       name: 'Test Aide Lead',
-      role: 'Professional Extension',
+      type: 'lead',
       parentAgentId: null,
     }).returning();
     testAideAgentId = aideAgent.id;
@@ -1138,7 +1138,7 @@ describe('Aide Support', () => {
       teamId: null,
       aideId: testAideId,
       name: 'Aide Agent',
-      role: 'Assistant',
+      type: 'lead',
       parentAgentId: null,
       systemPrompt: null,
       status: 'idle' as const,
@@ -1151,12 +1151,12 @@ describe('Aide Support', () => {
     const agent = createAgentFromData(data);
     expect(agent.id).toBe('test-aide-agent-id');
     expect(agent.name).toBe('Aide Agent');
-    expect(agent.isTeamLead()).toBe(true); // Aide lead (no parent)
+    expect(agent.isLead()).toBe(true); // Aide lead (no parent)
   });
 
   test('aide agent isTeamLead returns true for lead (no parent)', async () => {
     const agent = await createAgent(testAideAgentId);
-    expect(agent!.isTeamLead()).toBe(true);
+    expect(agent!.isLead()).toBe(true);
   });
 
   test('getOwnerInfo returns aide owner info for aide agents', async () => {

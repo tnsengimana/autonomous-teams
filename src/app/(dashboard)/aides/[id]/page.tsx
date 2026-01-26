@@ -128,7 +128,7 @@ export default async function AideDetailPage({
                     <span className="font-medium">{leadAgent.name}</span>
                   </div>
                   <div className="text-sm text-muted-foreground">
-                    {leadAgent.role}
+                    {leadAgent.type}
                   </div>
                 </div>
                 <Badge
@@ -188,7 +188,7 @@ export default async function AideDetailPage({
                         </Badge>
                       </div>
                       <p className="mt-1 text-sm text-muted-foreground">
-                        {agent.role}
+                        {agent.type}
                       </p>
                     </div>
                     <Badge

@@ -52,14 +52,14 @@ beforeAll(async () => {
   const [agent] = await db.insert(agents).values({
     teamId: testTeamId,
     name: 'Task Queue Test Agent',
-    role: 'Tester',
+    type: 'lead',
   }).returning();
   testAgentId = agent.id;
 
   const [agent2] = await db.insert(agents).values({
     teamId: testTeamId,
     name: 'Task Queue Test Agent 2',
-    role: 'Secondary Tester',
+    type: 'lead',
   }).returning();
   testAgent2Id = agent2.id;
 

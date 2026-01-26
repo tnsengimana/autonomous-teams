@@ -38,7 +38,7 @@ export default async function TeamDetailPage({
     : team.purpose || "No mission set";
 
   // Find the team lead (agent with no parent)
-  const teamLead = team.agents.find((a) => a.parentAgentId === null);
+  const leadAgent = team.agents.find((a) => a.parentAgentId === null);
 
   // Get subordinate agents
   const subordinateAgents = team.agents.filter((a) => a.parentAgentId !== null);
@@ -118,28 +118,28 @@ export default async function TeamDetailPage({
           </div>
         </CardHeader>
         <CardContent>
-          {!teamLead ? (
+          {!leadAgent ? (
             <p className="text-muted-foreground">No lead agent yet.</p>
           ) : (
             <Link
-              href={`/teams/${team.id}/agents/${teamLead.id}`}
+              href={`/teams/${team.id}/agents/${leadAgent.id}`}
               className="block"
             >
               <div className="flex items-center justify-between rounded-lg border p-4 transition-colors hover:bg-accent">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="font-medium">{teamLead.name}</span>
+                    <span className="font-medium">{leadAgent.name}</span>
                   </div>
                   <div className="text-sm text-muted-foreground">
-                    {teamLead.role}
+                    {leadAgent.type}
                   </div>
                 </div>
                 <Badge
                   variant={
-                    teamLead.status === "running" ? "default" : "secondary"
+                    leadAgent.status === "running" ? "default" : "secondary"
                   }
                 >
-                  {teamLead.status}
+                  {leadAgent.status}
                 </Badge>
               </div>
             </Link>
@@ -191,7 +191,7 @@ export default async function TeamDetailPage({
                         </Badge>
                       </div>
                       <p className="mt-1 text-sm text-muted-foreground">
-                        {agent.role}
+                        {agent.type}
                       </p>
                     </div>
                     <Badge

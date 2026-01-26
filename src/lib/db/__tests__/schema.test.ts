@@ -30,7 +30,7 @@ beforeAll(async () => {
   const [agent] = await db.insert(agents).values({
     teamId: testTeamId,
     name: 'Test Agent',
-    role: 'Test Role',
+    type: 'lead',
   }).returning();
   testAgentId = agent.id;
 });
@@ -60,7 +60,7 @@ describe('conversations schema', () => {
     const [tempAgent] = await db.insert(agents).values({
       teamId: testTeamId,
       name: 'Temp Agent',
-      role: 'Temp',
+      type: 'subordinate',
     }).returning();
 
     const [conversation] = await db.insert(conversations).values({

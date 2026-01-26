@@ -58,14 +58,14 @@ beforeAll(async () => {
   const [agent] = await db.insert(agents).values({
     teamId: testTeamId,
     name: 'TaskQueue Module Test Agent',
-    role: 'Tester',
+    type: 'lead',
   }).returning();
   testAgentId = agent.id;
 
   const [agent2] = await db.insert(agents).values({
     teamId: testTeamId,
     name: 'TaskQueue Module Test Agent 2',
-    role: 'Delegator',
+    type: 'lead',
   }).returning();
   testAgent2Id = agent2.id;
 });
@@ -549,7 +549,7 @@ describe('Aide Owner Info Pattern', () => {
       aideId: testAideId,
       teamId: null,
       name: 'Task Queue Test Aide Agent',
-      role: 'Assistant',
+      type: 'lead',
     }).returning();
     testAideAgentId = aideAgent.id;
   });
