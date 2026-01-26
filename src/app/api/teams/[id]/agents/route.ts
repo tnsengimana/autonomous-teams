@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth/config';
 import { getTeamById } from '@/lib/db/queries/teams';
-import { createAgent, getTeamLead } from '@/lib/db/queries/agents';
+import { createAgent, getLead } from '@/lib/db/queries/agents';
 import { createConversation } from '@/lib/db/queries/conversations';
 import { z } from 'zod';
 
 const createAgentSchema = z.object({
   name: z.string().min(1, 'Agent name is required'),
-  role: z.string().min(1, 'Role is required'),
+  type: z.literal('subordinate').default('subordinate'),
   systemPrompt: z.string().min(1, 'System prompt is required'),
 });
 
@@ -36,7 +36,7 @@ export async function POST(
     }
 
     // Get the team lead to set as parent
-    const teamLead = await getTeamLead(teamId);
+    const teamLead = await getLead(teamId);
     if (!teamLead) {
       return NextResponse.json(
         { error: 'Team lead not found. Cannot create subordinate agent without a team lead.' },
@@ -54,14 +54,14 @@ export async function POST(
       );
     }
 
-    const { name, role, systemPrompt } = validation.data;
+    const { name, type, systemPrompt } = validation.data;
 
     // Create the subordinate agent
     const agent = await createAgent({
       teamId,
       parentAgentId: teamLead.id,
       name,
-      role,
+      type,
       systemPrompt,
       status: 'idle',
     });

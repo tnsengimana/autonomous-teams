@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth/config';
 import { getTeamById } from '@/lib/db/queries/teams';
 import { getAideById, getAideLead } from '@/lib/db/queries/aides';
-import { getTeamLead, getAgentById } from '@/lib/db/queries/agents';
+import { getLead, getAgentById } from '@/lib/db/queries/agents';
 import { Agent } from '@/lib/agents/agent';
 
 /**
@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
         }
       } else {
-        agentData = await getTeamLead(teamId);
+        agentData = await getLead(teamId);
         if (!agentData) {
           return NextResponse.json(
             { error: 'No team lead found' },

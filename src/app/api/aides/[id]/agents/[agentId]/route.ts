@@ -6,7 +6,7 @@ import { z } from 'zod';
 
 const updateAgentSchema = z.object({
   name: z.string().min(1, 'Agent name is required').optional(),
-  role: z.string().min(1, 'Role is required').optional(),
+  type: z.enum(['lead', 'subordinate']).optional(),
   systemPrompt: z.string().min(1, 'System prompt is required').optional(),
 });
 

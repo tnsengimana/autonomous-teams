@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
       teamId: team.id,
       parentAgentId: null,
       name: config.leadAgentName,
-      role: 'team_lead',
+      type: 'lead',
       systemPrompt: config.leadAgentSystemPrompt,
       status: 'idle',
     });

@@ -343,11 +343,11 @@ export async function getAideLeadsDueToRun(): Promise<string[]> {
  * Used by the worker runner to find leads that need scheduled proactive runs
  */
 export async function getAllLeadsDueToRun(): Promise<string[]> {
-  const [leads, aideLeads] = await Promise.all([
+  const [teamLeads, aideLeads] = await Promise.all([
     getLeadsDueToRun(),
     getAideLeadsDueToRun(),
   ]);
-  return [...leads, ...aideLeads];
+  return [...teamLeads, ...aideLeads];
 }
 
 /**

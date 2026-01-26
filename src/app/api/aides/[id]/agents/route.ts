@@ -7,7 +7,7 @@ import { z } from 'zod';
 
 const createAgentSchema = z.object({
   name: z.string().min(1, 'Agent name is required'),
-  role: z.string().min(1, 'Role is required'),
+  type: z.literal('subordinate').default('subordinate'),
   systemPrompt: z.string().min(1, 'System prompt is required'),
 });
 
@@ -92,14 +92,14 @@ export async function POST(
       );
     }
 
-    const { name, role, systemPrompt } = validation.data;
+    const { name, type, systemPrompt } = validation.data;
 
     // Create the subordinate agent
     const agent = await createAgentForAide({
       aideId,
       parentAgentId: aideLead.id,
       name,
-      role,
+      type,
       systemPrompt,
       status: 'idle',
     });
