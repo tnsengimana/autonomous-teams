@@ -166,23 +166,6 @@ export async function completeTaskWithResult(
 }
 
 /**
- * Fail a task with error
- */
-export async function failTask(taskId: string, error: string): Promise<AgentTask> {
-  const result = await db
-    .update(agentTasks)
-    .set({
-      status: 'failed',
-      result: error,
-      completedAt: new Date(),
-    })
-    .where(eq(agentTasks.id, taskId))
-    .returning();
-
-  return result[0];
-}
-
-/**
  * Get all actionable tasks for an agent (pending)
  */
 export async function getActionableTasksForAgent(
@@ -242,7 +225,7 @@ export async function updateTaskStatus(
     completedAt: Date | null;
   }> = { status };
 
-  if (status === 'completed' || status === 'failed') {
+  if (status === 'completed') {
     updates.completedAt = new Date();
   }
 
@@ -255,7 +238,7 @@ export async function updateTaskStatus(
 export async function completeTask(
   taskId: string,
   result: string,
-  status: 'completed' | 'failed' = 'completed'
+  status: 'completed' = 'completed'
 ): Promise<void> {
   await db
     .update(agentTasks)

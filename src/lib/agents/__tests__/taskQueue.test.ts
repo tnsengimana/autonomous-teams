@@ -22,7 +22,7 @@ import {
 } from '@/lib/agents/taskQueue';
 
 // Import lower-level functions for verification
-import { completeTaskWithResult, failTask } from '@/lib/db/queries/agentTasks';
+import { completeTaskWithResult } from '@/lib/db/queries/agentTasks';
 
 // Helper to create ownerInfo for teams
 function teamOwnerInfo(teamId: string): TaskOwnerInfo {
@@ -254,18 +254,6 @@ describe('getQueueStatus', () => {
     await cleanupTasks([pending.id, completed.id]);
   });
 
-  test('excludes failed tasks from counts', async () => {
-    const pending = await queueUserTask(testAgentId, teamOwnerInfo(testTeamId), 'Pending');
-    const failed = await queueUserTask(testAgentId, teamOwnerInfo(testTeamId), 'Failed');
-    await failTask(failed.id, 'Error');
-
-    const status = await getQueueStatus(testAgentId);
-
-    expect(status.pendingCount).toBe(1);
-
-    await cleanupTasks([pending.id, failed.id]);
-  });
-
   test('hasPendingWork is true with any actionable task', async () => {
     // Only pending
     const pending = await queueUserTask(testAgentId, teamOwnerInfo(testTeamId), 'Pending');
@@ -477,17 +465,6 @@ describe('Full Workflow', () => {
     await cleanupTasks([userTask.id, systemTask.id, selfTask.id]);
   });
 
-  test('failed task workflow', async () => {
-    const task = await queueUserTask(testAgentId, teamOwnerInfo(testTeamId), 'Task that will fail');
-
-    const claimed = await claimNextTask(testAgentId);
-    await failTask(claimed!.id, 'External API unavailable');
-
-    const status = await getQueueStatus(testAgentId);
-    expect(status.hasPendingWork).toBe(false);
-
-    await cleanupTasks([task.id]);
-  });
 });
 
 // ============================================================================

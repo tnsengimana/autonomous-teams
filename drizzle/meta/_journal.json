@@ -36,6 +36,13 @@
       "when": 1769500000000,
       "tag": "0004_rename_role_to_type",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1769428880541,
+      "tag": "0005_remove_failed_task_status",
+      "breakpoints": true
     }
   ]
 }

@@ -38,7 +38,7 @@ export type UserApiKey = InferSelectModel<typeof userApiKeys>;
 
 export type AgentStatus = 'idle' | 'running' | 'paused';
 export type AgentType = 'lead' | 'subordinate';
-export type AgentTaskStatus = 'pending' | 'completed' | 'failed';
+export type AgentTaskStatus = 'pending' | 'completed';
 export type AgentTaskSource = 'delegation' | 'user' | 'system' | 'self';
 export type AideStatus = 'active' | 'paused' | 'archived';
 export type TeamStatus = 'active' | 'paused' | 'archived';

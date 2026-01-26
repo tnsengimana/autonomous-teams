@@ -24,21 +24,20 @@ const reportToLeadTool: Tool = {
   schema: {
     name: 'reportToLead',
     description:
-      'Send the results of your current task back to the lead. Use this when you have completed or failed a task.',
+      'Send the results of your current task back to the lead once completed.',
     parameters: [
       {
         name: 'result',
         type: 'string',
-        description:
-          'A detailed description of the task result or the reason for failure',
+        description: 'A detailed description of the completed task result',
         required: true,
       },
       {
         name: 'status',
         type: 'string',
-        description: 'Whether the task was completed successfully or failed',
+        description: 'Whether the task was completed successfully',
         required: true,
-        enum: ['success', 'failure'],
+        enum: ['success'],
       },
     ],
   },
@@ -74,9 +73,14 @@ const reportToLeadTool: Tool = {
 
     // Complete the most recent task
     const task = tasks[0];
-    const taskStatus = status === 'success' ? 'completed' : 'failed';
+    if (status !== 'success') {
+      return {
+        success: false,
+        error: 'Only successful completion is supported; failed tasks remain pending',
+      };
+    }
 
-    await completeTask(task.id, result, taskStatus);
+    await completeTask(task.id, result, 'completed');
 
     // Get the lead info for the response
     const agent = await getAgentById(context.agentId);
@@ -100,7 +104,7 @@ const reportToLeadTool: Tool = {
       data: {
         taskId: task.id,
         reportedTo: parentAgentId,
-        message: `Task ${taskStatus}. Result reported to lead.`,
+        message: 'Task completed. Result reported to lead.',
       },
     };
   },

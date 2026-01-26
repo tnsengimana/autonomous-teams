@@ -204,7 +204,7 @@ export const agentTasks = pgTable('agent_tasks', {
     .references(() => agents.id, { onDelete: 'cascade' }),
   task: text('task').notNull(),
   result: text('result'),
-  status: text('status').notNull().default('pending'), // 'pending', 'completed', 'failed'
+  status: text('status').notNull().default('pending'), // 'pending', 'completed'
   source: text('source').notNull().default('delegation'), // 'delegation' | 'user' | 'system' | 'self'
   createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
   completedAt: timestamp('completed_at', { mode: 'date' }),

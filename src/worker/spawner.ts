@@ -119,7 +119,6 @@ export async function processSubordinatePendingTasks(
         await completeTask(task.id, result.result ?? 'Task completed', 'completed');
         log(`Task ${task.id} completed successfully`);
       } else {
-        await completeTask(task.id, result.error ?? 'Task failed', 'failed');
         log(`Task ${task.id} failed: ${result.error}`);
       }
     }

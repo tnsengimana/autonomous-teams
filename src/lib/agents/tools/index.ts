@@ -205,8 +205,8 @@ export const CreateInboxItemParamsSchema = z.object({
 export const ReportToLeadParamsSchema = z.object({
   result: z.string().min(1).describe('The result of the task'),
   status: z
-    .enum(['success', 'failure'])
-    .describe('Whether the task succeeded or failed'),
+    .enum(['success'])
+    .describe('Whether the task succeeded'),
 });
 
 export const RequestInputParamsSchema = z.object({

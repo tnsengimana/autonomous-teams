@@ -17,7 +17,6 @@ import {
   hasQueuedWork,
   getNextTask,
   completeTaskWithResult,
-  failTask,
   createAgentTask,
   getAgentTaskById,
   type TaskOwnerInfo,
@@ -224,19 +223,6 @@ describe('getOwnPendingTasks', () => {
     await cleanupTasks([pendingTask.id, completedTask.id]);
   });
 
-  test('excludes failed tasks', async () => {
-    const pendingTask = await queueTask(testAgentId, teamOwnerInfo(testTeamId), 'Pending', 'user');
-    const failedTask = await queueTask(testAgentId, teamOwnerInfo(testTeamId), 'Failed', 'user');
-    await failTask(failedTask.id, 'Error occurred');
-
-    const tasks = await getOwnPendingTasks(testAgentId);
-
-    expect(tasks.some(t => t.id === pendingTask.id)).toBe(true);
-    expect(tasks.some(t => t.id === failedTask.id)).toBe(false);
-
-    await cleanupTasks([pendingTask.id, failedTask.id]);
-  });
-
   test('only returns tasks assigned to the specific agent', async () => {
     const agent1Task = await queueTask(testAgentId, teamOwnerInfo(testTeamId), 'Agent 1 task', 'user');
     const agent2Task = await queueTask(testAgent2Id, teamOwnerInfo(testTeamId), 'Agent 2 task', 'user');
@@ -282,16 +268,6 @@ describe('hasQueuedWork', () => {
     await cleanupTasks([task.id]);
   });
 
-  test('returns false when only failed tasks exist', async () => {
-    const task = await queueTask(testAgentId, teamOwnerInfo(testTeamId), 'Failed task', 'user');
-    await failTask(task.id, 'Error');
-
-    const hasWork = await hasQueuedWork(testAgentId);
-    expect(hasWork).toBe(false);
-
-    await cleanupTasks([task.id]);
-  });
-
   test('only considers tasks for the specific agent', async () => {
     const agent2Task = await queueTask(testAgent2Id, teamOwnerInfo(testTeamId), 'Agent 2 task', 'user');
 
@@ -306,7 +282,7 @@ describe('hasQueuedWork', () => {
 });
 
 // ============================================================================
-// Task Lifecycle Tests (pending -> completed/failed)
+// Task Lifecycle Tests (pending -> completed)
 // ============================================================================
 
 describe('Task Lifecycle', () => {
@@ -331,17 +307,6 @@ describe('Task Lifecycle', () => {
     await cleanupTasks([task.id]);
   });
 
-  test('failTask transitions task to failed with error message', async () => {
-    const task = await queueTask(testAgentId, teamOwnerInfo(testTeamId), 'Task to fail', 'user');
-    const failed = await failTask(task.id, 'An error occurred');
-
-    expect(failed.status).toBe('failed');
-    expect(failed.result).toBe('An error occurred');
-    expect(failed.completedAt).not.toBeNull();
-
-    await cleanupTasks([task.id]);
-  });
-
   test('full lifecycle: pending -> completed', async () => {
     const task = await queueTask(testAgentId, teamOwnerInfo(testTeamId), 'Full lifecycle task', 'user');
     expect(task.status).toBe('pending');
@@ -353,16 +318,6 @@ describe('Task Lifecycle', () => {
     await cleanupTasks([task.id]);
   });
 
-  test('full lifecycle: pending -> failed', async () => {
-    const task = await queueTask(testAgentId, teamOwnerInfo(testTeamId), 'Failing lifecycle task', 'user');
-    expect(task.status).toBe('pending');
-
-    const failed = await failTask(task.id, 'Something went wrong');
-    expect(failed.status).toBe('failed');
-    expect(failed.result).toBe('Something went wrong');
-
-    await cleanupTasks([task.id]);
-  });
 });
 
 // ============================================================================
@@ -486,15 +441,6 @@ describe('Edge Cases', () => {
     const completed = await completeTaskWithResult(task.id, '');
 
     expect(completed.result).toBe('');
-
-    await cleanupTasks([task.id]);
-  });
-
-  test('handles empty error on fail', async () => {
-    const task = await queueTask(testAgentId, teamOwnerInfo(testTeamId), 'Task', 'user');
-    const failed = await failTask(task.id, '');
-
-    expect(failed.result).toBe('');
 
     await cleanupTasks([task.id]);
   });
