@@ -86,51 +86,42 @@ export const userApiKeys = pgTable('user_api_keys', {
   updatedAt: timestamp('updated_at', { mode: 'date' }).defaultNow().notNull(),
 });
 
-export const teams = pgTable('teams', {
+export const entities = pgTable('entities', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id')
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
+  type: text('type').notNull(), // 'team' | 'aide'
   name: text('name').notNull(),
   purpose: text('purpose'),
   status: text('status').notNull().default('active'), // 'active', 'paused', 'archived'
   createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { mode: 'date' }).defaultNow().notNull(),
-});
-
-export const aides = pgTable('aides', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id')
-    .notNull()
-    .references(() => users.id, { onDelete: 'cascade' }),
-  name: text('name').notNull(),
-  purpose: text('purpose'),
-  status: text('status').notNull().default('active'), // 'active', 'paused', 'archived'
-  createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
-  updatedAt: timestamp('updated_at', { mode: 'date' }).defaultNow().notNull(),
-});
+}, (table) => [
+  index('entities_user_id_idx').on(table.userId),
+  index('entities_type_idx').on(table.type),
+]);
 
 export const agents = pgTable('agents', {
   id: uuid('id').primaryKey().defaultRandom(),
-  teamId: uuid('team_id')
-    .references(() => teams.id, { onDelete: 'cascade' }), // NOW NULLABLE - agent belongs to team OR aide
-  aideId: uuid('aide_id')
-    .references(() => aides.id, { onDelete: 'cascade' }), // NEW - agent belongs to team OR aide
-  parentAgentId: uuid('parent_agent_id').references((): AnyPgColumn => agents.id, { onDelete: 'cascade' }), // null for team leads
+  entityId: uuid('entity_id')
+    .notNull()
+    .references(() => entities.id, { onDelete: 'cascade' }),
+  parentAgentId: uuid('parent_agent_id').references((): AnyPgColumn => agents.id, { onDelete: 'cascade' }), // null for leads
   name: text('name').notNull(),
   type: text('type').notNull(), // 'lead' | 'subordinate'
   systemPrompt: text('system_prompt'),
   status: text('status').notNull().default('idle'), // 'idle', 'running', 'paused'
-  leadNextRunAt: timestamp('lead_next_run_at', { mode: 'date' }), // Only used for lead agents (team leads, aide leads)
+  leadNextRunAt: timestamp('lead_next_run_at', { mode: 'date' }), // Only used for lead agents
   backoffNextRunAt: timestamp('backoff_next_run_at', { mode: 'date' }),
   backoffAttemptCount: integer('backoff_attempt_count').notNull().default(0),
   lastCompletedAt: timestamp('last_completed_at', { mode: 'date' }),
   createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { mode: 'date' }).defaultNow().notNull(),
 }, (table) => [
+  index('agents_entity_id_idx').on(table.entityId),
   index('agents_lead_next_run_at_idx').on(table.leadNextRunAt),
   index('agents_backoff_next_run_at_idx').on(table.backoffNextRunAt),
-  index('agents_aide_id_idx').on(table.aideId),
 ]);
 
 export const conversations = pgTable('conversations', {
@@ -196,12 +187,9 @@ export const briefings = pgTable(
     userId: uuid('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
-    teamId: uuid('team_id').references(() => teams.id, {
-      onDelete: 'cascade',
-    }),
-    aideId: uuid('aide_id').references(() => aides.id, {
-      onDelete: 'cascade',
-    }),
+    entityId: uuid('entity_id')
+      .notNull()
+      .references(() => entities.id, { onDelete: 'cascade' }),
     agentId: uuid('agent_id')
       .notNull()
       .references(() => agents.id, { onDelete: 'cascade' }),
@@ -213,18 +201,16 @@ export const briefings = pgTable(
   },
   (table) => [
     index('briefings_user_id_idx').on(table.userId),
-    index('briefings_team_id_idx').on(table.teamId),
-    index('briefings_aide_id_idx').on(table.aideId),
+    index('briefings_entity_id_idx').on(table.entityId),
     index('briefings_agent_id_idx').on(table.agentId),
   ]
 );
 
 export const agentTasks = pgTable('agent_tasks', {
   id: uuid('id').primaryKey().defaultRandom(),
-  teamId: uuid('team_id')
-    .references(() => teams.id, { onDelete: 'cascade' }), // NOW NULLABLE - task belongs to team OR aide
-  aideId: uuid('aide_id')
-    .references(() => aides.id, { onDelete: 'cascade' }), // NEW - task belongs to team OR aide
+  entityId: uuid('entity_id')
+    .notNull()
+    .references(() => entities.id, { onDelete: 'cascade' }),
   assignedToId: uuid('assigned_to_id')
     .notNull()
     .references(() => agents.id, { onDelete: 'cascade' }),
@@ -237,7 +223,9 @@ export const agentTasks = pgTable('agent_tasks', {
   source: text('source').notNull().default('delegation'), // 'delegation' | 'user' | 'system' | 'self'
   createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
   completedAt: timestamp('completed_at', { mode: 'date' }),
-});
+}, (table) => [
+  index('agent_tasks_entity_id_idx').on(table.entityId),
+]);
 
 // ============================================================================
 // Knowledge Items (Professional Knowledge)
@@ -264,8 +252,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   accounts: many(accounts),
   sessions: many(sessions),
   apiKeys: many(userApiKeys),
-  teams: many(teams),
-  aides: many(aides),
+  entities: many(entities),
   inboxItems: many(inboxItems),
   briefings: many(briefings),
 }));
@@ -291,19 +278,9 @@ export const userApiKeysRelations = relations(userApiKeys, ({ one }) => ({
   }),
 }));
 
-export const teamsRelations = relations(teams, ({ one, many }) => ({
+export const entitiesRelations = relations(entities, ({ one, many }) => ({
   user: one(users, {
-    fields: [teams.userId],
-    references: [users.id],
-  }),
-  agents: many(agents),
-  briefings: many(briefings),
-  agentTasks: many(agentTasks),
-}));
-
-export const aidesRelations = relations(aides, ({ one, many }) => ({
-  user: one(users, {
-    fields: [aides.userId],
+    fields: [entities.userId],
     references: [users.id],
   }),
   agents: many(agents),
@@ -312,13 +289,9 @@ export const aidesRelations = relations(aides, ({ one, many }) => ({
 }));
 
 export const agentsRelations = relations(agents, ({ one, many }) => ({
-  team: one(teams, {
-    fields: [agents.teamId],
-    references: [teams.id],
-  }),
-  aide: one(aides, {
-    fields: [agents.aideId],
-    references: [aides.id],
+  entity: one(entities, {
+    fields: [agents.entityId],
+    references: [entities.id],
   }),
   parentAgent: one(agents, {
     fields: [agents.parentAgentId],
@@ -397,13 +370,9 @@ export const briefingsRelations = relations(briefings, ({ one }) => ({
     fields: [briefings.userId],
     references: [users.id],
   }),
-  team: one(teams, {
-    fields: [briefings.teamId],
-    references: [teams.id],
-  }),
-  aide: one(aides, {
-    fields: [briefings.aideId],
-    references: [aides.id],
+  entity: one(entities, {
+    fields: [briefings.entityId],
+    references: [entities.id],
   }),
   agent: one(agents, {
     fields: [briefings.agentId],
@@ -412,13 +381,9 @@ export const briefingsRelations = relations(briefings, ({ one }) => ({
 }));
 
 export const agentTasksRelations = relations(agentTasks, ({ one }) => ({
-  team: one(teams, {
-    fields: [agentTasks.teamId],
-    references: [teams.id],
-  }),
-  aide: one(aides, {
-    fields: [agentTasks.aideId],
-    references: [aides.id],
+  entity: one(entities, {
+    fields: [agentTasks.entityId],
+    references: [entities.id],
   }),
   assignedTo: one(agents, {
     fields: [agentTasks.assignedToId],

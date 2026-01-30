@@ -9,8 +9,7 @@ import { useUnreadInboxItemsCount } from "@/hooks/useUnreadInboxItemsCount";
 
 const navItems = [
   { href: "/inbox", label: "Inbox" },
-  { href: "/aides", label: "Aides" },
-  { href: "/teams", label: "Teams" },
+  { href: "/entities", label: "Entities" },
   { href: "/settings", label: "Settings" },
 ];
 

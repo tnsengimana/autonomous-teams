@@ -1,16 +1,14 @@
 services:
   postgres:
     image: postgres:16
-    ports:
-      - "5433:5432"
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: autonomous_teams
+      POSTGRES_DB: autonomous_agents
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d autonomous_teams"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d autonomous_agents"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -24,7 +22,7 @@ services:
     env_file:
       - .env.local
     environment:
-      DATABASE_URL: postgres://postgres:postgres@postgres:5432/autonomous_teams
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/autonomous_agents
       NODE_ENV: development
     volumes:
       - .:/app
@@ -40,7 +38,7 @@ services:
     env_file:
       - .env.local
     environment:
-      DATABASE_URL: postgres://postgres:postgres@postgres:5432/autonomous_teams
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/autonomous_agents
       NODE_ENV: development
       WATCHPACK_POLLING: "true"
     ports:
@@ -59,7 +57,7 @@ services:
     env_file:
       - .env.local
     environment:
-      DATABASE_URL: postgres://postgres:postgres@postgres:5432/autonomous_teams
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/autonomous_agents
       NODE_ENV: development
       CHOKIDAR_USEPOLLING: "true"
     volumes:

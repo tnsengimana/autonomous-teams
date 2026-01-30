@@ -13,7 +13,7 @@ import { describe, test, expect, beforeAll, afterAll, vi } from 'vitest';
 import { db } from '@/lib/db/client';
 import {
   users,
-  teams,
+  entities,
   agents,
   agentTasks,
   conversations,
@@ -21,11 +21,11 @@ import {
 } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import * as llm from '@/lib/agents/llm';
-import type { TaskOwnerInfo } from '@/lib/agents/taskQueue';
+import type { TaskEntityInfo } from '@/lib/agents/taskQueue';
 
-// Helper to create ownerInfo for teams
-function teamOwnerInfo(teamId: string): TaskOwnerInfo {
-  return { teamId };
+// Helper to create entityInfo for entities
+function entityInfo(entityId: string): TaskEntityInfo {
+  return { entityId };
 }
 
 // ============================================================================
@@ -33,7 +33,7 @@ function teamOwnerInfo(teamId: string): TaskOwnerInfo {
 // ============================================================================
 
 let testUserId: string;
-let testTeamId: string;
+let testEntityId: string;
 let testTeamLeadId: string;
 
 beforeAll(async () => {
@@ -50,23 +50,24 @@ beforeAll(async () => {
     .returning();
   testUserId = user.id;
 
-  // Create test team
-  const [team] = await db
-    .insert(teams)
+  // Create test entity
+  const [entity] = await db
+    .insert(entities)
     .values({
       userId: testUserId,
+      type: 'team',
       name: 'API Test Team',
       purpose: 'Testing API endpoints',
       status: 'active',
     })
     .returning();
-  testTeamId = team.id;
+  testEntityId = entity.id;
 
   // Create team lead agent
   const [teamLead] = await db
     .insert(agents)
     .values({
-      teamId: testTeamId,
+      entityId: testEntityId,
       name: 'API Test Team Lead',
       type: 'lead',
       parentAgentId: null,
@@ -184,19 +185,20 @@ describe('Messages API (/api/messages)', () => {
 });
 
 // ============================================================================
-// Team Creation Tests
+// Entity Creation Tests
 // ============================================================================
 
-describe('Team Creation API (/api/teams)', () => {
-  test('queueSystemTask is called with bootstrap message after team creation', async () => {
+describe('Entity Creation API (/api/entities)', () => {
+  test('queueSystemTask is called with bootstrap message after entity creation', async () => {
     // Import the queueSystemTask function
     const { queueSystemTask } = await import('@/lib/agents/taskQueue');
 
-    // Create a new team and team lead manually (simulating what the API does)
-    const [newTeam] = await db
-      .insert(teams)
+    // Create a new entity and team lead manually (simulating what the API does)
+    const [newEntity] = await db
+      .insert(entities)
       .values({
         userId: testUserId,
+        type: 'team',
         name: 'Bootstrap Test Team',
         purpose: 'Testing bootstrap task',
         status: 'active',
@@ -206,7 +208,7 @@ describe('Team Creation API (/api/teams)', () => {
     const [newTeamLead] = await db
       .insert(agents)
       .values({
-        teamId: newTeam.id,
+        entityId: newEntity.id,
         name: 'Bootstrap Team Lead',
         type: 'lead',
         parentAgentId: null,
@@ -216,7 +218,7 @@ describe('Team Creation API (/api/teams)', () => {
     // Queue the bootstrap task (this is what the API now does)
     await queueSystemTask(
       newTeamLead.id,
-      teamOwnerInfo(newTeam.id),
+      entityInfo(newEntity.id),
       'Get to work on your mission. Review your purpose and start taking actions to fulfill it.'
     );
 
@@ -237,7 +239,7 @@ describe('Team Creation API (/api/teams)', () => {
     expect(bootstrapTask.status).toBe('pending');
 
     // Cleanup
-    await db.delete(teams).where(eq(teams.id, newTeam.id));
+    await db.delete(entities).where(eq(entities.id, newEntity.id));
   });
 });
 
@@ -381,7 +383,7 @@ describe('API Response Patterns', () => {
     // Queue user task
     const userTask = await queueUserTask(
       testTeamLeadId,
-      teamOwnerInfo(testTeamId),
+      entityInfo(testEntityId),
       'User requested analysis'
     );
     expect(userTask.source).toBe('user');
@@ -389,7 +391,7 @@ describe('API Response Patterns', () => {
     // Queue system task
     const systemTask = await queueSystemTask(
       testTeamLeadId,
-      teamOwnerInfo(testTeamId),
+      entityInfo(testEntityId),
       'System bootstrap task'
     );
     expect(systemTask.source).toBe('system');
@@ -496,7 +498,7 @@ describe('Edge Cases', () => {
     const [newAgent] = await db
       .insert(agents)
       .values({
-        teamId: testTeamId,
+        entityId: testEntityId,
         name: 'No Conversation Agent',
         type: 'subordinate',
         parentAgentId: testTeamLeadId,

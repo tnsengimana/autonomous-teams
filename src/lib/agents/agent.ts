@@ -77,8 +77,7 @@ type UserIntent = "work_request" | "regular_chat";
 
 export class Agent {
   readonly id: string;
-  readonly teamId: string | null;
-  readonly aideId: string | null;
+  readonly entityId: string;
   readonly name: string;
   readonly type: string;
   readonly systemPrompt: string;
@@ -91,27 +90,15 @@ export class Agent {
 
   constructor(data: AgentData, llmOptions: StreamOptions = {}) {
     this.id = data.id;
-    this.teamId = data.teamId;
-    this.aideId = data.aideId;
+    this.entityId = data.entityId;
     this.name = data.name;
     this.type = data.type;
     this.systemPrompt = data.systemPrompt ?? this.getDefaultSystemPrompt();
     this.parentAgentId = data.parentAgentId;
     this.llmOptions = {
-      teamId: data.teamId ?? undefined,
-      aideId: data.aideId ?? undefined,
+      entityId: data.entityId,
       ...llmOptions,
     };
-  }
-
-  /**
-   * Get owner info for task queuing and inbox items
-   * Returns { teamId: string } or { aideId: string }
-   */
-  getOwnerInfo(): { teamId: string } | { aideId: string } {
-    if (this.teamId) return { teamId: this.teamId };
-    if (this.aideId) return { aideId: this.aideId };
-    throw new Error(`Agent ${this.id} has no team or aide`);
   }
 
   /**
@@ -344,8 +331,7 @@ Examples:
     const tools = getForegroundTools();
     const toolContext: ToolContext = {
       agentId: this.id,
-      teamId: this.teamId,
-      aideId: this.aideId,
+      entityId: this.entityId,
       isLead: this.isLead(),
     };
 
@@ -410,7 +396,7 @@ Examples:
 
     // 6. Queue background task only after persistence succeeds
     if (intent === "work_request") {
-      await queueUserTask(this.id, this.getOwnerInfo(), content);
+      await queueUserTask(this.id, { entityId: this.entityId }, content);
     }
 
     // 7. Extract memories in background
@@ -564,8 +550,7 @@ Examples:
     const tools = getBackgroundTools(this.isLead());
     const toolContext: ToolContext = {
       agentId: this.id,
-      teamId: this.teamId,
-      aideId: this.aideId,
+      entityId: this.entityId,
       isLead: this.isLead(),
     };
 
@@ -728,25 +713,19 @@ Examples:
       .join("\n\n")
       .slice(0, 2000); // Limit context size
 
-    // Get user ID based on owner type
-    let userId: string | null = null;
-    if (this.teamId) {
-      const { getTeamUserId } = await import("@/lib/db/queries/teams");
-      userId = await getTeamUserId(this.teamId);
-    } else if (this.aideId) {
-      const { getAideUserId } = await import("@/lib/db/queries/aides");
-      userId = await getAideUserId(this.aideId);
-    }
+    // Get user ID from entity
+    const { getEntityUserId } = await import("@/lib/db/queries/entities");
+    const userId = await getEntityUserId(this.entityId);
 
     if (!userId) {
-      console.error(`[Agent ${this.name}] No user found for team/aide`);
+      console.error(`[Agent ${this.name}] No user found for entity`);
       return;
     }
 
-    const { getRecentBriefingsByOwner } =
+    const { getRecentBriefingsByEntity } =
       await import("@/lib/db/queries/briefings");
-    const recentBriefings = await getRecentBriefingsByOwner(
-      { userId, ...this.getOwnerInfo() },
+    const recentBriefings = await getRecentBriefingsByEntity(
+      { userId, entityId: this.entityId },
       5,
     );
     const recentBriefingsBlock =
@@ -793,8 +772,7 @@ If no briefing is warranted, respond with a short sentence starting with \"No br
 
       const toolContext: ToolContext = {
         agentId: this.id,
-        teamId: this.teamId,
-        aideId: this.aideId,
+        entityId: this.entityId,
         isLead: this.isLead(),
       };
 

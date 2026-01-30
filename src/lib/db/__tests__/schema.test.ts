@@ -1,13 +1,13 @@
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';
 import { db } from '@/lib/db/client';
 import {
-  users, teams, agents, conversations, messages, knowledgeItems, agentTasks
+  users, entities, agents, conversations, messages, knowledgeItems, agentTasks
 } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 
 // Test utilities
 let testUserId: string;
-let testTeamId: string;
+let testEntityId: string;
 let testAgentId: string;
 
 beforeAll(async () => {
@@ -18,17 +18,18 @@ beforeAll(async () => {
   }).returning();
   testUserId = user.id;
 
-  // Create test team
-  const [team] = await db.insert(teams).values({
+  // Create test entity
+  const [entity] = await db.insert(entities).values({
     userId: testUserId,
+    type: 'team',
     name: 'Test Team',
     purpose: 'Testing',
   }).returning();
-  testTeamId = team.id;
+  testEntityId = entity.id;
 
   // Create test agent
   const [agent] = await db.insert(agents).values({
-    teamId: testTeamId,
+    entityId: testEntityId,
     name: 'Test Agent',
     type: 'lead',
   }).returning();
@@ -58,7 +59,7 @@ describe('conversations schema', () => {
   test('cascades delete when agent deleted', async () => {
     // Create a separate agent for this test
     const [tempAgent] = await db.insert(agents).values({
-      teamId: testTeamId,
+      entityId: testEntityId,
       name: 'Temp Agent',
       type: 'subordinate',
     }).returning();
@@ -322,7 +323,7 @@ describe('knowledgeItems schema', () => {
 describe('agentTasks schema', () => {
   test('creates task with source field', async () => {
     const [task] = await db.insert(agentTasks).values({
-      teamId: testTeamId,
+      entityId: testEntityId,
       assignedToId: testAgentId,
       assignedById: testAgentId,
       task: 'Test task',
@@ -338,7 +339,7 @@ describe('agentTasks schema', () => {
 
   test('source defaults to delegation', async () => {
     const [task] = await db.insert(agentTasks).values({
-      teamId: testTeamId,
+      entityId: testEntityId,
       assignedToId: testAgentId,
       assignedById: testAgentId,
       task: 'Delegated task',
@@ -356,7 +357,7 @@ describe('agentTasks schema', () => {
 
     for (const source of sourceTypes) {
       const [task] = await db.insert(agentTasks).values({
-        teamId: testTeamId,
+        entityId: testEntityId,
         assignedToId: testAgentId,
         assignedById: testAgentId,
         task: `Task from ${source}`,
@@ -375,7 +376,7 @@ describe('agentTasks schema', () => {
 
   test('supports status transitions', async () => {
     const [task] = await db.insert(agentTasks).values({
-      teamId: testTeamId,
+      entityId: testEntityId,
       assignedToId: testAgentId,
       assignedById: testAgentId,
       task: 'Status transition test',

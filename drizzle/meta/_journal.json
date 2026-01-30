@@ -5,64 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1769402862470,
-      "tag": "0000_init",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1769408766012,
-      "tag": "0001_bumpy_luckman",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1769421694754,
-      "tag": "0002_add_agent_backoff",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1769424000000,
-      "tag": "0003_rename_next_run_at",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1769500000000,
-      "tag": "0004_rename_role_to_type",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1769428880541,
-      "tag": "0005_remove_failed_task_status",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "7",
-      "when": 1769600000000,
-      "tag": "0006_add_briefings",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "7",
-      "when": 1769605000000,
-      "tag": "0007_remove_inbox_owner_ids",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "7",
-      "when": 1769610000000,
-      "tag": "0008_inbox_item_feedback_type",
+      "when": 1769743983155,
+      "tag": "0000_chilly_shadow_king",
       "breakpoints": true
     }
   ]

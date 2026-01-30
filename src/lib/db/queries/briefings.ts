@@ -4,24 +4,22 @@
 
 import { and, desc, eq, ilike, or } from 'drizzle-orm';
 import { db } from '../client';
-import { briefings, teams, aides } from '../schema';
+import { briefings, entities } from '../schema';
 import type { Briefing } from '@/lib/types';
-
-export type BriefingOwnerInfo = { teamId: string } | { aideId: string };
 
 export async function createBriefing(data: {
   userId: string;
+  entityId: string;
   agentId: string;
   title: string;
   summary: string;
   content: string;
-} & BriefingOwnerInfo): Promise<Briefing> {
+}): Promise<Briefing> {
   const result = await db
     .insert(briefings)
     .values({
       userId: data.userId,
-      teamId: 'teamId' in data ? data.teamId : null,
-      aideId: 'aideId' in data ? data.aideId : null,
+      entityId: data.entityId,
       agentId: data.agentId,
       title: data.title,
       summary: data.summary,
@@ -46,18 +44,15 @@ export async function getBriefingById(
 
 export async function getBriefingWithSource(briefingId: string): Promise<{
   briefing: Briefing;
-  teamName: string | null;
-  aideName: string | null;
+  entityName: string | null;
 } | null> {
   const result = await db
     .select({
       briefing: briefings,
-      teamName: teams.name,
-      aideName: aides.name,
+      entityName: entities.name,
     })
     .from(briefings)
-    .leftJoin(teams, eq(briefings.teamId, teams.id))
-    .leftJoin(aides, eq(briefings.aideId, aides.id))
+    .leftJoin(entities, eq(briefings.entityId, entities.id))
     .where(eq(briefings.id, briefingId))
     .limit(1);
 
@@ -67,39 +62,33 @@ export async function getBriefingWithSource(briefingId: string): Promise<{
 
   return {
     briefing: result[0].briefing as Briefing,
-    teamName: result[0].teamName,
-    aideName: result[0].aideName,
+    entityName: result[0].entityName,
   };
 }
 
-export async function getRecentBriefingsByOwner(
-  data: { userId: string } & BriefingOwnerInfo,
+export async function getRecentBriefingsByEntity(
+  data: { userId: string; entityId: string },
   limit = 5
 ): Promise<Briefing[]> {
-  const ownerFilter =
-    'teamId' in data
-      ? eq(briefings.teamId, data.teamId)
-      : eq(briefings.aideId, data.aideId);
-
   const result = await db
     .select()
     .from(briefings)
-    .where(and(eq(briefings.userId, data.userId), ownerFilter))
+    .where(
+      and(
+        eq(briefings.userId, data.userId),
+        eq(briefings.entityId, data.entityId)
+      )
+    )
     .orderBy(desc(briefings.createdAt))
     .limit(limit);
 
   return result as Briefing[];
 }
 
-export async function listBriefingsByOwner(
-  data: { userId: string; query?: string } & BriefingOwnerInfo,
+export async function listBriefingsByEntity(
+  data: { userId: string; entityId: string; query?: string },
   limit = 20
 ): Promise<Briefing[]> {
-  const ownerFilter =
-    'teamId' in data
-      ? eq(briefings.teamId, data.teamId)
-      : eq(briefings.aideId, data.aideId);
-
   const searchQuery = data.query?.trim();
   const searchFilter = searchQuery
     ? or(
@@ -108,7 +97,10 @@ export async function listBriefingsByOwner(
       )
     : null;
 
-  const filters = [eq(briefings.userId, data.userId), ownerFilter];
+  const filters = [
+    eq(briefings.userId, data.userId),
+    eq(briefings.entityId, data.entityId),
+  ];
   if (searchFilter) {
     filters.push(searchFilter);
   }
@@ -123,15 +115,11 @@ export async function listBriefingsByOwner(
   return result as Briefing[];
 }
 
-export async function getBriefingByIdForOwner(data: {
+export async function getBriefingByIdForEntity(data: {
   briefingId: string;
   userId: string;
-} & BriefingOwnerInfo): Promise<Briefing | null> {
-  const ownerFilter =
-    'teamId' in data
-      ? eq(briefings.teamId, data.teamId)
-      : eq(briefings.aideId, data.aideId);
-
+  entityId: string;
+}): Promise<Briefing | null> {
   const result = await db
     .select()
     .from(briefings)
@@ -139,7 +127,7 @@ export async function getBriefingByIdForOwner(data: {
       and(
         eq(briefings.id, data.briefingId),
         eq(briefings.userId, data.userId),
-        ownerFilter
+        eq(briefings.entityId, data.entityId)
       )
     )
     .limit(1);

@@ -54,21 +54,14 @@ async function getTavilyApiKeyFromContext(context: ToolContext): Promise<string 
     return process.env.TAVILY_API_KEY;
   }
 
-  // Then try to get from user's stored keys via team or aide
+  // Then try to get from user's stored keys via entity
   try {
     const { getUserApiKeyForProvider, decryptApiKey } = await import(
       '@/lib/db/queries/userApiKeys'
     );
 
-    let userId: string | null = null;
-
-    if (context.teamId) {
-      const { getTeamUserId } = await import('@/lib/db/queries/teams');
-      userId = await getTeamUserId(context.teamId);
-    } else if (context.aideId) {
-      const { getAideUserId } = await import('@/lib/db/queries/aides');
-      userId = await getAideUserId(context.aideId);
-    }
+    const { getEntityUserId } = await import('@/lib/db/queries/entities');
+    const userId = await getEntityUserId(context.entityId);
 
     if (!userId) {
       return null;

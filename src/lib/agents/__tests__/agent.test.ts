@@ -14,7 +14,7 @@ import { describe, test, expect, beforeAll, afterAll, beforeEach, vi } from 'vit
 import { db } from '@/lib/db/client';
 import {
   users,
-  teams,
+  entities,
   agents,
   agentTasks,
   knowledgeItems,
@@ -27,11 +27,11 @@ import { eq, and } from 'drizzle-orm';
 
 // Import the Agent class and related functions
 import { createAgent, createAgentFromData } from '@/lib/agents/agent';
-import { queueUserTask, getQueueStatus, type TaskOwnerInfo } from '@/lib/agents/taskQueue';
+import { queueUserTask, getQueueStatus, type TaskEntityInfo } from '@/lib/agents/taskQueue';
 
-// Helper to create ownerInfo for teams
-function teamOwnerInfo(teamId: string): TaskOwnerInfo {
-  return { teamId };
+// Helper to create entityInfo for entities
+function entityInfo(entityId: string): TaskEntityInfo {
+  return { entityId };
 }
 import { registerKnowledgeItemTools } from '@/lib/agents/tools/knowledge-item-tools';
 import { getTool, executeTool, type ToolContext } from '@/lib/agents/tools';
@@ -45,7 +45,7 @@ import { registerLeadTools } from '@/lib/agents/tools/lead-tools';
 // ============================================================================
 
 let testUserId: string;
-let testTeamId: string;
+let testEntityId: string;
 let testTeamLeadId: string;
 let testSubordinateId: string;
 
@@ -60,18 +60,19 @@ beforeAll(async () => {
   }).returning();
   testUserId = user.id;
 
-  // Create test team (active status for runWorkSession)
-  const [team] = await db.insert(teams).values({
+  // Create test entity (active status for runWorkSession)
+  const [entity] = await db.insert(entities).values({
     userId: testUserId,
+    type: 'team',
     name: 'Agent Lifecycle Test Team',
     purpose: 'Testing agent lifecycle methods',
     status: 'active',
   }).returning();
-  testTeamId = team.id;
+  testEntityId = entity.id;
 
   // Create lead agent (no parent)
   const [leadAgent] = await db.insert(agents).values({
-    teamId: testTeamId,
+    entityId: testEntityId,
     name: 'Test Lead',
     type: 'lead',
     parentAgentId: null,
@@ -80,7 +81,7 @@ beforeAll(async () => {
 
   // Create subordinate agent (has parent)
   const [subordinate] = await db.insert(agents).values({
-    teamId: testTeamId,
+    entityId: testEntityId,
     name: 'Test Subordinate',
     type: 'subordinate',
     parentAgentId: testTeamLeadId,
@@ -101,7 +102,7 @@ afterAll(async () => {
 // Helper to cleanup data created during tests
 async function cleanupTestData() {
   // Clean up tasks, knowledge items, conversations for test agents
-  await db.delete(agentTasks).where(eq(agentTasks.teamId, testTeamId));
+  await db.delete(agentTasks).where(eq(agentTasks.entityId, testEntityId));
   await db.delete(knowledgeItems).where(eq(knowledgeItems.agentId, testTeamLeadId));
   await db.delete(knowledgeItems).where(eq(knowledgeItems.agentId, testSubordinateId));
   await db.delete(inboxItems).where(eq(inboxItems.userId, testUserId));
@@ -146,8 +147,7 @@ describe('Agent Class', () => {
   test('creates agent from data object', () => {
     const data = {
       id: 'test-id',
-      teamId: testTeamId,
-      aideId: null,
+      entityId: testEntityId,
       name: 'Direct Agent',
       type: 'lead',
       parentAgentId: null,
@@ -312,7 +312,7 @@ describe('runWorkSession', () => {
 
   test('uses background conversation for session', async () => {
     // Queue a task first
-    await queueUserTask(testTeamLeadId, teamOwnerInfo(testTeamId), 'Test task');
+    await queueUserTask(testTeamLeadId, entityInfo(testEntityId), 'Test task');
 
     const agent = await createAgent(testTeamLeadId);
     await agent!.runWorkSession();
@@ -326,8 +326,8 @@ describe('runWorkSession', () => {
 
   test('processes pending tasks in queue', async () => {
     // Queue multiple tasks
-    await queueUserTask(testTeamLeadId, teamOwnerInfo(testTeamId), 'Task 1');
-    await queueUserTask(testTeamLeadId, teamOwnerInfo(testTeamId), 'Task 2');
+    await queueUserTask(testTeamLeadId, entityInfo(testEntityId), 'Task 1');
+    await queueUserTask(testTeamLeadId, entityInfo(testEntityId), 'Task 2');
 
     const statusBefore = await getQueueStatus(testTeamLeadId);
     expect(statusBefore.pendingCount).toBe(2);
@@ -346,7 +346,7 @@ describe('runWorkSession', () => {
     await createKnowledgeItem(testTeamLeadId, 'pattern', 'Tech stocks rise in Q4', undefined, 0.7);
 
     // Queue a task
-    await queueUserTask(testTeamLeadId, teamOwnerInfo(testTeamId), 'Analyze market');
+    await queueUserTask(testTeamLeadId, entityInfo(testEntityId), 'Analyze market');
 
     const agent = await createAgent(testTeamLeadId);
 
@@ -361,7 +361,7 @@ describe('runWorkSession', () => {
 
   test('team lead schedules next run after session', async () => {
     // Queue a task
-    await queueUserTask(testTeamLeadId, teamOwnerInfo(testTeamId), 'Test task');
+    await queueUserTask(testTeamLeadId, entityInfo(testEntityId), 'Test task');
 
     const agent = await createAgent(testTeamLeadId);
     await agent!.runWorkSession();
@@ -381,7 +381,7 @@ describe('runWorkSession', () => {
 
   test('subordinate does not schedule next run', async () => {
     // Queue a task for subordinate
-    await queueUserTask(testSubordinateId, teamOwnerInfo(testTeamId), 'Subordinate task');
+    await queueUserTask(testSubordinateId, entityInfo(testEntityId), 'Subordinate task');
 
     const agent = await createAgent(testSubordinateId);
     await agent!.runWorkSession();
@@ -403,7 +403,7 @@ describe('processTask', () => {
     const bgConversation = await getOrCreateConversation(testTeamLeadId, 'background');
 
     // Queue a task
-    const task = await queueUserTask(testTeamLeadId, teamOwnerInfo(testTeamId), 'Analyze TSLA stock');
+    const task = await queueUserTask(testTeamLeadId, entityInfo(testEntityId), 'Analyze TSLA stock');
 
     const agent = await createAgent(testTeamLeadId);
     await agent!.processTask(bgConversation.id, task);
@@ -426,7 +426,7 @@ describe('processTask', () => {
 
   test('marks task complete with result', async () => {
     const bgConversation = await getOrCreateConversation(testTeamLeadId, 'background');
-    const task = await queueUserTask(testTeamLeadId, teamOwnerInfo(testTeamId), 'Complete this');
+    const task = await queueUserTask(testTeamLeadId, entityInfo(testEntityId), 'Complete this');
 
     const agent = await createAgent(testTeamLeadId);
     const result = await agent!.processTask(bgConversation.id, task);
@@ -519,8 +519,7 @@ describe('createBriefing tool', () => {
   test('creates briefing + inbox item without touching foreground conversation', async () => {
     const toolContext: ToolContext = {
       agentId: testTeamLeadId,
-      teamId: testTeamId,
-      aideId: null,
+      entityId: testEntityId,
       isLead: true,
     };
 
@@ -561,8 +560,7 @@ describe('briefing query tools', () => {
   test('listBriefings returns metadata only and supports search', async () => {
     const [briefingA] = await db.insert(briefings).values({
       userId: testUserId,
-      teamId: testTeamId,
-      aideId: null,
+      entityId: testEntityId,
       agentId: testTeamLeadId,
       title: 'Market Update: Chips',
       summary: 'A notable shift in chip stocks.',
@@ -570,8 +568,7 @@ describe('briefing query tools', () => {
     }).returning();
     await db.insert(briefings).values({
       userId: testUserId,
-      teamId: testTeamId,
-      aideId: null,
+      entityId: testEntityId,
       agentId: testTeamLeadId,
       title: 'Energy Briefing',
       summary: 'Energy sector summary.',
@@ -580,8 +577,7 @@ describe('briefing query tools', () => {
 
     const toolContext: ToolContext = {
       agentId: testTeamLeadId,
-      teamId: testTeamId,
-      aideId: null,
+      entityId: testEntityId,
       isLead: true,
     };
 
@@ -601,8 +597,7 @@ describe('briefing query tools', () => {
   test('getBriefing returns full content for a matching briefing', async () => {
     const [briefing] = await db.insert(briefings).values({
       userId: testUserId,
-      teamId: testTeamId,
-      aideId: null,
+      entityId: testEntityId,
       agentId: testTeamLeadId,
       title: 'Research Briefing',
       summary: 'A concise summary.',
@@ -611,8 +606,7 @@ describe('briefing query tools', () => {
 
     const toolContext: ToolContext = {
       agentId: testTeamLeadId,
-      teamId: testTeamId,
-      aideId: null,
+      entityId: testEntityId,
       isLead: true,
     };
 
@@ -636,8 +630,7 @@ describe('requestUserInput tool', () => {
   test('creates feedback inbox item and appends foreground message', async () => {
     const toolContext: ToolContext = {
       agentId: testTeamLeadId,
-      teamId: testTeamId,
-      aideId: null,
+      entityId: testEntityId,
       isLead: true,
     };
 
@@ -676,14 +669,13 @@ describe('requestUserInput tool', () => {
 describe('Knowledge Item Tools', () => {
   const toolContext: ToolContext = {
     agentId: '',
-    teamId: '',
-    aideId: null,
+    entityId: '',
     isLead: true,
   };
 
   beforeEach(() => {
     toolContext.agentId = testTeamLeadId;
-    toolContext.teamId = testTeamId;
+    toolContext.entityId = testEntityId;
   });
 
   describe('addKnowledgeItem', () => {
@@ -926,7 +918,7 @@ describe('Agent Status', () => {
   });
 
   test('runWorkSession sets status to running then idle', async () => {
-    await queueUserTask(testTeamLeadId, teamOwnerInfo(testTeamId), 'Test task');
+    await queueUserTask(testTeamLeadId, entityInfo(testEntityId), 'Test task');
 
     const agent = await createAgent(testTeamLeadId);
     await agent!.runWorkSession();
@@ -1277,27 +1269,26 @@ describe('Edge Cases', () => {
 });
 
 // ============================================================================
-// Aide Support Tests
+// Aide Entity Type Tests
 // ============================================================================
 
-describe('Aide Support', () => {
-  let testAideId: string;
+describe('Aide Entity Type', () => {
+  let testAideEntityId: string;
   let testAideAgentId: string;
 
   beforeAll(async () => {
-    // Create an aide for testing
-    const { aides } = await import('@/lib/db/schema');
-    const [aide] = await db.insert(aides).values({
+    // Create an aide entity for testing
+    const [aideEntity] = await db.insert(entities).values({
       userId: testUserId,
+      type: 'aide',
       name: 'Agent Test Aide',
       status: 'active',
     }).returning();
-    testAideId = aide.id;
+    testAideEntityId = aideEntity.id;
 
-    // Create a lead agent for the aide (no parent)
+    // Create a lead agent for the aide entity (no parent)
     const [aideAgent] = await db.insert(agents).values({
-      aideId: testAideId,
-      teamId: null,
+      entityId: testAideEntityId,
       name: 'Test Aide Lead',
       type: 'lead',
       parentAgentId: null,
@@ -1306,18 +1297,17 @@ describe('Aide Support', () => {
   });
 
   afterAll(async () => {
-    // Cleanup aide (cascades to agents)
-    const { aides } = await import('@/lib/db/schema');
-    await db.delete(aides).where(eq(aides.id, testAideId));
+    // Cleanup aide entity (cascades to agents)
+    await db.delete(entities).where(eq(entities.id, testAideEntityId));
   });
 
   beforeEach(async () => {
     // Clean up tasks for aide agent
-    await db.delete(agentTasks).where(eq(agentTasks.aideId, testAideId));
+    await db.delete(agentTasks).where(eq(agentTasks.entityId, testAideEntityId));
     await db.delete(conversations).where(eq(conversations.agentId, testAideAgentId));
   });
 
-  test('createAgent loads aide agent correctly', async () => {
+  test('createAgent loads aide entity agent correctly', async () => {
     const agent = await createAgent(testAideAgentId);
 
     expect(agent).not.toBeNull();
@@ -1325,11 +1315,10 @@ describe('Aide Support', () => {
     expect(agent!.name).toBe('Test Aide Lead');
   });
 
-  test('createAgentFromData with aideId works correctly', () => {
+  test('createAgentFromData with aide entityId works correctly', () => {
     const data = {
       id: 'test-aide-agent-id',
-      teamId: null,
-      aideId: testAideId,
+      entityId: testAideEntityId,
       name: 'Aide Agent',
       type: 'lead',
       parentAgentId: null,
@@ -1347,30 +1336,12 @@ describe('Aide Support', () => {
     expect(agent.isLead()).toBe(true); // Aide lead (no parent)
   });
 
-  test('aide agent isTeamLead returns true for lead (no parent)', async () => {
+  test('aide entity agent isLead returns true for lead (no parent)', async () => {
     const agent = await createAgent(testAideAgentId);
     expect(agent!.isLead()).toBe(true);
   });
 
-  test('getOwnerInfo returns aide owner info for aide agents', async () => {
-    const agent = await createAgent(testAideAgentId);
-    const ownerInfo = agent!.getOwnerInfo();
-
-    expect('aideId' in ownerInfo).toBe(true);
-    expect((ownerInfo as { aideId: string }).aideId).toBe(testAideId);
-    expect('teamId' in ownerInfo).toBe(false);
-  });
-
-  test('getOwnerInfo returns team owner info for team agents', async () => {
-    const agent = await createAgent(testTeamLeadId);
-    const ownerInfo = agent!.getOwnerInfo();
-
-    expect('teamId' in ownerInfo).toBe(true);
-    expect((ownerInfo as { teamId: string }).teamId).toBe(testTeamId);
-    expect('aideId' in ownerInfo).toBe(false);
-  });
-
-  test('aide agent can handle user messages', async () => {
+  test('aide entity agent can handle user messages', async () => {
     const agent = await createAgent(testAideAgentId);
 
     // Mock intent classification to return regular_chat
@@ -1391,7 +1362,7 @@ describe('Aide Support', () => {
     mockGenerateLLMObject.mockRestore();
   });
 
-  test('aide agent handleUserMessage queues task with aide ownerInfo', async () => {
+  test('aide entity agent handleUserMessage queues task with entityId', async () => {
     const agent = await createAgent(testAideAgentId);
 
     // Mock intent classification to return work_request
@@ -1403,26 +1374,25 @@ describe('Aide Support', () => {
     const stream = await agent!.handleUserMessage('Research something for me');
     for await (const _ of stream) { /* consume */ }
 
-    // Verify task was queued with aideId
+    // Verify task was queued with entityId
     const status = await getQueueStatus(testAideAgentId);
     expect(status.hasPendingWork).toBe(true);
 
-    // Get the task and verify aideId
+    // Get the task and verify entityId
     const [task] = await db.select().from(agentTasks)
       .where(and(
         eq(agentTasks.assignedToId, testAideAgentId),
         eq(agentTasks.status, 'pending')
       ));
-    expect(task.aideId).toBe(testAideId);
-    expect(task.teamId).toBeNull();
+    expect(task.entityId).toBe(testAideEntityId);
 
     mockGenerateLLMObject.mockRestore();
   });
 
-  test('aide agent can run work session', async () => {
+  test('aide entity agent can run work session', async () => {
     // Queue a task for the aide agent
     const { queueUserTask: importedQueueUserTask } = await import('@/lib/agents/taskQueue');
-    await importedQueueUserTask(testAideAgentId, { aideId: testAideId }, 'Aide task to process');
+    await importedQueueUserTask(testAideAgentId, { entityId: testAideEntityId }, 'Aide task to process');
 
     const agent = await createAgent(testAideAgentId);
     await agent!.runWorkSession();
@@ -1435,7 +1405,7 @@ describe('Aide Support', () => {
   test('aide lead schedules next run after session', async () => {
     // Queue a task
     const { queueUserTask: importedQueueUserTask } = await import('@/lib/agents/taskQueue');
-    await importedQueueUserTask(testAideAgentId, { aideId: testAideId }, 'Aide task');
+    await importedQueueUserTask(testAideAgentId, { entityId: testAideEntityId }, 'Aide task');
 
     const agent = await createAgent(testAideAgentId);
     await agent!.runWorkSession();
@@ -1446,19 +1416,18 @@ describe('Aide Support', () => {
     expect(updatedAgent.leadNextRunAt).not.toBeNull();
   });
 
-  test('ToolContext includes aideId for aide agents', async () => {
+  test('ToolContext includes entityId for aide entity agents', async () => {
     const agent = await createAgent(testAideAgentId);
 
     // Access private method to build context
     const buildContext = (agent as unknown as {
-      buildToolContext: () => { agentId: string; teamId: string | null; aideId: string | null; isLead: boolean }
+      buildToolContext: () => { agentId: string; entityId: string; isLead: boolean }
     }).buildToolContext?.bind(agent);
 
     // If buildToolContext exists, test it
     if (buildContext) {
       const context = buildContext();
-      expect(context.aideId).toBe(testAideId);
-      expect(context.teamId).toBeNull();
+      expect(context.entityId).toBe(testAideEntityId);
     }
   });
 });

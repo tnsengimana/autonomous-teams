@@ -4,24 +4,24 @@ import { agentTasks } from '../schema';
 import type { AgentTask, AgentTaskStatus, AgentTaskSource } from '@/lib/types';
 
 /**
- * Owner info type for tasks - exactly one of teamId or aideId must be set
+ * Entity info type for tasks
  */
-export type TaskOwnerInfo = { teamId: string } | { aideId: string };
+export type TaskEntityInfo = { entityId: string };
 
 /**
  * Create a new agent task
  */
 export async function createAgentTask(data: {
+  entityId: string;
   assignedToId: string;
   assignedById: string;
   task: string;
   source?: AgentTaskSource;
-} & TaskOwnerInfo): Promise<AgentTask> {
+}): Promise<AgentTask> {
   const result = await db
     .insert(agentTasks)
     .values({
-      teamId: 'teamId' in data ? data.teamId : null,
-      aideId: 'aideId' in data ? data.aideId : null,
+      entityId: data.entityId,
       assignedToId: data.assignedToId,
       assignedById: data.assignedById,
       task: data.task,
@@ -39,15 +39,14 @@ export async function createAgentTask(data: {
  */
 export async function queueTask(
   agentId: string,
-  ownerInfo: TaskOwnerInfo,
+  entityInfo: TaskEntityInfo,
   task: string,
   source: AgentTaskSource
 ): Promise<AgentTask> {
   const result = await db
     .insert(agentTasks)
     .values({
-      teamId: 'teamId' in ownerInfo ? ownerInfo.teamId : null,
-      aideId: 'aideId' in ownerInfo ? ownerInfo.aideId : null,
+      entityId: entityInfo.entityId,
       assignedToId: agentId,
       assignedById: agentId,
       task,
@@ -218,17 +217,10 @@ export async function getCompletedTasksDelegatedBy(
 }
 
 /**
- * Get all tasks for a team
+ * Get all tasks for an entity
  */
-export async function getTasksByTeamId(teamId: string): Promise<AgentTask[]> {
-  return db.select().from(agentTasks).where(eq(agentTasks.teamId, teamId));
-}
-
-/**
- * Get all tasks for an aide
- */
-export async function getTasksByAideId(aideId: string): Promise<AgentTask[]> {
-  return db.select().from(agentTasks).where(eq(agentTasks.aideId, aideId));
+export async function getTasksByEntityId(entityId: string): Promise<AgentTask[]> {
+  return db.select().from(agentTasks).where(eq(agentTasks.entityId, entityId));
 }
 
 /**

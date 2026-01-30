@@ -17,7 +17,7 @@ import {
   beforeEach,
 } from "vitest";
 import { db } from "@/lib/db/client";
-import { users, teams, agents, agentTasks } from "@/lib/db/schema";
+import { users, entities, agents, agentTasks } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 
 // Import functions to test
@@ -29,12 +29,12 @@ import {
   getLeadsDueToRun,
 } from "@/lib/db/queries/agents";
 
-import { queueUserTask, type TaskOwnerInfo } from "@/lib/agents/taskQueue";
+import { queueUserTask, type TaskEntityInfo } from "@/lib/agents/taskQueue";
 import { updateAgentLeadNextRunAt } from "@/lib/db/queries/agents";
 
-// Helper to create ownerInfo for teams
-function teamOwnerInfo(teamId: string): TaskOwnerInfo {
-  return { teamId };
+// Helper to create entityInfo for entities
+function entityInfo(entityId: string): TaskEntityInfo {
+  return { entityId };
 }
 
 // ============================================================================
@@ -42,10 +42,10 @@ function teamOwnerInfo(teamId: string): TaskOwnerInfo {
 // ============================================================================
 
 let testUserId: string;
-let testTeamId: string;
+let testEntityId: string;
 let testTeamLeadId: string;
 let testSubordinateId: string;
-let inactiveTeamId: string;
+let inactiveEntityId: string;
 let inactiveTeamLeadId: string;
 
 beforeAll(async () => {
@@ -59,35 +59,37 @@ beforeAll(async () => {
     .returning();
   testUserId = user.id;
 
-  // Create active test team
-  const [team] = await db
-    .insert(teams)
+  // Create active test entity
+  const [entity] = await db
+    .insert(entities)
     .values({
       userId: testUserId,
+      type: "team",
       name: "Runner Test Team",
       purpose: "Testing worker runner",
       status: "active",
     })
     .returning();
-  testTeamId = team.id;
+  testEntityId = entity.id;
 
-  // Create inactive test team
-  const [inactiveTeam] = await db
-    .insert(teams)
+  // Create inactive test entity
+  const [inactiveEntity] = await db
+    .insert(entities)
     .values({
       userId: testUserId,
+      type: "team",
       name: "Inactive Test Team",
-      purpose: "Testing inactive teams are not processed",
+      purpose: "Testing inactive entities are not processed",
       status: "paused",
     })
     .returning();
-  inactiveTeamId = inactiveTeam.id;
+  inactiveEntityId = inactiveEntity.id;
 
   // Create team lead (no parent)
   const [teamLead] = await db
     .insert(agents)
     .values({
-      teamId: testTeamId,
+      entityId: testEntityId,
       name: "Test Team Lead",
       type: "lead",
       parentAgentId: null, // Team lead has no parent
@@ -99,7 +101,7 @@ beforeAll(async () => {
   const [subordinate] = await db
     .insert(agents)
     .values({
-      teamId: testTeamId,
+      entityId: testEntityId,
       name: "Test Subordinate",
       type: "subordinate",
       parentAgentId: testTeamLeadId, // Subordinate has team lead as parent
@@ -107,11 +109,11 @@ beforeAll(async () => {
     .returning();
   testSubordinateId = subordinate.id;
 
-  // Create team lead in inactive team
+  // Create team lead in inactive entity
   const [inactiveTeamLead] = await db
     .insert(agents)
     .values({
-      teamId: inactiveTeamId,
+      entityId: inactiveEntityId,
       name: "Inactive Team Lead",
       type: "lead",
       parentAgentId: null,
@@ -163,7 +165,7 @@ describe("getAgentsWithPendingTasks", () => {
   test("returns agent IDs with pending tasks", async () => {
     const task = await queueUserTask(
       testSubordinateId,
-      teamOwnerInfo(testTeamId),
+      entityInfo(testEntityId),
       "Pending task",
     );
 
@@ -177,7 +179,7 @@ describe("getAgentsWithPendingTasks", () => {
   test("excludes agents in backoff", async () => {
     const task = await queueUserTask(
       testSubordinateId,
-      teamOwnerInfo(testTeamId),
+      entityInfo(testEntityId),
       "Pending task",
     );
     const futureDate = new Date(Date.now() + 60 * 60 * 1000);
@@ -198,7 +200,7 @@ describe("getAgentsWithPendingTasks", () => {
   test("does not return agents with only completed tasks", async () => {
     const task = await queueUserTask(
       testSubordinateId,
-      teamOwnerInfo(testTeamId),
+      entityInfo(testEntityId),
       "Completed task",
     );
 
@@ -219,17 +221,17 @@ describe("getAgentsWithPendingTasks", () => {
   test("returns distinct agent IDs even with multiple tasks", async () => {
     const task1 = await queueUserTask(
       testSubordinateId,
-      teamOwnerInfo(testTeamId),
+      entityInfo(testEntityId),
       "Task 1",
     );
     const task2 = await queueUserTask(
       testSubordinateId,
-      teamOwnerInfo(testTeamId),
+      entityInfo(testEntityId),
       "Task 2",
     );
     const task3 = await queueUserTask(
       testSubordinateId,
-      teamOwnerInfo(testTeamId),
+      entityInfo(testEntityId),
       "Task 3",
     );
 
@@ -366,7 +368,7 @@ describe("Task Queue Integration", () => {
     // We can verify by checking the task was created successfully
     const task = await queueUserTask(
       testSubordinateId,
-      teamOwnerInfo(testTeamId),
+      entityInfo(testEntityId),
       "Integration test task",
     );
 
@@ -431,7 +433,7 @@ describe("Combined Agent Selection", () => {
   test("agents with pending tasks are selected", async () => {
     const task = await queueUserTask(
       testSubordinateId,
-      teamOwnerInfo(testTeamId),
+      entityInfo(testEntityId),
       "Subordinate task",
     );
 
@@ -453,7 +455,7 @@ describe("Combined Agent Selection", () => {
     // Subordinate has pending task
     const task = await queueUserTask(
       testSubordinateId,
-      teamOwnerInfo(testTeamId),
+      entityInfo(testEntityId),
       "Subordinate task",
     );
 
@@ -504,9 +506,9 @@ describe("Edge Cases", () => {
   test("handles concurrent task creation", async () => {
     // Create multiple tasks concurrently
     const tasks = await Promise.all([
-      queueUserTask(testSubordinateId, teamOwnerInfo(testTeamId), "Task 1"),
-      queueUserTask(testSubordinateId, teamOwnerInfo(testTeamId), "Task 2"),
-      queueUserTask(testSubordinateId, teamOwnerInfo(testTeamId), "Task 3"),
+      queueUserTask(testSubordinateId, entityInfo(testEntityId), "Task 1"),
+      queueUserTask(testSubordinateId, entityInfo(testEntityId), "Task 2"),
+      queueUserTask(testSubordinateId, entityInfo(testEntityId), "Task 3"),
     ]);
 
     const agentsWithTasks = await getAgentsWithPendingTasks();
@@ -519,7 +521,7 @@ describe("Edge Cases", () => {
     // Team lead has both: pending task AND is due to run
     const task = await queueUserTask(
       testTeamLeadId,
-      teamOwnerInfo(testTeamId),
+      entityInfo(testEntityId),
       "Team lead task",
     );
     const pastDate = new Date(Date.now() - 1000);

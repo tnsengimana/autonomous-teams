@@ -4,9 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Autonomous Teams is a TypeScript/Next.js application where users create teams of AI agents that run continuously to fulfill a mission. Teams have hierarchical agents (leads run continuously, subordinates spawn on-demand) that collaborate, extract knowledge from work sessions, and proactively deliver insights to users.
+Autonomous Agents is a TypeScript/Next.js application where users create entities (teams or aides) containing AI agents that run continuously to fulfill a mission. Entities have hierarchical agents (leads run continuously, subordinates spawn on-demand) that collaborate, extract knowledge from work sessions, and proactively deliver insights to users.
 
-**Terminology Note**: "Subordinate" refers to non-lead agents that report to the lead. "Worker" refers to the background process (`src/worker/`) that runs agent cycles.
+**Terminology Note**:
+- "Entity" is the unified concept for teams and aides. Teams have multiple agents; aides have a single agent.
+- "Subordinate" refers to non-lead agents that report to the lead.
+- "Worker" refers to the background process (`src/worker/`) that runs agent cycles.
 
 ## Commands
 
@@ -64,9 +67,9 @@ The system separates user interactions (foreground) from agent work (background)
 
 **Database** (`src/lib/db/`)
 - PostgreSQL with Drizzle ORM
-- Schema: users, teams, agents, conversations (with mode), messages (with toolCalls, previousMessageId), memories, knowledgeItems (with sourceConversationId), agentTasks, inboxItems
+- Schema: users, entities, agents, conversations (with mode), messages (with toolCalls, previousMessageId), memories, knowledgeItems (with sourceConversationId), agentTasks, inboxItems
 - `drizzle.config.ts` points to `src/lib/db/schema.ts`
-- `inbox_items` stores `userId` and `agentId` only; owner (team/aide) is derived via the agent relation; types are `briefing` or `feedback`
+- `inbox_items` stores `userId` and `agentId` only; entity is derived via the agent relation; types are `briefing` or `feedback`
 
 **Background Worker** (`src/worker/runner.ts`)
 - Event-driven + timer-based execution:
@@ -117,9 +120,9 @@ The system separates user interactions (foreground) from agent work (background)
 
 ## Autonomous Operation
 
-For teams to run autonomously and deliver proactive insights:
+For entities to run autonomously and deliver proactive insights:
 
-1. **Team status must be 'active'** - Set via UI or database
+1. **Entity status must be 'active'** - Set via UI or database
 2. **Worker process must be running** - Start separately from dev server:
    ```bash
    npx ts-node --project tsconfig.json src/worker/index.ts

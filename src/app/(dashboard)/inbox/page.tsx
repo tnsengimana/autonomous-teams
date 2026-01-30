@@ -19,10 +19,9 @@ interface InboxItem {
   type: string;
   title: string;
   content: string;
-  teamId: string | null;
-  teamName: string | null;
-  aideId: string | null;
-  aideName: string | null;
+  entityId: string | null;
+  entityName: string | null;
+  entityType: string | null;
   agentId: string;
   briefingId: string | null;
   read: boolean;
@@ -32,25 +31,22 @@ interface InboxItem {
 
 // Helper functions for displaying source info
 function getSourceName(item: InboxItem): string {
-  return item.teamName ?? item.aideName ?? "Unknown";
+  return item.entityName ?? "Unknown";
 }
 
 function getSourceLabel(item: InboxItem): string {
-  return item.teamId ? "Team" : "Aide";
+  return item.entityType === "team" ? "Team" : "Aide";
 }
 
 function getItemLink(item: InboxItem): string {
-  if (item.type === "briefing" && item.briefingId) {
-    if (item.teamId) {
-      return `/teams/${item.teamId}/briefings/${item.briefingId}`;
-    }
-    return `/aides/${item.aideId}/briefings/${item.briefingId}`;
+  if (item.type === "briefing" && item.briefingId && item.entityId) {
+    return `/entities/${item.entityId}/briefings/${item.briefingId}`;
   }
 
-  if (item.teamId) {
-    return `/teams/${item.teamId}/agents/${item.agentId}/chat`;
+  if (item.entityId) {
+    return `/entities/${item.entityId}/agents/${item.agentId}/chat`;
   }
-  return `/aides/${item.aideId}/agents/${item.agentId}/chat`;
+  return "#";
 }
 
 interface InboxResponse {

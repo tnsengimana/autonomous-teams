@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth/config";
 import { getAgentById } from "@/lib/db/queries/agents";
-import { getTeamById } from "@/lib/db/queries/teams";
-import { getAideById } from "@/lib/db/queries/aides";
+import { getEntityById } from "@/lib/db/queries/entities";
 import { getLatestConversation } from "@/lib/db/queries/conversations";
 import { getMessagesByConversationId } from "@/lib/db/queries/messages";
 
@@ -31,19 +30,17 @@ export async function GET(
       return NextResponse.json({ error: "Agent not found" }, { status: 404 });
     }
 
-    // 3. Verify user owns the team or aide
-    if (agent.teamId) {
-      const team = await getTeamById(agent.teamId);
-      if (!team || team.userId !== session.user.id) {
-        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-      }
-    } else if (agent.aideId) {
-      const aide = await getAideById(agent.aideId);
-      if (!aide || aide.userId !== session.user.id) {
-        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-      }
-    } else {
-      return NextResponse.json({ error: "Agent has no owner" }, { status: 500 });
+    // 3. Verify user owns the entity
+    if (!agent.entityId) {
+      return NextResponse.json(
+        { error: "Agent has no entity" },
+        { status: 500 },
+      );
+    }
+
+    const entity = await getEntityById(agent.entityId);
+    if (!entity || entity.userId !== session.user.id) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     // 4. Get the conversation and messages

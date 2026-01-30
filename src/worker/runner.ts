@@ -14,7 +14,7 @@
 import { Agent } from '@/lib/agents/agent';
 import {
   getAgentsWithPendingTasks,
-  getAllLeadsDueToRun,
+  getLeadsDueToRun,
   getAgentsReadyForWork,
 } from '@/lib/db/queries/agents';
 
@@ -111,7 +111,7 @@ async function getAgentsNeedingWork(): Promise<string[]> {
   const agentsWithTasks = await getAgentsWithPendingTasks();
 
   // 2. Get all leads (team AND aide) due for scheduled proactive run
-  const leadsDue = await getAllLeadsDueToRun();
+  const leadsDue = await getLeadsDueToRun();
 
   // 3. Add any agents from pending notifications
   const notifiedAgents = Array.from(pendingNotifications);

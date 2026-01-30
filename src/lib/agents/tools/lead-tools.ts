@@ -14,40 +14,26 @@ import {
   RequestUserInputParamsSchema,
   ListBriefingsParamsSchema,
   GetBriefingParamsSchema,
-} from './index';
-import { createAgentTask } from '@/lib/db/queries/agentTasks';
-import { getChildAgents } from '@/lib/db/queries/agents';
-import { getTeamUserId } from '@/lib/db/queries/teams';
-import { getAideUserId } from '@/lib/db/queries/aides';
-import { getOrCreateConversation } from '@/lib/db/queries/conversations';
-import { appendMessage } from '@/lib/db/queries/messages';
-import { db } from '@/lib/db/client';
-import { briefings, inboxItems } from '@/lib/db/schema';
+} from "./index";
+import { createAgentTask } from "@/lib/db/queries/agentTasks";
+import { getChildAgents } from "@/lib/db/queries/agents";
+import { getEntityUserId } from "@/lib/db/queries/entities";
+import { getOrCreateConversation } from "@/lib/db/queries/conversations";
+import { appendMessage } from "@/lib/db/queries/messages";
+import { db } from "@/lib/db/client";
+import { briefings, inboxItems } from "@/lib/db/schema";
 import {
-  listBriefingsByOwner,
-  getBriefingByIdForOwner,
-} from '@/lib/db/queries/briefings';
+  listBriefingsByEntity,
+  getBriefingByIdForEntity,
+} from "@/lib/db/queries/briefings";
 
 /**
- * Helper to get owner info from context
+ * Helper to get user ID from context's entity
  */
-function getOwnerInfo(context: ToolContext): { teamId: string } | { aideId: string } {
-  if (context.teamId) return { teamId: context.teamId };
-  if (context.aideId) return { aideId: context.aideId };
-  throw new Error('Tool context has no team or aide');
-}
-
-/**
- * Helper to get user ID from context's owner
- */
-async function getOwnerUserId(context: ToolContext): Promise<string | null> {
-  if (context.teamId) {
-    return getTeamUserId(context.teamId);
-  }
-  if (context.aideId) {
-    return getAideUserId(context.aideId);
-  }
-  return null;
+async function getUserIdFromContext(
+  context: ToolContext,
+): Promise<string | null> {
+  return getEntityUserId(context.entityId);
 }
 
 function formatBriefingMetadata(briefing: {
@@ -57,8 +43,7 @@ function formatBriefingMetadata(briefing: {
   createdAt: Date;
   updatedAt: Date;
   agentId: string;
-  teamId: string | null;
-  aideId: string | null;
+  entityId: string;
 }) {
   return {
     id: briefing.id,
@@ -67,8 +52,7 @@ function formatBriefingMetadata(briefing: {
     createdAt: briefing.createdAt,
     updatedAt: briefing.updatedAt,
     agentId: briefing.agentId,
-    teamId: briefing.teamId,
-    aideId: briefing.aideId,
+    entityId: briefing.entityId,
   };
 }
 
@@ -78,21 +62,22 @@ function formatBriefingMetadata(briefing: {
 
 const delegateToAgentTool: Tool = {
   schema: {
-    name: 'delegateToAgent',
+    name: "delegateToAgent",
     description:
-      'Assign a task to a subordinate agent on your team. The subordinate will execute the task and report back.',
+      "Assign a task to a subordinate agent on your team. The subordinate will execute the task and report back.",
     parameters: [
       {
-        name: 'agentId',
-        type: 'string',
-        description: 'The UUID of the subordinate agent to delegate the task to',
+        name: "agentId",
+        type: "string",
+        description:
+          "The UUID of the subordinate agent to delegate the task to",
         required: true,
       },
       {
-        name: 'task',
-        type: 'string',
+        name: "task",
+        type: "string",
         description:
-          'A clear description of the task for the subordinate to complete',
+          "A clear description of the task for the subordinate to complete",
         required: true,
       },
     ],
@@ -113,7 +98,7 @@ const delegateToAgentTool: Tool = {
     if (!context.isLead) {
       return {
         success: false,
-        error: 'Only leads can delegate tasks',
+        error: "Only leads can delegate tasks",
       };
     }
 
@@ -124,13 +109,13 @@ const delegateToAgentTool: Tool = {
     if (!isChild) {
       return {
         success: false,
-        error: 'Can only delegate to agents on your team',
+        error: "Can only delegate to agents on your team",
       };
     }
 
     // Create the task with appropriate owner
     const agentTask = await createAgentTask({
-      ...getOwnerInfo(context),
+      entityId: context.entityId,
       assignedToId: agentId,
       assignedById: context.agentId,
       task,
@@ -152,9 +137,9 @@ const delegateToAgentTool: Tool = {
 
 const getTeamStatusTool: Tool = {
   schema: {
-    name: 'getTeamStatus',
+    name: "getTeamStatus",
     description:
-      'Get the current status of all subordinate agents in your team, including their active tasks.',
+      "Get the current status of all subordinate agents in your team, including their active tasks.",
     parameters: [],
   },
   handler: async (_params, context): Promise<ToolResult> => {
@@ -162,7 +147,7 @@ const getTeamStatusTool: Tool = {
     if (!context.isLead) {
       return {
         success: false,
-        error: 'Only leads can check team status',
+        error: "Only leads can check team status",
       };
     }
 
@@ -172,9 +157,8 @@ const getTeamStatusTool: Tool = {
     // Get task counts for each agent
     const agentStatuses = await Promise.all(
       childAgents.map(async (agent) => {
-        const { getPendingTasksForAgent } = await import(
-          '@/lib/db/queries/agentTasks'
-        );
+        const { getPendingTasksForAgent } =
+          await import("@/lib/db/queries/agentTasks");
         const tasks = await getPendingTasksForAgent(agent.id);
 
         return {
@@ -182,23 +166,21 @@ const getTeamStatusTool: Tool = {
           name: agent.name,
           type: agent.type,
           status: agent.status,
-          pendingTasks: tasks.filter((t) => t.status === 'pending').length,
+          pendingTasks: tasks.filter((t) => t.status === "pending").length,
           inProgressTasks: 0,
         };
-      })
+      }),
     );
 
     return {
       success: true,
       data: {
-        // Include whichever owner type exists
-        ...(context.teamId ? { teamId: context.teamId } : {}),
-        ...(context.aideId ? { aideId: context.aideId } : {}),
+        entityId: context.entityId,
         agents: agentStatuses,
         summary: {
           totalAgents: agentStatuses.length,
-          idleAgents: agentStatuses.filter((a) => a.status === 'idle').length,
-          runningAgents: agentStatuses.filter((a) => a.status === 'running')
+          idleAgents: agentStatuses.filter((a) => a.status === "idle").length,
+          runningAgents: agentStatuses.filter((a) => a.status === "running")
             .length,
         },
       },
@@ -212,27 +194,27 @@ const getTeamStatusTool: Tool = {
 
 const createBriefingTool: Tool = {
   schema: {
-    name: 'createBriefing',
+    name: "createBriefing",
     description:
       "Create a briefing for the user and push a notification to the inbox. Use only when the update is material and user-facing.",
     parameters: [
       {
-        name: 'title',
-        type: 'string',
-        description: 'A concise, specific title for the briefing',
+        name: "title",
+        type: "string",
+        description: "A concise, specific title for the briefing",
         required: true,
       },
       {
-        name: 'summary',
-        type: 'string',
+        name: "summary",
+        type: "string",
         description:
-          'A brief summary for the inbox notification (1-2 sentences)',
+          "A brief summary for the inbox notification (1-2 sentences)",
         required: true,
       },
       {
-        name: 'fullMessage',
-        type: 'string',
-        description: 'The full briefing content for the user',
+        name: "fullMessage",
+        type: "string",
+        description: "The full briefing content for the user",
         required: true,
       },
     ],
@@ -251,27 +233,24 @@ const createBriefingTool: Tool = {
     if (!context.isLead) {
       return {
         success: false,
-        error: 'Only leads can create briefings',
+        error: "Only leads can create briefings",
       };
     }
 
-    const userId = await getOwnerUserId(context);
+    const userId = await getUserIdFromContext(context);
     if (!userId) {
       return {
         success: false,
-        error: 'Could not find user for this team/aide',
+        error: "Could not find user for this entity",
       };
     }
-
-    const ownerInfo = getOwnerInfo(context);
 
     const result = await db.transaction(async (tx) => {
       const [briefing] = await tx
         .insert(briefings)
         .values({
           userId,
-          teamId: 'teamId' in ownerInfo ? ownerInfo.teamId : null,
-          aideId: 'aideId' in ownerInfo ? ownerInfo.aideId : null,
+          entityId: context.entityId,
           agentId: context.agentId,
           title,
           summary,
@@ -285,7 +264,7 @@ const createBriefingTool: Tool = {
           userId,
           agentId: context.agentId,
           briefingId: briefing.id,
-          type: 'briefing',
+          type: "briefing",
           title,
           content: summary,
         })
@@ -311,26 +290,27 @@ const createBriefingTool: Tool = {
 
 const requestUserInputTool: Tool = {
   schema: {
-    name: 'requestUserInput',
+    name: "requestUserInput",
     description:
       "Request feedback from the user by creating a concise inbox item and appending the full message to the foreground conversation.",
     parameters: [
       {
-        name: 'title',
-        type: 'string',
-        description: 'A concise title for the feedback request',
+        name: "title",
+        type: "string",
+        description: "A concise title for the feedback request",
         required: true,
       },
       {
-        name: 'summary',
-        type: 'string',
-        description: 'A brief summary for the inbox notification (1-2 sentences)',
+        name: "summary",
+        type: "string",
+        description:
+          "A brief summary for the inbox notification (1-2 sentences)",
         required: true,
       },
       {
-        name: 'fullMessage',
-        type: 'string',
-        description: 'The full message content to be added to the conversation',
+        name: "fullMessage",
+        type: "string",
+        description: "The full message content to be added to the conversation",
         required: true,
       },
     ],
@@ -347,12 +327,12 @@ const requestUserInputTool: Tool = {
 
     const { title, summary, fullMessage } = parsed.data;
 
-    // Get the user ID for this team/aide
-    const userId = await getOwnerUserId(context);
+    // Get the user ID for this entity
+    const userId = await getUserIdFromContext(context);
     if (!userId) {
       return {
         success: false,
-        error: 'Could not find user for this team/aide',
+        error: "Could not find user for this entity",
       };
     }
 
@@ -362,7 +342,7 @@ const requestUserInputTool: Tool = {
       .values({
         userId,
         agentId: context.agentId,
-        type: 'feedback',
+        type: "feedback",
         title,
         content: summary,
       })
@@ -371,9 +351,9 @@ const requestUserInputTool: Tool = {
     // 2. Append full message to agent's foreground conversation (user-facing)
     const conversation = await getOrCreateConversation(
       context.agentId,
-      'foreground'
+      "foreground",
     );
-    await appendMessage(conversation.id, 'assistant', fullMessage);
+    await appendMessage(conversation.id, "assistant", fullMessage);
 
     return {
       success: true,
@@ -391,20 +371,20 @@ const requestUserInputTool: Tool = {
 
 const listBriefingsTool: Tool = {
   schema: {
-    name: 'listBriefings',
+    name: "listBriefings",
     description:
-      'List recent briefings for the current team or aide. Returns metadata only (no content).',
+      "List recent briefings for the current entity. Returns metadata only (no content).",
     parameters: [
       {
-        name: 'query',
-        type: 'string',
-        description: 'Optional search query for briefing title or summary',
+        name: "query",
+        type: "string",
+        description: "Optional search query for briefing title or summary",
         required: false,
       },
       {
-        name: 'limit',
-        type: 'number',
-        description: 'Maximum number of briefings to return (default: 20)',
+        name: "limit",
+        type: "number",
+        description: "Maximum number of briefings to return (default: 20)",
         required: false,
       },
     ],
@@ -421,31 +401,30 @@ const listBriefingsTool: Tool = {
     if (!context.isLead) {
       return {
         success: false,
-        error: 'Only leads can list briefings',
+        error: "Only leads can list briefings",
       };
     }
 
     const { query, limit } = parsed.data;
-    const userId = await getOwnerUserId(context);
+    const userId = await getUserIdFromContext(context);
     if (!userId) {
       return {
         success: false,
-        error: 'Could not find user for this team/aide',
+        error: "Could not find user for this entity",
       };
     }
 
-    const ownerInfo = getOwnerInfo(context);
-    const briefings = await listBriefingsByOwner(
-      { userId, ...ownerInfo, query },
-      limit ?? 20
+    const briefingsList = await listBriefingsByEntity(
+      { userId, entityId: context.entityId, query },
+      limit ?? 20,
     );
 
     return {
       success: true,
       data: {
         query: query ?? null,
-        count: briefings.length,
-        briefings: briefings.map(formatBriefingMetadata),
+        count: briefingsList.length,
+        briefings: briefingsList.map(formatBriefingMetadata),
       },
     };
   },
@@ -457,13 +436,13 @@ const listBriefingsTool: Tool = {
 
 const getBriefingTool: Tool = {
   schema: {
-    name: 'getBriefing',
-    description: 'Retrieve a single briefing by ID, including full content.',
+    name: "getBriefing",
+    description: "Retrieve a single briefing by ID, including full content.",
     parameters: [
       {
-        name: 'briefingId',
-        type: 'string',
-        description: 'The briefing ID to retrieve',
+        name: "briefingId",
+        type: "string",
+        description: "The briefing ID to retrieve",
         required: true,
       },
     ],
@@ -480,29 +459,28 @@ const getBriefingTool: Tool = {
     if (!context.isLead) {
       return {
         success: false,
-        error: 'Only leads can fetch briefings',
+        error: "Only leads can fetch briefings",
       };
     }
 
-    const userId = await getOwnerUserId(context);
+    const userId = await getUserIdFromContext(context);
     if (!userId) {
       return {
         success: false,
-        error: 'Could not find user for this team/aide',
+        error: "Could not find user for this entity",
       };
     }
 
-    const ownerInfo = getOwnerInfo(context);
-    const briefing = await getBriefingByIdForOwner({
+    const briefing = await getBriefingByIdForEntity({
       briefingId: parsed.data.briefingId,
       userId,
-      ...ownerInfo,
+      entityId: context.entityId,
     });
 
     if (!briefing) {
       return {
         success: false,
-        error: 'Briefing not found',
+        error: "Briefing not found",
       };
     }
 

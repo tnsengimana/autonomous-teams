@@ -25,15 +25,14 @@ export async function GET() {
 
     // 3. Format response
     const items = itemsWithSources.map(
-      ({ item, teamName, aideName, teamId, aideId }) => ({
+      ({ item, entityId, entityName, entityType }) => ({
       id: item.id,
       type: item.type,
       title: item.title,
       content: item.content,
-      teamId,
-      teamName,
-      aideId,
-      aideName,
+      entityId,
+      entityName,
+      entityType,
       agentId: item.agentId,
       briefingId: item.briefingId,
       read: item.readAt !== null,

@@ -14,7 +14,7 @@ import {
   getUserApiKeyForProvider,
   decryptApiKey,
 } from "@/lib/db/queries/userApiKeys";
-import { getTeamUserId } from "@/lib/db/queries/teams";
+import { getEntityUserId } from "@/lib/db/queries/entities";
 import type { LLMProvider, LLMMessage } from "@/lib/types";
 import {
   type Tool,
@@ -162,8 +162,7 @@ export interface StreamOptions {
   temperature?: number;
   maxOutputTokens?: number;
   userId?: string;
-  teamId?: string;
-  aideId?: string;
+  entityId?: string;
 }
 
 export interface GenerateOptions extends StreamOptions {
@@ -317,10 +316,10 @@ export async function streamLLMResponse(
     }
   }
 
-  // Get userId from teamId if not directly provided
+  // Get userId from entityId if not directly provided
   let userId = options.userId;
-  if (!userId && options.teamId) {
-    userId = (await getTeamUserId(options.teamId)) ?? undefined;
+  if (!userId && options.entityId) {
+    userId = (await getEntityUserId(options.entityId)) ?? undefined;
   }
 
   const model = options.model ?? DEFAULT_MODEL[provider];
@@ -431,10 +430,10 @@ export async function streamLLMResponseWithTools(
     }
   }
 
-  // Get userId from teamId if not directly provided
+  // Get userId from entityId if not directly provided
   let userId = options.userId;
-  if (!userId && options.teamId) {
-    userId = (await getTeamUserId(options.teamId)) ?? undefined;
+  if (!userId && options.entityId) {
+    userId = (await getEntityUserId(options.entityId)) ?? undefined;
   }
 
   const model = options.model ?? DEFAULT_MODEL[provider];
@@ -586,10 +585,10 @@ export async function generateLLMResponse(
     }
   }
 
-  // Get userId from teamId if not directly provided
+  // Get userId from entityId if not directly provided
   let userId = options.userId;
-  if (!userId && options.teamId) {
-    userId = (await getTeamUserId(options.teamId)) ?? undefined;
+  if (!userId && options.entityId) {
+    userId = (await getEntityUserId(options.entityId)) ?? undefined;
   }
 
   const model = options.model ?? DEFAULT_MODEL[provider];
@@ -710,10 +709,10 @@ export async function generateLLMObject<T>(
     }
   }
 
-  // Get userId from teamId if not directly provided
+  // Get userId from entityId if not directly provided
   let userId = options.userId;
-  if (!userId && options.teamId) {
-    userId = (await getTeamUserId(options.teamId)) ?? undefined;
+  if (!userId && options.entityId) {
+    userId = (await getEntityUserId(options.entityId)) ?? undefined;
   }
 
   const model = options.model ?? DEFAULT_MODEL[provider];

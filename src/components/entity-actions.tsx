@@ -38,7 +38,7 @@ export function EntityActions({
   const [editName, setEditName] = useState(entityName);
   const [error, setError] = useState<string | null>(null);
 
-  const apiPath = entityType === "team" ? "teams" : "aides";
+  const apiPath = "entities";
   const label = entityType === "team" ? "Team" : "Aide";
 
   const handleToggleStatus = async () => {

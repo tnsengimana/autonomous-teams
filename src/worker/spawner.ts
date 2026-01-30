@@ -130,16 +130,16 @@ export async function processSubordinatePendingTasks(
 }
 
 /**
- * Spawn subordinates for all pending tasks in a team
+ * Spawn subordinates for all pending tasks in an entity
  * This can be called periodically or triggered by task creation
  */
-export async function processTeamPendingTasks(teamId: string): Promise<void> {
-  log(`Processing pending tasks for team: ${teamId}`);
+export async function processEntityPendingTasks(entityId: string): Promise<void> {
+  log(`Processing pending tasks for entity: ${entityId}`);
 
   try {
-    // Get all agents for the team
-    const { getAgentsByTeamId } = await import('@/lib/db/queries/agents');
-    const agents = await getAgentsByTeamId(teamId);
+    // Get all agents for the entity
+    const { getAgentsByEntityId } = await import('@/lib/db/queries/agents');
+    const agents = await getAgentsByEntityId(entityId);
 
     // Filter to subordinate agents (those with a parent)
     const subordinates = agents.filter((a) => a.parentAgentId !== null);
@@ -149,9 +149,9 @@ export async function processTeamPendingTasks(teamId: string): Promise<void> {
       await processSubordinatePendingTasks(subordinate.id);
     }
 
-    log(`Finished processing team: ${teamId}`);
+    log(`Finished processing entity: ${entityId}`);
   } catch (error) {
-    logError(`Error processing team ${teamId}:`, error);
+    logError(`Error processing entity ${entityId}:`, error);
   }
 }
 

@@ -7,7 +7,7 @@
 
 import { describe, test, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import { db } from '@/lib/db/client';
-import { users, teams, agents, agentTasks } from '@/lib/db/schema';
+import { users, entities, agents, agentTasks } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 
 // Import task queries
@@ -19,7 +19,7 @@ import {
   completeTaskWithResult,
   createAgentTask,
   getAgentTaskById,
-  type TaskOwnerInfo,
+  type TaskEntityInfo,
 } from '@/lib/db/queries/agentTasks';
 
 // ============================================================================
@@ -27,7 +27,7 @@ import {
 // ============================================================================
 
 let testUserId: string;
-let testTeamId: string;
+let testEntityId: string;
 let testAgentId: string;
 let testAgent2Id: string;
 
@@ -39,24 +39,25 @@ beforeAll(async () => {
   }).returning();
   testUserId = user.id;
 
-  // Create test team
-  const [team] = await db.insert(teams).values({
+  // Create test entity
+  const [entity] = await db.insert(entities).values({
     userId: testUserId,
+    type: 'team',
     name: 'Task Queue Test Team',
     purpose: 'Testing task queue management',
   }).returning();
-  testTeamId = team.id;
+  testEntityId = entity.id;
 
   // Create test agents
   const [agent] = await db.insert(agents).values({
-    teamId: testTeamId,
+    entityId: testEntityId,
     name: 'Task Queue Test Agent',
     type: 'lead',
   }).returning();
   testAgentId = agent.id;
 
   const [agent2] = await db.insert(agents).values({
-    teamId: testTeamId,
+    entityId: testEntityId,
     name: 'Task Queue Test Agent 2',
     type: 'lead',
   }).returning();
@@ -83,19 +84,19 @@ async function cleanupTasks(taskIds: string[]) {
 // queueTask Tests
 // ============================================================================
 
-// Helper to create ownerInfo for teams
-function teamOwnerInfo(teamId: string): TaskOwnerInfo {
-  return { teamId };
+// Helper to create entityInfo for entities
+function entityInfo(entityId: string): TaskEntityInfo {
+  return { entityId };
 }
 
 describe('queueTask', () => {
   test('queues a task with user source', async () => {
-    const task = await queueTask(testAgentId, teamOwnerInfo(testTeamId), 'Process user request', 'user');
+    const task = await queueTask(testAgentId, entityInfo(testEntityId), 'Process user request', 'user');
 
     expect(task.id).toBeDefined();
     expect(task.assignedToId).toBe(testAgentId);
     expect(task.assignedById).toBe(testAgentId); // Self-assigned when using queueTask
-    expect(task.teamId).toBe(testTeamId);
+    expect(task.entityId).toBe(testEntityId);
     expect(task.task).toBe('Process user request');
     expect(task.source).toBe('user');
     expect(task.status).toBe('pending');
@@ -104,7 +105,7 @@ describe('queueTask', () => {
   });
 
   test('queues a task with system source', async () => {
-    const task = await queueTask(testAgentId, teamOwnerInfo(testTeamId), 'Bootstrap initialization', 'system');
+    const task = await queueTask(testAgentId, entityInfo(testEntityId), 'Bootstrap initialization', 'system');
 
     expect(task.source).toBe('system');
     expect(task.status).toBe('pending');
@@ -113,7 +114,7 @@ describe('queueTask', () => {
   });
 
   test('queues a task with self source', async () => {
-    const task = await queueTask(testAgentId, teamOwnerInfo(testTeamId), 'Proactive monitoring', 'self');
+    const task = await queueTask(testAgentId, entityInfo(testEntityId), 'Proactive monitoring', 'self');
 
     expect(task.source).toBe('self');
     expect(task.status).toBe('pending');
@@ -122,7 +123,7 @@ describe('queueTask', () => {
   });
 
   test('queues a task with delegation source', async () => {
-    const task = await queueTask(testAgentId, teamOwnerInfo(testTeamId), 'Delegated work', 'delegation');
+    const task = await queueTask(testAgentId, entityInfo(testEntityId), 'Delegated work', 'delegation');
 
     expect(task.source).toBe('delegation');
     expect(task.status).toBe('pending');
@@ -135,7 +136,7 @@ describe('queueTask', () => {
     const createdTaskIds: string[] = [];
 
     for (const source of sourceTypes) {
-      const task = await queueTask(testAgentId, teamOwnerInfo(testTeamId), `Task from ${source}`, source);
+      const task = await queueTask(testAgentId, entityInfo(testEntityId), `Task from ${source}`, source);
       expect(task.source).toBe(source);
       createdTaskIds.push(task.id);
     }
@@ -144,8 +145,8 @@ describe('queueTask', () => {
   });
 
   test('creates tasks with unique IDs', async () => {
-    const task1 = await queueTask(testAgentId, teamOwnerInfo(testTeamId), 'Task 1', 'user');
-    const task2 = await queueTask(testAgentId, teamOwnerInfo(testTeamId), 'Task 2', 'user');
+    const task1 = await queueTask(testAgentId, entityInfo(testEntityId), 'Task 1', 'user');
+    const task2 = await queueTask(testAgentId, entityInfo(testEntityId), 'Task 2', 'user');
 
     expect(task1.id).not.toBe(task2.id);
 
@@ -153,7 +154,7 @@ describe('queueTask', () => {
   });
 
   test('sets createdAt timestamp', async () => {
-    const task = await queueTask(testAgentId, teamOwnerInfo(testTeamId), 'Timestamped task', 'user');
+    const task = await queueTask(testAgentId, entityInfo(testEntityId), 'Timestamped task', 'user');
 
     expect(task.createdAt).toBeDefined();
     expect(task.createdAt instanceof Date).toBe(true);
@@ -176,8 +177,8 @@ describe('getOwnPendingTasks', () => {
   });
 
   test('returns pending tasks for agent', async () => {
-    const task1 = await queueTask(testAgentId, teamOwnerInfo(testTeamId), 'Pending task 1', 'user');
-    const task2 = await queueTask(testAgentId, teamOwnerInfo(testTeamId), 'Pending task 2', 'user');
+    const task1 = await queueTask(testAgentId, entityInfo(testEntityId), 'Pending task 1', 'user');
+    const task2 = await queueTask(testAgentId, entityInfo(testEntityId), 'Pending task 2', 'user');
 
     const tasks = await getOwnPendingTasks(testAgentId);
 
@@ -190,11 +191,11 @@ describe('getOwnPendingTasks', () => {
 
   test('returns tasks in FIFO order (oldest first)', async () => {
     // Create tasks with small delays to ensure different timestamps
-    const task1 = await queueTask(testAgentId, teamOwnerInfo(testTeamId), 'First task', 'user');
+    const task1 = await queueTask(testAgentId, entityInfo(testEntityId), 'First task', 'user');
     await new Promise(resolve => setTimeout(resolve, 10));
-    const task2 = await queueTask(testAgentId, teamOwnerInfo(testTeamId), 'Second task', 'user');
+    const task2 = await queueTask(testAgentId, entityInfo(testEntityId), 'Second task', 'user');
     await new Promise(resolve => setTimeout(resolve, 10));
-    const task3 = await queueTask(testAgentId, teamOwnerInfo(testTeamId), 'Third task', 'user');
+    const task3 = await queueTask(testAgentId, entityInfo(testEntityId), 'Third task', 'user');
 
     const tasks = await getOwnPendingTasks(testAgentId);
 
@@ -211,8 +212,8 @@ describe('getOwnPendingTasks', () => {
   });
 
   test('excludes completed tasks', async () => {
-    const pendingTask = await queueTask(testAgentId, teamOwnerInfo(testTeamId), 'Pending', 'user');
-    const completedTask = await queueTask(testAgentId, teamOwnerInfo(testTeamId), 'Completed', 'user');
+    const pendingTask = await queueTask(testAgentId, entityInfo(testEntityId), 'Pending', 'user');
+    const completedTask = await queueTask(testAgentId, entityInfo(testEntityId), 'Completed', 'user');
     await completeTaskWithResult(completedTask.id, 'Done');
 
     const tasks = await getOwnPendingTasks(testAgentId);
@@ -224,8 +225,8 @@ describe('getOwnPendingTasks', () => {
   });
 
   test('only returns tasks assigned to the specific agent', async () => {
-    const agent1Task = await queueTask(testAgentId, teamOwnerInfo(testTeamId), 'Agent 1 task', 'user');
-    const agent2Task = await queueTask(testAgent2Id, teamOwnerInfo(testTeamId), 'Agent 2 task', 'user');
+    const agent1Task = await queueTask(testAgentId, entityInfo(testEntityId), 'Agent 1 task', 'user');
+    const agent2Task = await queueTask(testAgent2Id, entityInfo(testEntityId), 'Agent 2 task', 'user');
 
     const agent1Tasks = await getOwnPendingTasks(testAgentId);
     const agent2Tasks = await getOwnPendingTasks(testAgent2Id);
@@ -250,7 +251,7 @@ describe('hasQueuedWork', () => {
   });
 
   test('returns true when pending tasks exist', async () => {
-    const task = await queueTask(testAgentId, teamOwnerInfo(testTeamId), 'Pending task', 'user');
+    const task = await queueTask(testAgentId, entityInfo(testEntityId), 'Pending task', 'user');
 
     const hasWork = await hasQueuedWork(testAgentId);
     expect(hasWork).toBe(true);
@@ -259,7 +260,7 @@ describe('hasQueuedWork', () => {
   });
 
   test('returns false when only completed tasks exist', async () => {
-    const task = await queueTask(testAgentId, teamOwnerInfo(testTeamId), 'Completed task', 'user');
+    const task = await queueTask(testAgentId, entityInfo(testEntityId), 'Completed task', 'user');
     await completeTaskWithResult(task.id, 'Done');
 
     const hasWork = await hasQueuedWork(testAgentId);
@@ -269,7 +270,7 @@ describe('hasQueuedWork', () => {
   });
 
   test('only considers tasks for the specific agent', async () => {
-    const agent2Task = await queueTask(testAgent2Id, teamOwnerInfo(testTeamId), 'Agent 2 task', 'user');
+    const agent2Task = await queueTask(testAgent2Id, entityInfo(testEntityId), 'Agent 2 task', 'user');
 
     const hasWorkAgent1 = await hasQueuedWork(testAgentId);
     const hasWorkAgent2 = await hasQueuedWork(testAgent2Id);
@@ -287,7 +288,7 @@ describe('hasQueuedWork', () => {
 
 describe('Task Lifecycle', () => {
   test('task starts in pending status', async () => {
-    const task = await queueTask(testAgentId, teamOwnerInfo(testTeamId), 'New task', 'user');
+    const task = await queueTask(testAgentId, entityInfo(testEntityId), 'New task', 'user');
 
     expect(task.status).toBe('pending');
     expect(task.completedAt).toBeNull();
@@ -297,7 +298,7 @@ describe('Task Lifecycle', () => {
   });
 
   test('completeTaskWithResult transitions task to completed with result', async () => {
-    const task = await queueTask(testAgentId, teamOwnerInfo(testTeamId), 'Task to complete', 'user');
+    const task = await queueTask(testAgentId, entityInfo(testEntityId), 'Task to complete', 'user');
     const completed = await completeTaskWithResult(task.id, 'Task completed successfully');
 
     expect(completed.status).toBe('completed');
@@ -308,7 +309,7 @@ describe('Task Lifecycle', () => {
   });
 
   test('full lifecycle: pending -> completed', async () => {
-    const task = await queueTask(testAgentId, teamOwnerInfo(testTeamId), 'Full lifecycle task', 'user');
+    const task = await queueTask(testAgentId, entityInfo(testEntityId), 'Full lifecycle task', 'user');
     expect(task.status).toBe('pending');
 
     const completed = await completeTaskWithResult(task.id, 'Done');
@@ -331,9 +332,9 @@ describe('getNextTask', () => {
   });
 
   test('returns oldest pending task (FIFO)', async () => {
-    const task1 = await queueTask(testAgentId, teamOwnerInfo(testTeamId), 'First task', 'user');
+    const task1 = await queueTask(testAgentId, entityInfo(testEntityId), 'First task', 'user');
     await new Promise(resolve => setTimeout(resolve, 10));
-    const task2 = await queueTask(testAgentId, teamOwnerInfo(testTeamId), 'Second task', 'user');
+    const task2 = await queueTask(testAgentId, entityInfo(testEntityId), 'Second task', 'user');
 
     const nextTask = await getNextTask(testAgentId);
 
@@ -344,10 +345,10 @@ describe('getNextTask', () => {
   });
 
   test('skips completed tasks', async () => {
-    const completedTask = await queueTask(testAgentId, teamOwnerInfo(testTeamId), 'Completed', 'user');
+    const completedTask = await queueTask(testAgentId, entityInfo(testEntityId), 'Completed', 'user');
     await completeTaskWithResult(completedTask.id, 'Done');
     await new Promise(resolve => setTimeout(resolve, 10));
-    const pendingTask = await queueTask(testAgentId, teamOwnerInfo(testTeamId), 'Pending', 'user');
+    const pendingTask = await queueTask(testAgentId, entityInfo(testEntityId), 'Pending', 'user');
 
     const nextTask = await getNextTask(testAgentId);
 
@@ -365,7 +366,7 @@ describe('getNextTask', () => {
 describe('createAgentTask', () => {
   test('creates task with different assignedById (delegation)', async () => {
     const task = await createAgentTask({
-      teamId: testTeamId,
+      entityId: testEntityId,
       assignedToId: testAgentId,
       assignedById: testAgent2Id,
       task: 'Delegated from agent 2',
@@ -381,7 +382,7 @@ describe('createAgentTask', () => {
 
   test('defaults to delegation source when not specified', async () => {
     const task = await createAgentTask({
-      teamId: testTeamId,
+      entityId: testEntityId,
       assignedToId: testAgentId,
       assignedById: testAgent2Id,
       task: 'Implicit delegation',
@@ -399,7 +400,7 @@ describe('createAgentTask', () => {
 
 describe('Edge Cases', () => {
   test('handles empty task description', async () => {
-    const task = await queueTask(testAgentId, teamOwnerInfo(testTeamId), '', 'user');
+    const task = await queueTask(testAgentId, entityInfo(testEntityId), '', 'user');
 
     expect(task.task).toBe('');
 
@@ -408,7 +409,7 @@ describe('Edge Cases', () => {
 
   test('handles very long task description', async () => {
     const longDescription = 'A'.repeat(10000);
-    const task = await queueTask(testAgentId, teamOwnerInfo(testTeamId), longDescription, 'user');
+    const task = await queueTask(testAgentId, entityInfo(testEntityId), longDescription, 'user');
 
     expect(task.task).toBe(longDescription);
 
@@ -420,7 +421,7 @@ describe('Edge Cases', () => {
 
   test('handles special characters in task description', async () => {
     const specialChars = '`~!@#$%^&*()_+-=[]{}|;:\'"<>,.?/\\n\\t\u1234\u2603';
-    const task = await queueTask(testAgentId, teamOwnerInfo(testTeamId), specialChars, 'user');
+    const task = await queueTask(testAgentId, entityInfo(testEntityId), specialChars, 'user');
 
     expect(task.task).toBe(specialChars);
 
@@ -429,7 +430,7 @@ describe('Edge Cases', () => {
 
   test('handles unicode in task description', async () => {
     const unicodeTask = 'Task with emoji and unicode: \ud83d\ude00\ud83c\udf1f\u4e2d\u6587\u65e5\u672c\u8a9e';
-    const task = await queueTask(testAgentId, teamOwnerInfo(testTeamId), unicodeTask, 'user');
+    const task = await queueTask(testAgentId, entityInfo(testEntityId), unicodeTask, 'user');
 
     expect(task.task).toBe(unicodeTask);
 
@@ -437,7 +438,7 @@ describe('Edge Cases', () => {
   });
 
   test('handles empty result on complete', async () => {
-    const task = await queueTask(testAgentId, teamOwnerInfo(testTeamId), 'Task', 'user');
+    const task = await queueTask(testAgentId, entityInfo(testEntityId), 'Task', 'user');
     const completed = await completeTaskWithResult(task.id, '');
 
     expect(completed.result).toBe('');
@@ -473,7 +474,7 @@ describe('Concurrent Claims', () => {
    */
   test('documents non-atomic claim behavior', async () => {
     // This test documents the current behavior, not ideal behavior
-    const task = await queueTask(testAgentId, teamOwnerInfo(testTeamId), 'Concurrent test', 'user');
+    const task = await queueTask(testAgentId, entityInfo(testEntityId), 'Concurrent test', 'user');
 
     // Simulate two "workers" getting the same task
     const worker1Task = await getNextTask(testAgentId);

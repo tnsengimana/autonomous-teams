@@ -32,13 +32,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     const { id } = await params;
 
-    // 2. Get the inbox item with team info
+    // 2. Get the inbox item with entity info
     const result = await getInboxItemWithSource(id);
     if (!result) {
       return NextResponse.json({ error: 'Item not found' }, { status: 404 });
     }
 
-    const { item, teamName, aideName, teamId, aideId } = result;
+    const { item, entityId, entityName, entityType } = result;
 
     // 3. Verify user owns this item
     if (item.userId !== session.user.id) {
@@ -56,10 +56,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       type: item.type,
       title: item.title,
       content: item.content,
-      teamId,
-      teamName,
-      aideId,
-      aideName,
+      entityId,
+      entityName,
+      entityType,
       read: true,
       readAt: item.readAt || new Date(),
       createdAt: item.createdAt,

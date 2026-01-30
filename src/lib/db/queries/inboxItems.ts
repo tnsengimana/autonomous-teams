@@ -6,7 +6,7 @@
 
 import { eq, desc, and, isNull, count } from 'drizzle-orm';
 import { db } from '../client';
-import { inboxItems, teams, aides, agents } from '../schema';
+import { inboxItems, entities, agents } from '../schema';
 import type { InboxItem } from '@/lib/types';
 
 /**
@@ -23,34 +23,17 @@ export async function getInboxItemsByUserId(userId: string): Promise<InboxItem[]
 }
 
 /**
- * Get inbox items for a specific team
+ * Get inbox items for a specific entity
  */
-export async function getInboxItemsByTeamId(
+export async function getInboxItemsByEntityId(
   userId: string,
-  teamId: string
+  entityId: string
 ): Promise<InboxItem[]> {
   const result = await db
     .select()
     .from(inboxItems)
     .innerJoin(agents, eq(inboxItems.agentId, agents.id))
-    .where(and(eq(inboxItems.userId, userId), eq(agents.teamId, teamId)))
-    .orderBy(desc(inboxItems.createdAt));
-
-  return result.map((row) => row.inbox_items as InboxItem);
-}
-
-/**
- * Get inbox items for a specific aide
- */
-export async function getInboxItemsByAideId(
-  userId: string,
-  aideId: string
-): Promise<InboxItem[]> {
-  const result = await db
-    .select()
-    .from(inboxItems)
-    .innerJoin(agents, eq(inboxItems.agentId, agents.id))
-    .where(and(eq(inboxItems.userId, userId), eq(agents.aideId, aideId)))
+    .where(and(eq(inboxItems.userId, userId), eq(agents.entityId, entityId)))
     .orderBy(desc(inboxItems.createdAt));
 
   return result.map((row) => row.inbox_items as InboxItem);
@@ -82,27 +65,24 @@ export async function getInboxItemById(itemId: string): Promise<InboxItem | null
 }
 
 /**
- * Get an inbox item with its team/aide info
+ * Get an inbox item with its entity info
  */
 export async function getInboxItemWithSource(itemId: string): Promise<{
   item: InboxItem;
-  teamName: string | null;
-  aideName: string | null;
-  teamId: string | null;
-  aideId: string | null;
+  entityId: string | null;
+  entityName: string | null;
+  entityType: string | null;
 } | null> {
   const result = await db
     .select({
       item: inboxItems,
-      teamId: agents.teamId,
-      teamName: teams.name,
-      aideId: agents.aideId,
-      aideName: aides.name,
+      entityId: agents.entityId,
+      entityName: entities.name,
+      entityType: entities.type,
     })
     .from(inboxItems)
     .leftJoin(agents, eq(inboxItems.agentId, agents.id))
-    .leftJoin(teams, eq(agents.teamId, teams.id))
-    .leftJoin(aides, eq(agents.aideId, aides.id))
+    .leftJoin(entities, eq(agents.entityId, entities.id))
     .where(eq(inboxItems.id, itemId))
     .limit(1);
 
@@ -112,41 +92,12 @@ export async function getInboxItemWithSource(itemId: string): Promise<{
 
   return {
     item: result[0].item as InboxItem,
-    teamId: result[0].teamId,
-    teamName: result[0].teamName,
-    aideId: result[0].aideId,
-    aideName: result[0].aideName,
+    entityId: result[0].entityId,
+    entityName: result[0].entityName,
+    entityType: result[0].entityType,
   };
 }
 
-/**
- * Get an inbox item with its team info
- * @deprecated Use getInboxItemWithSource instead
- */
-export async function getInboxItemWithTeam(itemId: string): Promise<{
-  item: InboxItem;
-  teamName: string;
-} | null> {
-  const result = await db
-    .select({
-      item: inboxItems,
-      teamName: teams.name,
-    })
-    .from(inboxItems)
-    .innerJoin(agents, eq(inboxItems.agentId, agents.id))
-    .innerJoin(teams, eq(agents.teamId, teams.id))
-    .where(eq(inboxItems.id, itemId))
-    .limit(1);
-
-  if (!result[0]) {
-    return null;
-  }
-
-  return {
-    item: result[0].item as InboxItem,
-    teamName: result[0].teamName,
-  };
-}
 
 /**
  * Create a new inbox item
@@ -229,65 +180,33 @@ export async function getRecentInboxItems(
 }
 
 /**
- * Get inbox items with team/aide names
- * Uses LEFT JOINs to support items from both teams and aides
+ * Get inbox items with entity names
  */
 export async function getInboxItemsWithSources(userId: string): Promise<
   Array<{
     item: InboxItem;
-    teamName: string | null;
-    aideName: string | null;
-    teamId: string | null;
-    aideId: string | null;
+    entityId: string | null;
+    entityName: string | null;
+    entityType: string | null;
   }>
 > {
   const result = await db
     .select({
       item: inboxItems,
-      teamId: agents.teamId,
-      teamName: teams.name,
-      aideId: agents.aideId,
-      aideName: aides.name,
+      entityId: agents.entityId,
+      entityName: entities.name,
+      entityType: entities.type,
     })
     .from(inboxItems)
     .leftJoin(agents, eq(inboxItems.agentId, agents.id))
-    .leftJoin(teams, eq(agents.teamId, teams.id))
-    .leftJoin(aides, eq(agents.aideId, aides.id))
+    .leftJoin(entities, eq(agents.entityId, entities.id))
     .where(eq(inboxItems.userId, userId))
     .orderBy(desc(inboxItems.createdAt));
 
   return result.map((r) => ({
     item: r.item as InboxItem,
-    teamId: r.teamId,
-    teamName: r.teamName,
-    aideId: r.aideId,
-    aideName: r.aideName,
-  }));
-}
-
-/**
- * Get inbox items with team names
- * @deprecated Use getInboxItemsWithSources instead
- */
-export async function getInboxItemsWithTeams(userId: string): Promise<
-  Array<{
-    item: InboxItem;
-    teamName: string;
-  }>
-> {
-  const result = await db
-    .select({
-      item: inboxItems,
-      teamName: teams.name,
-    })
-    .from(inboxItems)
-    .innerJoin(agents, eq(inboxItems.agentId, agents.id))
-    .innerJoin(teams, eq(agents.teamId, teams.id))
-    .where(eq(inboxItems.userId, userId))
-    .orderBy(desc(inboxItems.createdAt));
-
-  return result.map((r) => ({
-    item: r.item as InboxItem,
-    teamName: r.teamName,
+    entityId: r.entityId,
+    entityName: r.entityName,
+    entityType: r.entityType,
   }));
 }

@@ -9,13 +9,12 @@ import type { InferSelectModel } from 'drizzle-orm';
 import type {
   agents,
   agentTasks,
-  aides,
   briefings,
   conversations,
+  entities,
   knowledgeItems,
   memories,
   messages,
-  teams,
   userApiKeys,
 } from '@/lib/db/schema';
 
@@ -25,13 +24,12 @@ import type {
 
 export type Agent = InferSelectModel<typeof agents>;
 export type AgentTask = InferSelectModel<typeof agentTasks>;
-export type Aide = InferSelectModel<typeof aides>;
 export type Briefing = InferSelectModel<typeof briefings>;
 export type Conversation = InferSelectModel<typeof conversations>;
+export type Entity = InferSelectModel<typeof entities>;
 export type KnowledgeItem = InferSelectModel<typeof knowledgeItems>;
 export type Memory = InferSelectModel<typeof memories>;
 export type Message = InferSelectModel<typeof messages>;
-export type Team = InferSelectModel<typeof teams>;
 export type UserApiKey = InferSelectModel<typeof userApiKeys>;
 
 // ============================================================================
@@ -42,8 +40,8 @@ export type AgentStatus = 'idle' | 'running' | 'paused';
 export type AgentType = 'lead' | 'subordinate';
 export type AgentTaskStatus = 'pending' | 'completed';
 export type AgentTaskSource = 'delegation' | 'user' | 'system' | 'self';
-export type AideStatus = 'active' | 'paused' | 'archived';
-export type TeamStatus = 'active' | 'paused' | 'archived';
+export type EntityType = 'team' | 'aide';
+export type EntityStatus = 'active' | 'paused' | 'archived';
 export type MemoryType = 'preference' | 'insight' | 'fact';
 export type MessageRole = 'user' | 'assistant' | 'tool' | 'summary';
 export type ConversationMode = 'foreground' | 'background';
@@ -73,19 +71,14 @@ export interface ConversationWithMessages extends Conversation {
 }
 
 export interface AgentWithRelations extends Agent {
-  team?: Team;
-  aide?: Aide;
+  entity?: Entity;
   parentAgent?: Agent | null;
   childAgents?: Agent[];
   conversations?: Conversation[];
   memories?: Memory[];
 }
 
-export interface TeamWithAgents extends Team {
-  agents: Agent[];
-}
-
-export interface AideWithAgents extends Aide {
+export interface EntityWithAgents extends Entity {
   agents: Agent[];
 }
 
