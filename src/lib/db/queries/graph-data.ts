@@ -7,26 +7,20 @@
 import { eq, and, or, count } from 'drizzle-orm';
 import { db } from '../client';
 import { graphNodes, graphEdges } from '../schema';
-import type { InferSelectModel } from 'drizzle-orm';
+import type {
+  GraphNode,
+  GraphEdge,
+  GraphNeighbors,
+  GraphStats,
+} from '@/lib/types';
 
-// ============================================================================
-// Types
-// ============================================================================
-
-export type GraphNode = InferSelectModel<typeof graphNodes>;
-export type GraphEdge = InferSelectModel<typeof graphEdges>;
-
-export interface GraphNeighbors {
-  nodes: GraphNode[];
-  edges: GraphEdge[];
-}
-
-export interface GraphStats {
-  nodeCount: number;
-  edgeCount: number;
-  nodesByType: Record<string, number>;
-  edgesByType: Record<string, number>;
-}
+// Re-export types for convenience
+export type {
+  GraphNode,
+  GraphEdge,
+  GraphNeighbors,
+  GraphStats,
+};
 
 // ============================================================================
 // Node Operations

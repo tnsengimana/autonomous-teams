@@ -13,23 +13,20 @@ import {
   graphEdgeTypeSourceTypes,
   graphEdgeTypeTargetTypes,
 } from '../schema';
-import type { InferSelectModel } from 'drizzle-orm';
+import type {
+  GraphNodeType,
+  GraphEdgeType,
+  GraphEdgeTypeWithConstraints,
+  GraphTypeCreatedBy,
+} from '@/lib/types';
 
-// ============================================================================
-// Types
-// ============================================================================
-
-export type GraphNodeType = InferSelectModel<typeof graphNodeTypes>;
-export type GraphEdgeType = InferSelectModel<typeof graphEdgeTypes>;
-export type GraphEdgeTypeSourceType = InferSelectModel<typeof graphEdgeTypeSourceTypes>;
-export type GraphEdgeTypeTargetType = InferSelectModel<typeof graphEdgeTypeTargetTypes>;
-
-export interface GraphEdgeTypeWithConstraints extends GraphEdgeType {
-  sourceNodeTypes: GraphNodeType[];
-  targetNodeTypes: GraphNodeType[];
-}
-
-export type GraphTypeCreatedBy = 'system' | 'agent' | 'user';
+// Re-export types for convenience
+export type {
+  GraphNodeType,
+  GraphEdgeType,
+  GraphEdgeTypeWithConstraints,
+  GraphTypeCreatedBy,
+};
 
 // ============================================================================
 // Node Type Operations
