@@ -68,7 +68,9 @@ export async function POST(request: NextRequest) {
     const memoryContext = buildMemoryContextBlock(memories);
 
     // Build system prompt with entity context
-    const systemPrompt = `${entity.systemPrompt}
+    // Use conversationSystemPrompt for multi-phase entities, fall back to systemPrompt for legacy entities
+    const baseSystemPrompt = entity.conversationSystemPrompt || entity.systemPrompt;
+    const systemPrompt = `${baseSystemPrompt}
 
 ${memoryContext}
 
