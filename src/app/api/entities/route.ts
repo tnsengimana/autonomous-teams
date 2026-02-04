@@ -5,8 +5,7 @@ import { generateEntityConfiguration } from "@/lib/entities/configuration";
 import { z } from "zod";
 
 const createEntitySchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  purpose: z.string().min(1, "Purpose is required"),
+  purpose: z.string().min(1, "Mission/purpose is required"),
 });
 
 /**
@@ -51,17 +50,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { name, purpose } = validation.data;
+    const { purpose } = validation.data;
 
-    // Generate system prompt from entity name and purpose
-    const config = await generateEntityConfiguration(name, purpose, {
+    // Generate name and system prompt from mission/purpose
+    const config = await generateEntityConfiguration(purpose, {
       userId: session.user.id,
     });
 
-    // Create the entity with generated systemPrompt
+    // Create the entity with generated name and systemPrompt
     const entity = await createEntity({
       userId: session.user.id,
-      name,
+      name: config.name,
       purpose,
       systemPrompt: config.systemPrompt,
       status: "active",

@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Card,
@@ -19,7 +18,6 @@ export default function NewEntityPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
-    name: "",
     purpose: "",
   });
 
@@ -70,7 +68,7 @@ export default function NewEntityPage() {
         </Link>
         <h1 className="mt-2 text-3xl font-bold">Create New Entity</h1>
         <p className="text-muted-foreground">
-          Define your entity&apos;s mission. The system prompt will be generated automatically.
+          Define your entity&apos;s mission. Everything else will be generated automatically.
         </p>
       </div>
 
@@ -83,37 +81,25 @@ export default function NewEntityPage() {
       <form onSubmit={handleSubmit} className="space-y-6">
         <Card>
           <CardHeader>
-            <CardTitle>Entity Details</CardTitle>
+            <CardTitle>Mission</CardTitle>
             <CardDescription>
-              Tell us what you want your entity to accomplish
+              Describe what you want your entity to accomplish
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="name">Name</Label>
-              <Input
-                id="name"
-                name="name"
-                placeholder="e.g., Research Assistant"
-                value={formData.name}
-                onChange={handleChange}
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="purpose">Purpose</Label>
+              <Label htmlFor="purpose">Mission</Label>
               <textarea
                 id="purpose"
                 name="purpose"
-                placeholder="What should this entity accomplish? Be specific about goals and deliverables."
+                placeholder="What should this entity accomplish? Be specific about goals and deliverables. The entity's name and system prompt will be generated automatically based on this mission."
                 value={formData.purpose}
                 onChange={handleChange}
-                className="min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className="min-h-[150px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 required
               />
               <p className="text-xs text-muted-foreground">
-                The purpose guides all activities and helps define the mission.
+                Describe the mission clearly. The entity&apos;s name and configuration will be generated automatically.
               </p>
             </div>
 
