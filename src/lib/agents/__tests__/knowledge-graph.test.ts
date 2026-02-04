@@ -40,9 +40,9 @@ beforeAll(async () => {
     .insert(entities)
     .values({
       userId: testUserId,
-      type: 'team',
       name: 'Test Research Team',
       purpose: 'Financial research and analysis',
+      systemPrompt: 'You are a test entity for knowledge graph testing.',
       status: 'active',
     })
     .returning();
@@ -110,9 +110,9 @@ describe('buildGraphContextBlock', () => {
       .insert(entities)
       .values({
         userId: testUserId,
-        type: 'aide',
         name: 'Empty Test Entity',
         purpose: 'Testing empty graph',
+        systemPrompt: 'You are a test entity for empty graph testing.',
         status: 'active',
       })
       .returning();
@@ -152,9 +152,9 @@ describe('ensureGraphTypesInitialized', () => {
       .insert(entities)
       .values({
         userId: testUserId,
-        type: 'team',
         name: 'No Types Entity',
         purpose: 'Testing type initialization',
+        systemPrompt: 'You are a test entity for type initialization.',
         status: 'active',
       })
       .returning();
@@ -167,14 +167,14 @@ describe('ensureGraphTypesInitialized', () => {
     try {
       await ensureGraphTypesInitialized(
         newEntity.id,
-        { name: newEntity.name, type: newEntity.type, purpose: newEntity.purpose },
+        { name: newEntity.name, type: 'entity', purpose: newEntity.purpose },
         { userId: testUserId }
       );
 
       // Should have called the initializer
       expect(mockInit).toHaveBeenCalledWith(
         newEntity.id,
-        { name: newEntity.name, type: newEntity.type, purpose: newEntity.purpose },
+        { name: newEntity.name, type: 'entity', purpose: newEntity.purpose },
         { userId: testUserId }
       );
     } finally {
@@ -211,9 +211,9 @@ describe('ensureGraphTypesInitialized', () => {
       .insert(entities)
       .values({
         userId: testUserId,
-        type: 'aide',
         name: 'No UserId Entity',
         purpose: 'Testing without userId',
+        systemPrompt: 'You are a test entity for userId testing.',
         status: 'active',
       })
       .returning();
@@ -227,14 +227,14 @@ describe('ensureGraphTypesInitialized', () => {
       // Call without userId option
       await ensureGraphTypesInitialized(newEntity.id, {
         name: newEntity.name,
-        type: newEntity.type,
+        type: 'entity',
         purpose: newEntity.purpose,
       });
 
       // Should still have called the initializer
       expect(mockInit).toHaveBeenCalledWith(
         newEntity.id,
-        { name: newEntity.name, type: newEntity.type, purpose: newEntity.purpose },
+        { name: newEntity.name, type: 'entity', purpose: newEntity.purpose },
         undefined
       );
     } finally {
@@ -256,9 +256,9 @@ describe('Integration', () => {
       .insert(entities)
       .values({
         userId: testUserId,
-        type: 'team',
         name: 'Integration Test Team',
         purpose: 'Integration testing',
+        systemPrompt: 'You are a test entity for integration testing.',
         status: 'active',
       })
       .returning();

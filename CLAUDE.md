@@ -4,12 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Autonomous Agents is a TypeScript/Next.js application where users create entities (teams or aides) containing AI agents that run continuously to fulfill a mission. Entities have hierarchical agents (leads run continuously, subordinates spawn on-demand) that collaborate, extract knowledge from work sessions, and proactively deliver insights to users.
+Autonomous Agents is a TypeScript/Next.js application where users create entities that run continuously to fulfill a mission. Each entity has a system prompt, a knowledge graph, and runs in a 5-minute iteration loop where it autonomously researches and learns using web search and graph tools.
 
-**Terminology Note**:
-- "Entity" is the unified concept for teams and aides. Teams have multiple agents; aides have a single agent.
-- "Subordinate" refers to non-lead agents that report to the lead.
-- "Worker" refers to the background process (`src/worker/`) that runs agent cycles.
+**Key Concepts**:
+- **Entity**: The central unit with a name, purpose, system prompt, and knowledge graph
+- **Knowledge Graph (KGoT)**: Entity's accumulated knowledge stored as typed nodes and edges
+- **Background Worker**: Runs entities in 5-minute iteration loops, calling the LLM with tools
+- **LLM Interactions**: Trace of all background LLM calls stored for debugging/auditing
 
 ## Commands
 
@@ -38,46 +39,43 @@ npx drizzle-kit studio            # Open Drizzle Studio UI
 
 ## Architecture
 
-### Foreground/Background Architecture
+### Entity-Centric Architecture
 
-The system separates user interactions (foreground) from agent work (background):
+The system is built around entities that run autonomously:
 
-**Conversation Modes**:
-- **Foreground** (`mode='foreground'`): User-Agent interaction (permanent, UI-visible, one per agent). Human user sends messages, agent responds.
-- **Background** (`mode='background'`): Agent work sessions (persistent, internal only, one per agent). Agent processes tasks, uses tools, extracts knowledge. Automatic compaction via summary messages.
-
-**Memories vs Knowledge Items**:
-- **Memories**: User interaction context (preferences, past requests). Extracted from foreground conversations. Sent to LLM in **foreground only**.
-- **Knowledge Items**: Professional knowledge base (domain expertise, techniques, patterns, facts). Extracted from background conversations (`sourceConversationId`). Sent to LLM in **background only**.
+- **One Conversation Per Entity**: Each entity has a single conversation for user interaction
+- **Knowledge Graph**: Each entity has a KGoT (Knowledge Graph of Thoughts) that stores learned knowledge
+- **Background Iterations**: The worker calls the LLM every 5 minutes to let the entity work autonomously
 
 ### Core Components
 
-**Agent Runtime** (`src/lib/agents/`)
-- `agent.ts` - Agent class with foreground/background separation:
-  - `handleUserMessage()` - Foreground: quick ack + queue task, returns immediately
-  - `runWorkSession()` - Background: process queue in background conversation, extract knowledge, decide briefing
-  - `processTask()` - Per-task processing with tools in background conversation
-  - `extractKnowledgeFromConversation()` - Post-session professional learning (via `knowledge-items.ts`)
-  - `decideBriefing()` - Lead briefing decision after work session
-- `memory.ts` - Memory extraction from user conversations using `generateObject()`
-- `knowledge-items.ts` - Knowledge extraction from background conversations (professional knowledge)
+**LLM & Tools** (`src/lib/agents/`)
+- `llm.ts` - Provider abstraction (OpenAI, Anthropic, Gemini, LMStudio). Looks up user's encrypted API keys, falls back to env vars
+- `knowledge-graph.ts` - Builds graph context block for LLM prompts
+- `graph-type-initializer.ts` - Initializes node/edge types for new entities
+- `conversation.ts` - Conversation management
+- `memory.ts` - Memory extraction from user conversations
 - `compaction.ts` - Conversation compaction via summary messages
-- `taskQueue.ts` - Task queue operations (queue, claim, complete)
-- `llm.ts` - Provider abstraction (OpenAI, Anthropic, Gemini). Looks up user's encrypted API keys, falls back to env vars
+
+**Tools** (`src/lib/agents/tools/`)
+- `graph-tools.ts` - Knowledge graph manipulation (addGraphNode, addGraphEdge, queryGraph, etc.)
+- `tavily-tools.ts` - Web search tools (tavilySearch, tavilyExtract, tavilyResearch)
+- `index.ts` - Tool registry, provides `getBackgroundTools()` and `getForegroundTools()`
 
 **Database** (`src/lib/db/`)
 - PostgreSQL with Drizzle ORM
-- Schema: users, entities, agents, conversations (with mode), messages (with toolCalls, previousMessageId), memories, knowledgeItems (with sourceConversationId), agentTasks, inboxItems
+- Schema: users, entities, conversations, messages, memories, briefings, inboxItems, llmInteractions
+- Knowledge Graph tables: graphNodeTypes, graphEdgeTypes, graphNodes, graphEdges
 - `drizzle.config.ts` points to `src/lib/db/schema.ts`
-- `inbox_items` stores `userId` and `agentId` only; entity is derived via the agent relation; types are `briefing` or `feedback`
 
 **Background Worker** (`src/worker/runner.ts`)
-- Event-driven + timer-based execution:
-  - **Event-driven**: Tasks queued via `notifyTaskQueued()` trigger immediate processing
-  - **Timer-based**: Leads scheduled for daily proactive runs via `leadNextRunAt`
-- Subordinates are purely reactive (only triggered when work in queue)
-- Leads are proactive (daily trigger to further mission)
-- Calls `agent.runWorkSession()` for background conversation task processing
+- 5-minute iteration loop for each active entity
+- Each iteration:
+  1. Creates `llm_interaction` record
+  2. Builds system prompt with graph context
+  3. Calls LLM with graph and web search tools
+  4. Saves response to `llm_interaction`
+- Node creation can trigger user notifications (via `notifyUser` flag on node types)
 
 **Authentication** (`src/lib/auth/config.ts`)
 - NextAuth.js with passwordless magic links
@@ -86,50 +84,42 @@ The system separates user interactions (foreground) from agent work (background)
 
 ### Data Flow
 
-**Foreground (User Interaction)**:
-1. User sends message to lead
-2. Agent loads MEMORIES (user context)
-3. Generates quick contextual acknowledgment
-4. Queues task for background processing
-5. Returns acknowledgment immediately
+**User Interaction (Foreground)**:
+1. User sends message to entity via chat UI
+2. Entity loads memories (user context)
+3. Responds to user message
+4. Can optionally use foreground tools (web search, graph queries)
 
-**Background (Work Session)**:
-1. Task picked up from queue (event-driven or scheduled)
-2. Agent uses background conversation (persistent, with automatic compaction)
-3. Agent loads KNOWLEDGE ITEMS (professional knowledge)
-4. Processes task with tools in background conversation
-5. After queue empty: lead appends a briefing-decision turn in the background conversation
-6. Lead only: may call `createBriefing` (writes `briefings` + inbox item; no foreground message)
-7. Leads can call `requestUserInput` to create a `feedback` inbox item and append the full message to the foreground conversation
-8. Leads can call `listBriefings` (metadata only) and `getBriefing` (full content) in foreground conversations to answer user questions about briefings
-9. After briefing-decision turn: extracts knowledge from conversation
-10. Next run scheduled
+**Autonomous Work (Background)**:
+1. Worker picks up active entity every 5 minutes
+2. Builds system prompt with entity's purpose and graph context
+3. Calls LLM with "Continue your work" prompt
+4. LLM uses tools to:
+   - Search the web (Tavily)
+   - Query existing knowledge graph
+   - Add new nodes/edges to graph
+5. Response and tool calls logged to `llm_interactions`
+6. If node type has `notifyUser=true`, creates inbox item
 
 ### Key Patterns
 
 - **Path alias**: `@/*` maps to `./src/*`
 - **Mock mode**: Set `MOCK_LLM=true` in `.env.local` to run without real API calls
 - **Encrypted API keys**: User API keys stored encrypted in `userApiKeys` table
-- **Agent hierarchy**: Leads have `parentAgentId = null`, subordinates reference their lead
-- **Memories vs Knowledge Items**: Memories store user interaction context. Knowledge items are the agent's professional knowledge base.
-- **Conversation compaction**: Summary messages compress old context via linked list (`previousMessageId`). Context loading returns latest summary + recent messages.
-- **Professional growth**: Knowledge items accumulate as expertise from background work sessions
-- **Atomic turns + retries**: Persist user+assistant messages together; only complete tasks after turn is saved, with exponential backoff for task retries
-- **Worker assumption**: Single worker per agent queue; concurrent workers would require locking changes
-- **Backoff gating**: `agents.backoffNextRunAt` + `backoffAttemptCount` gate retries for queued tasks and scheduled runs
+- **Conversation compaction**: Summary messages compress old context via linked list (`previousMessageId`)
+- **Single worker assumption**: One worker per deployment; concurrent workers would require locking
 
 ## Autonomous Operation
 
-For entities to run autonomously and deliver proactive insights:
+For entities to run autonomously:
 
 1. **Entity status must be 'active'** - Set via UI or database
 2. **Worker process must be running** - Start separately from dev server:
    ```bash
    npx ts-node --project tsconfig.json src/worker/index.ts
    ```
-3. **Event-driven**: Tasks queued trigger immediate processing via `notifyTaskQueued()`
-4. **Timer-based**: Leads auto-scheduled for daily proactive runs
-5. Leads can delegate to subordinates and push briefings to user inbox
+3. **5-minute iterations**: Worker processes all active entities every 5 minutes
+4. **Insights via notifications**: Configure node types with `notifyUser=true` to push discoveries to inbox
 
 ## Workflow Preferences
 

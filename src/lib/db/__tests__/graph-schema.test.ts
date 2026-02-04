@@ -3,7 +3,6 @@ import { db } from '@/lib/db/client';
 import {
   users,
   entities,
-  agents,
   conversations,
   graphNodeTypes,
   graphEdgeTypes,
@@ -17,7 +16,6 @@ import { eq, and } from 'drizzle-orm';
 // Test utilities
 let testUserId: string;
 let testEntityId: string;
-let testAgentId: string;
 let testConversationId: string;
 
 beforeAll(async () => {
@@ -31,24 +29,15 @@ beforeAll(async () => {
   // Create test entity
   const [entity] = await db.insert(entities).values({
     userId: testUserId,
-    type: 'team',
     name: 'Graph Test Team',
     purpose: 'Testing knowledge graph',
+    systemPrompt: 'You are a test entity for knowledge graph testing.',
   }).returning();
   testEntityId = entity.id;
 
-  // Create test agent
-  const [agent] = await db.insert(agents).values({
-    entityId: testEntityId,
-    name: 'Graph Test Agent',
-    type: 'lead',
-  }).returning();
-  testAgentId = agent.id;
-
   // Create test conversation
   const [conversation] = await db.insert(conversations).values({
-    agentId: testAgentId,
-    mode: 'background',
+    entityId: testEntityId,
   }).returning();
   testConversationId = conversation.id;
 });
@@ -141,8 +130,8 @@ describe('graphNodeTypes schema', () => {
     // Create a separate entity for this test
     const [tempEntity] = await db.insert(entities).values({
       userId: testUserId,
-      type: 'aide',
       name: 'Temp Entity for Cascade Test',
+      systemPrompt: 'Test prompt',
     }).returning();
 
     const [nodeType] = await db.insert(graphNodeTypes).values({
@@ -212,8 +201,8 @@ describe('graphEdgeTypes schema', () => {
     // Create a separate entity for this test
     const [tempEntity] = await db.insert(entities).values({
       userId: testUserId,
-      type: 'aide',
       name: 'Temp Entity for Edge Cascade Test',
+      systemPrompt: 'Test prompt',
     }).returning();
 
     const [edgeType] = await db.insert(graphEdgeTypes).values({
@@ -465,8 +454,8 @@ describe('graphNodes schema', () => {
     // Create a separate entity
     const [tempEntity] = await db.insert(entities).values({
       userId: testUserId,
-      type: 'aide',
       name: 'Temp Entity for Node Cascade',
+      systemPrompt: 'Test prompt',
     }).returning();
 
     const [node] = await db.insert(graphNodes).values({
@@ -484,16 +473,15 @@ describe('graphNodes schema', () => {
   });
 
   test('sets sourceConversationId to null when conversation deleted', async () => {
-    // Create a separate agent and conversation
-    const [tempAgent] = await db.insert(agents).values({
-      entityId: testEntityId,
-      name: 'Temp Agent',
-      type: 'subordinate',
+    // Create a separate entity and conversation
+    const [tempEntity] = await db.insert(entities).values({
+      userId: testUserId,
+      name: 'Temp Entity for Node Source Test',
+      systemPrompt: 'Test prompt',
     }).returning();
 
     const [tempConversation] = await db.insert(conversations).values({
-      agentId: tempAgent.id,
-      mode: 'background',
+      entityId: tempEntity.id,
     }).returning();
 
     const [node] = await db.insert(graphNodes).values({
@@ -513,7 +501,7 @@ describe('graphNodes schema', () => {
 
     // Cleanup
     await db.delete(graphNodes).where(eq(graphNodes.id, node.id));
-    await db.delete(agents).where(eq(agents.id, tempAgent.id));
+    await db.delete(entities).where(eq(entities.id, tempEntity.id));
   });
 });
 
@@ -661,8 +649,8 @@ describe('graphEdges schema', () => {
     // Create a separate entity
     const [tempEntity] = await db.insert(entities).values({
       userId: testUserId,
-      type: 'aide',
       name: 'Temp Entity for Edge Cascade',
+      systemPrompt: 'Test prompt',
     }).returning();
 
     // Create nodes in the temp entity
@@ -713,10 +701,15 @@ describe('graphEdges schema', () => {
       name: 'Target',
     }).returning();
 
-    // Create a separate conversation
+    // Create a separate entity and conversation
+    const [tempEntity] = await db.insert(entities).values({
+      userId: testUserId,
+      name: 'Temp Entity for Edge Source Test',
+      systemPrompt: 'Test prompt',
+    }).returning();
+
     const [tempConversation] = await db.insert(conversations).values({
-      agentId: testAgentId,
-      mode: 'background',
+      entityId: tempEntity.id,
     }).returning();
 
     const [edge] = await db.insert(graphEdges).values({
@@ -738,6 +731,7 @@ describe('graphEdges schema', () => {
     // Cleanup
     await db.delete(graphNodes).where(eq(graphNodes.id, sourceNode.id));
     await db.delete(graphNodes).where(eq(graphNodes.id, targetNode.id));
+    await db.delete(entities).where(eq(entities.id, tempEntity.id));
   });
 });
 

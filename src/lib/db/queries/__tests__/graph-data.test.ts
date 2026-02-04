@@ -10,7 +10,6 @@ import { db } from '@/lib/db/client';
 import {
   users,
   entities,
-  agents,
   conversations,
   graphNodes,
   graphEdges,
@@ -39,7 +38,6 @@ import {
 
 let testUserId: string;
 let testEntityId: string;
-let testAgentId: string;
 let testConversationId: string;
 
 beforeAll(async () => {
@@ -53,25 +51,15 @@ beforeAll(async () => {
   // Create test entity
   const [entity] = await db.insert(entities).values({
     userId: testUserId,
-    type: 'team',
     name: 'Graph Data Test Team',
     purpose: 'Testing graph data management',
+    systemPrompt: 'You are a test entity for graph data testing.',
   }).returning();
   testEntityId = entity.id;
 
-  // Create test agent (needed for conversation)
-  const [agent] = await db.insert(agents).values({
-    entityId: testEntityId,
-    name: 'Graph Test Agent',
-    type: 'lead',
-    systemPrompt: 'Test system prompt',
-  }).returning();
-  testAgentId = agent.id;
-
   // Create test conversation
   const [conversation] = await db.insert(conversations).values({
-    agentId: testAgentId,
-    mode: 'background',
+    entityId: testEntityId,
   }).returning();
   testConversationId = conversation.id;
 });
@@ -591,8 +579,8 @@ describe('serializeGraphForLLM', () => {
     // Use a fresh entity with no nodes
     const [freshEntity] = await db.insert(entities).values({
       userId: testUserId,
-      type: 'team',
       name: 'Empty Graph Test',
+      systemPrompt: 'Test prompt',
     }).returning();
 
     const serialized = await serializeGraphForLLM(freshEntity.id);
@@ -658,8 +646,8 @@ describe('getGraphStats', () => {
     // Use a fresh entity with no nodes
     const [freshEntity] = await db.insert(entities).values({
       userId: testUserId,
-      type: 'team',
       name: 'Empty Stats Test',
+      systemPrompt: 'Test prompt',
     }).returning();
 
     const stats = await getGraphStats(freshEntity.id);

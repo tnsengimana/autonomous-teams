@@ -47,17 +47,17 @@ beforeAll(async () => {
   // Create test entities
   const [entity] = await db.insert(entities).values({
     userId: testUserId,
-    type: 'team',
     name: 'Graph Types Test Team',
     purpose: 'Testing graph type management',
+    systemPrompt: 'You are a test entity for graph type testing.',
   }).returning();
   testEntityId = entity.id;
 
   const [entity2] = await db.insert(entities).values({
     userId: testUserId,
-    type: 'team',
     name: 'Graph Types Test Team 2',
     purpose: 'Testing graph type isolation',
+    systemPrompt: 'You are a test entity for graph type isolation testing.',
   }).returning();
   testEntity2Id = entity2.id;
 });
@@ -514,8 +514,8 @@ describe('formatTypesForLLMContext', () => {
     // Use a fresh entity with no types
     const [freshEntity] = await db.insert(entities).values({
       userId: testUserId,
-      type: 'team',
       name: 'Empty Types Test',
+      systemPrompt: 'Test prompt',
     }).returning();
 
     const formatted = await formatTypesForLLMContext(freshEntity.id);

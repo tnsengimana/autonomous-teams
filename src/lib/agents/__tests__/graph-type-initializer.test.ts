@@ -323,9 +323,9 @@ describe('persistInitializedTypes', () => {
     // Create a new entity for this test to avoid conflicts
     const [testEntity] = await db.insert(entities).values({
       userId: testUserId,
-      type: 'team',
       name: 'Persist Test Entity',
       purpose: 'Testing persistence',
+      systemPrompt: 'You are a test entity for persistence testing.',
       status: 'active',
     }).returning();
 
@@ -355,9 +355,9 @@ describe('persistInitializedTypes', () => {
     // Create a new entity for this test
     const [testEntity] = await db.insert(entities).values({
       userId: testUserId,
-      type: 'team',
       name: 'Edge Persist Test Entity',
       purpose: 'Testing edge persistence',
+      systemPrompt: 'You are a test entity for edge persistence testing.',
       status: 'active',
     }).returning();
 
@@ -387,9 +387,9 @@ describe('persistInitializedTypes', () => {
     // Create a new entity for this test
     const [testEntity] = await db.insert(entities).values({
       userId: testUserId,
-      type: 'team',
       name: 'Constraint Persist Test Entity',
       purpose: 'Testing constraint persistence',
+      systemPrompt: 'You are a test entity for constraint persistence testing.',
       status: 'active',
     }).returning();
 
@@ -423,9 +423,9 @@ describe('persistInitializedTypes', () => {
     // Create a new entity for this test
     const [testEntity] = await db.insert(entities).values({
       userId: testUserId,
-      type: 'team',
       name: 'Empty Types Test Entity',
       purpose: 'Testing empty types',
+      systemPrompt: 'You are a test entity for empty types testing.',
       status: 'active',
     }).returning();
 
@@ -450,9 +450,9 @@ describe('persistInitializedTypes', () => {
     // Create a new entity for this test
     const [testEntity] = await db.insert(entities).values({
       userId: testUserId,
-      type: 'team',
       name: 'Invalid Ref Test Entity',
       purpose: 'Testing invalid references',
+      systemPrompt: 'You are a test entity for invalid reference testing.',
       status: 'active',
     }).returning();
 
@@ -505,9 +505,9 @@ describe('Integration', () => {
     // Create a new entity for this test
     const [testEntity] = await db.insert(entities).values({
       userId: testUserId,
-      type: 'aide',
       name: 'E2E Test Aide',
       purpose: 'End-to-end type initialization testing',
+      systemPrompt: 'You are a test entity for E2E testing.',
       status: 'active',
     }).returning();
 
@@ -515,7 +515,7 @@ describe('Integration', () => {
       // Initialize types
       const types = await initializeTypesForEntity({
         name: testEntity.name,
-        type: testEntity.type,
+        type: 'entity',
         purpose: testEntity.purpose,
       });
 

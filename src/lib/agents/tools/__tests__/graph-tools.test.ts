@@ -46,17 +46,15 @@ beforeAll(async () => {
   // Create test entity
   const [entity] = await db.insert(entities).values({
     userId: testUserId,
-    type: 'team',
     name: 'Graph Tools Test Team',
     purpose: 'Testing graph tools',
+    systemPrompt: 'You are a test entity for graph tools testing.',
   }).returning();
   testEntityId = entity.id;
 
   // Create test context (conversationId is optional and not required for tests)
   testContext = {
-    agentId: '00000000-0000-0000-0000-000000000001',
     entityId: testEntityId,
-    isLead: true,
   };
 
   // Create some initial node types for testing
