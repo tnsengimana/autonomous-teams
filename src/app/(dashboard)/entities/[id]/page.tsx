@@ -12,7 +12,6 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { auth } from "@/lib/auth/config";
 import { getEntityById } from "@/lib/db/queries/entities";
-import { getRecentBriefingsByEntity } from "@/lib/db/queries/briefings";
 import { EntityActions } from "@/components/entity-actions";
 
 export default async function EntityDetailPage({
@@ -32,13 +31,7 @@ export default async function EntityDetailPage({
     notFound();
   }
 
-  const recentBriefings = await getRecentBriefingsByEntity(
-    { userId: session.user.id, entityId: entity.id },
-    5,
-  );
-
   // Parse mission from purpose field
-  const description = entity.purpose?.split("\n")[0] || "";
   const mission = entity.purpose?.includes("Mission:")
     ? entity.purpose.split("Mission:")[1]?.trim()
     : entity.purpose || "No mission set";
@@ -55,7 +48,6 @@ export default async function EntityDetailPage({
         <div className="mt-2 flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold">{entity.name}</h1>
-            <p className="text-muted-foreground">{description}</p>
           </div>
           <EntityActions
             entityType="team"
@@ -73,7 +65,10 @@ export default async function EntityDetailPage({
           <Button>Chat</Button>
         </Link>
         <Link href={`/entities/${entity.id}/interactions`}>
-          <Button variant="outline">View Interactions</Button>
+          <Button variant="outline">Interactions</Button>
+        </Link>
+        <Link href={`/entities/${entity.id}/briefings`}>
+          <Button variant="outline">Briefings</Button>
         </Link>
       </div>
 
@@ -121,43 +116,6 @@ export default async function EntityDetailPage({
           <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-md bg-muted p-4 text-sm">
             {entity.systemPrompt}
           </pre>
-        </CardContent>
-      </Card>
-
-      {/* Briefings */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="mb-2">Briefings</CardTitle>
-          <CardDescription>Recent briefings from this entity.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {recentBriefings.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No briefings yet.
-            </p>
-          ) : (
-            <div className="space-y-4">
-              {recentBriefings.map((briefing) => (
-                <Link
-                  key={briefing.id}
-                  href={`/entities/${entity.id}/briefings/${briefing.id}`}
-                  className="block"
-                >
-                  <div className="rounded-lg border p-4 transition-colors hover:bg-accent">
-                    <div className="flex items-center justify-between gap-4">
-                      <span className="font-medium">{briefing.title}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {new Date(briefing.createdAt).toLocaleDateString()}
-                      </span>
-                    </div>
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      {briefing.summary}
-                    </p>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
         </CardContent>
       </Card>
     </div>

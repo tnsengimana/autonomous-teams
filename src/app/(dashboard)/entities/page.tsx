@@ -1,13 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { auth } from "@/lib/auth/config";
 import { getEntitiesByUserId } from "@/lib/db/queries/entities";
@@ -62,9 +56,6 @@ export default async function EntitiesPage() {
                       {entity.status}
                     </Badge>
                   </div>
-                  <CardDescription>
-                    {entity.purpose?.split("\n")[0] || "No description"}
-                  </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2 text-sm">
@@ -77,8 +68,7 @@ export default async function EntitiesPage() {
                       </p>
                     </div>
                     <div className="text-muted-foreground">
-                      Created{" "}
-                      {new Date(entity.createdAt).toLocaleDateString()}
+                      Created {new Date(entity.createdAt).toLocaleDateString()}
                     </div>
                   </div>
                 </CardContent>
