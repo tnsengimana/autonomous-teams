@@ -21,8 +21,6 @@ interface InboxItem {
   content: string;
   entityId: string | null;
   entityName: string | null;
-  entityType: string | null;
-  agentId: string;
   briefingId: string | null;
   read: boolean;
   readAt: string | null;
@@ -34,17 +32,13 @@ function getSourceName(item: InboxItem): string {
   return item.entityName ?? "Unknown";
 }
 
-function getSourceLabel(item: InboxItem): string {
-  return item.entityType === "team" ? "Team" : "Aide";
-}
-
 function getItemLink(item: InboxItem): string {
   if (item.type === "briefing" && item.briefingId && item.entityId) {
     return `/entities/${item.entityId}/briefings/${item.briefingId}`;
   }
 
   if (item.entityId) {
-    return `/entities/${item.entityId}/agents/${item.agentId}/chat`;
+    return `/entities/${item.entityId}/chat`;
   }
   return "#";
 }
@@ -68,9 +62,7 @@ function InboxItemBadge({ type }: { type: string }) {
     feedback: "Feedback",
   };
   return (
-    <Badge variant={variants[type] || "outline"}>
-      {labels[type] || type}
-    </Badge>
+    <Badge variant={variants[type] || "outline"}>{labels[type] || type}</Badge>
   );
 }
 
@@ -83,8 +75,10 @@ function formatTimeAgo(dateString: string): string {
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
   if (diffMins < 1) return "just now";
-  if (diffMins < 60) return `${diffMins} minute${diffMins !== 1 ? "s" : ""} ago`;
-  if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? "s" : ""} ago`;
+  if (diffMins < 60)
+    return `${diffMins} minute${diffMins !== 1 ? "s" : ""} ago`;
+  if (diffHours < 24)
+    return `${diffHours} hour${diffHours !== 1 ? "s" : ""} ago`;
   if (diffDays < 7) return `${diffDays} day${diffDays !== 1 ? "s" : ""} ago`;
   return date.toLocaleDateString();
 }
@@ -137,7 +131,7 @@ export default function InboxPage() {
         });
         if (response.ok) {
           setItems((prev) =>
-            prev.map((i) => (i.id === item.id ? { ...i, read: true } : i))
+            prev.map((i) => (i.id === item.id ? { ...i, read: true } : i)),
           );
           setUnreadCount((prev) => Math.max(0, prev - 1));
         }
@@ -157,9 +151,11 @@ export default function InboxPage() {
       });
       if (response.ok) {
         setItems((prev) =>
-          prev.map((i) => (i.id === item.id ? { ...i, read: !item.read } : i))
+          prev.map((i) => (i.id === item.id ? { ...i, read: !item.read } : i)),
         );
-        setUnreadCount((prev) => (item.read ? prev + 1 : Math.max(0, prev - 1)));
+        setUnreadCount((prev) =>
+          item.read ? prev + 1 : Math.max(0, prev - 1),
+        );
         if (selectedItem?.id === item.id) {
           setSelectedItem({ ...item, read: !item.read });
         }
@@ -292,7 +288,8 @@ export default function InboxPage() {
                             {item.title}
                           </h3>
                           <p className="mt-1 text-xs text-muted-foreground">
-                            {getSourceName(item)} - {formatTimeAgo(item.createdAt)}
+                            {getSourceName(item)} -{" "}
+                            {formatTimeAgo(item.createdAt)}
                           </p>
                         </div>
                       </div>
@@ -316,8 +313,12 @@ export default function InboxPage() {
                           {formatTimeAgo(selectedItem.createdAt)}
                         </span>
                       </div>
-                      <CardTitle className="mt-2">{selectedItem.title}</CardTitle>
-                      <CardDescription>From {getSourceName(selectedItem)}</CardDescription>
+                      <CardTitle className="mt-2">
+                        {selectedItem.title}
+                      </CardTitle>
+                      <CardDescription>
+                        From {getSourceName(selectedItem)}
+                      </CardDescription>
                     </div>
                     <div className="flex gap-2">
                       <Button
@@ -339,14 +340,16 @@ export default function InboxPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="prose prose-sm max-w-none dark:prose-invert">
-                    {selectedItem.content.split("\n").map((paragraph, index) => (
-                      <p key={index}>{paragraph}</p>
-                    ))}
+                    {selectedItem.content
+                      .split("\n")
+                      .map((paragraph, index) => (
+                        <p key={index}>{paragraph}</p>
+                      ))}
                   </div>
                   <Separator className="my-6" />
                   <div className="text-sm text-muted-foreground">
                     <p>
-                      <span className="font-medium">{getSourceLabel(selectedItem)}:</span>{" "}
+                      <span className="font-medium">Entity:</span>{" "}
                       {getSourceName(selectedItem)}
                     </p>
                     <p>
@@ -362,7 +365,9 @@ export default function InboxPage() {
                   <div className="flex justify-center">
                     <Button asChild>
                       <Link href={getItemLink(selectedItem)}>
-                        {selectedItem.type === "briefing" ? "View Briefing" : "View Conversation"}
+                        {selectedItem.type === "briefing"
+                          ? "View Briefing"
+                          : "View Conversation"}
                       </Link>
                     </Button>
                   </div>

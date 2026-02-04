@@ -5,7 +5,7 @@
  *
  * For each active entity:
  * 1. Create an llm_interaction record
- * 2. Build system prompt with graph context
+ * 2. Build user message with graph context
  * 3. Call LLM with tools (no maxSteps limit - let it work until done)
  * 4. Save response to llm_interaction
  */
@@ -61,8 +61,9 @@ function logError(message: string, error: unknown): void {
 /**
  * Process one entity's iteration.
  *
- * This calls the LLM with the entity's system prompt, graph context, and tools.
- * The LLM can call tools to augment the knowledge graph and gather information.
+ * This calls the LLM with the entity's system prompt and a user message
+ * containing graph context. The LLM can call tools to augment the knowledge
+ * graph and gather information.
  */
 async function processEntityIteration(entity: Entity): Promise<void> {
   log(`Processing iteration for entity: ${entity.name} (${entity.id})`);
@@ -81,20 +82,28 @@ async function processEntityIteration(entity: Entity): Promise<void> {
 
     // 1. Build context with graph information
     const graphContext = await buildGraphContextBlock(entity.id);
-    const systemPrompt = `${entity.systemPrompt}\n\n${graphContext}`;
+    const systemPrompt = entity.systemPrompt;
 
-    // 2. Create the request message
+    // 2. Create the request message with graph context
     const requestMessages = [
       {
         role: "user" as const,
-        content: `Continue your work. Review your knowledge graph state above and decide what to do next to further your mission. You can:
+        content: `
+<request>
+Continue your work. Review your knowledge graph state below and decide what to do next to further your mission. You can:
 - Use queryGraph to search for existing knowledge
 - Use tavilySearch, tavilyExtract, or tavilyResearch to gather new information from the web
 - Use addGraphNode to add new knowledge to your graph
 - Use addGraphEdge to create relationships between nodes
 - Use createNodeType or createEdgeType if you need new types
+- Use requestUserInput if you need clarification or input from the user
 
-Think about what would be most valuable to research or learn about right now, then take action.`,
+Think about what would be most valuable to research or learn about right now, then take action.
+<request>
+
+
+${graphContext}
+`,
       },
     ];
 
@@ -158,13 +167,14 @@ export async function startRunner(): Promise<void> {
   log("Worker runner started (entity-based iteration, 5-minute interval)");
 
   // Register all tools before starting
-  const { registerTavilyTools } =
-    await import("@/lib/llm/tools/tavily-tools");
+  const { registerTavilyTools } = await import("@/lib/llm/tools/tavily-tools");
   const { registerGraphTools } = await import("@/lib/llm/tools/graph-tools");
+  const { registerInboxTools } = await import("@/lib/llm/tools/inbox-tools");
 
   registerTavilyTools();
   registerGraphTools();
-  log("Tools registered: Tavily and Graph tools");
+  registerInboxTools();
+  log("Tools registered: Tavily, Graph, and Inbox tools");
 
   while (!isShuttingDown) {
     try {
@@ -203,12 +213,13 @@ export async function runSingleCycle(): Promise<void> {
   log("Running single cycle");
 
   // Register tools if not already registered
-  const { registerTavilyTools } =
-    await import("@/lib/llm/tools/tavily-tools");
+  const { registerTavilyTools } = await import("@/lib/llm/tools/tavily-tools");
   const { registerGraphTools } = await import("@/lib/llm/tools/graph-tools");
+  const { registerInboxTools } = await import("@/lib/llm/tools/inbox-tools");
 
   registerTavilyTools();
   registerGraphTools();
+  registerInboxTools();
 
   try {
     const entities = await getActiveEntities();

@@ -102,10 +102,11 @@ export function getForegroundTools(): Tool[] {
 
 /**
  * Get tools available during background work sessions
- * Returns graph tools and tavily tools for knowledge graph manipulation
+ * Returns graph tools, tavily tools, and inbox tools for knowledge graph manipulation
+ * and user communication
  */
 export function getBackgroundTools(): Tool[] {
-  return [...getGraphTools(), ...getTavilyTools()];
+  return [...getGraphTools(), ...getTavilyTools(), ...getInboxTools()];
 }
 
 /**
@@ -132,6 +133,15 @@ export function getGraphTools(): Tool[] {
       "createNodeType",
       "createEdgeType",
     ].includes(tool.schema.name),
+  );
+}
+
+/**
+ * Get inbox tools for user communication (available in background work sessions)
+ */
+export function getInboxTools(): Tool[] {
+  return getAllTools().filter((tool) =>
+    ["requestUserInput"].includes(tool.schema.name),
   );
 }
 
