@@ -31,10 +31,10 @@ import {
 } from "./tools";
 import { extractAndPersistMemories, buildMemoryContextBlock } from "./memory";
 import {
-  extractKnowledgeFromMessages,
-  buildKnowledgeContextBlock,
-  loadKnowledge,
-} from "./knowledge-items";
+  buildGraphContextBlock,
+  ensureGraphTypesInitialized,
+} from "./knowledge-graph";
+import { getEntityById } from "@/lib/db/queries/entities";
 import { compactIfNeeded } from "./compaction";
 import { queueUserTask, claimNextTask, getQueueStatus } from "./taskQueue";
 import { clearAgentBackoff, setAgentBackoff } from "@/lib/db/queries/agents";
@@ -42,7 +42,6 @@ import type {
   Agent as AgentData,
   AgentTask,
   Memory,
-  KnowledgeItem,
   Conversation,
   Message,
   LLMMessage,
@@ -85,7 +84,6 @@ export class Agent {
 
   private conversation: Conversation | null = null;
   private memories: Memory[] = [];
-  private knowledgeItems: KnowledgeItem[] = [];
   private llmOptions: StreamOptions;
 
   constructor(data: AgentData, llmOptions: StreamOptions = {}) {
@@ -142,25 +140,6 @@ export class Agent {
   }
 
   // ============================================================================
-  // Knowledge Management (for background/work sessions)
-  // ============================================================================
-
-  /**
-   * Load knowledge items from the database
-   */
-  async loadKnowledge(): Promise<KnowledgeItem[]> {
-    this.knowledgeItems = await loadKnowledge(this.id);
-    return this.knowledgeItems;
-  }
-
-  /**
-   * Get currently loaded knowledge items
-   */
-  getKnowledge(): KnowledgeItem[] {
-    return this.knowledgeItems;
-  }
-
-  // ============================================================================
   // Conversation Management
   // ============================================================================
 
@@ -213,13 +192,20 @@ Always be professional, concise, and focused on your role.`;
   }
 
   /**
-   * Build the system prompt with knowledge context (for background work)
+   * Build the system prompt with knowledge graph context (for background work)
+   * This is async because it needs to fetch the graph context from the database.
    */
-  buildBackgroundSystemPrompt(): string {
-    const knowledgeBlock = buildKnowledgeContextBlock(this.knowledgeItems);
+  async buildBackgroundSystemPromptWithGraph(): Promise<string> {
+    // Ensure types are initialized (handles existing entities)
+    const entity = await getEntityById(this.entityId);
+    if (entity) {
+      await ensureGraphTypesInitialized(this.entityId, entity);
+    }
 
-    if (knowledgeBlock) {
-      return `${this.systemPrompt}\n\n${knowledgeBlock}`;
+    const graphContext = await buildGraphContextBlock(this.entityId);
+
+    if (graphContext) {
+      return `${this.systemPrompt}\n\n${graphContext}`;
     }
 
     return this.systemPrompt;
@@ -426,14 +412,13 @@ Examples:
    *
    * This is the main entry point for background processing:
    * 1. Gets or creates the background conversation for this agent
-   * 2. Loads KNOWLEDGE for work context (not memories)
-   * 3. Processes all pending tasks in queue
-   * 4. When queue empty:
+   * 2. Processes all pending tasks in queue (using knowledge graph for context)
+   * 3. When queue empty:
    *    - Lead: decides on briefing
-   *    - Extracts knowledge from conversation
    *    - Schedules next run
    *
-   * Note: Background conversation is persistent across work sessions (unlike the old session model)
+   * Note: Knowledge is now managed via the knowledge graph tools during task processing.
+   * The agent uses INSERT/RETRIEVE patterns with graph tools rather than post-session extraction.
    */
   async runWorkSession(): Promise<void> {
     // Check if there's work to do
@@ -460,10 +445,8 @@ Examples:
       );
       const conversationId = backgroundConversation.id;
 
-      // 2. Load KNOWLEDGE for work context (not memories)
-      await this.loadKnowledge();
-
-      // 3. Process all pending tasks in queue (loop)
+      // 2. Process all pending tasks in queue (loop)
+      // Knowledge graph context is built per-task in processTask()
       let task = await claimNextTask(this.id);
       while (task) {
         console.log(`[Agent ${this.name}] Processing task: ${task.id}`);
@@ -508,17 +491,8 @@ Examples:
         await this.decideBriefing(conversationId);
       }
 
-      // Extract knowledge from background conversation (after briefing decision turn)
-      const conversationMessages = await getConversationContext(conversationId);
-      const newKnowledge = await this.extractKnowledgeFromConversation(
-        conversationId,
-        conversationMessages,
-      );
-      console.log(
-        `[Agent ${this.name}] Extracted ${newKnowledge.length} knowledge items from session`,
-      );
-
-      // No session to end - conversation persists across sessions
+      // Note: Knowledge extraction is no longer done here.
+      // Agents now populate the knowledge graph directly using graph tools during task processing.
 
       // Schedule next run (lead: 1 day, subordinate: none - triggered by delegation)
       if (this.isLead() && !encounteredFailure) {
@@ -538,9 +512,9 @@ Examples:
     // 1. Add task as "user" message to conversation (agent is the user here)
     const taskMessage = `Task from ${task.source}: ${task.task}`;
 
-    // 2. Build context from conversation messages + KNOWLEDGE
+    // 2. Build context from conversation messages + knowledge graph
     const contextMessages = await getConversationContext(conversationId);
-    const systemPrompt = this.buildBackgroundSystemPrompt();
+    const systemPrompt = await this.buildBackgroundSystemPromptWithGraph();
     const contextWithTask: LLMMessage[] = [
       ...this.messagesToLLMFormat(contextMessages),
       { role: "user", content: taskMessage },
@@ -552,6 +526,7 @@ Examples:
       agentId: this.id,
       entityId: this.entityId,
       isLead: this.isLead(),
+      conversationId,
     };
 
     // 4. Call LLM with tools
@@ -652,46 +627,6 @@ Examples:
     }
   }
 
-  /**
-   * Extract knowledge from background conversation messages
-   */
-  private async extractKnowledgeFromConversation(
-    conversationId: string,
-    messages: Message[],
-  ): Promise<KnowledgeItem[]> {
-    if (messages.length === 0) {
-      return [];
-    }
-
-    // extractKnowledgeFromMessages accepts Message[] directly (only uses role and content)
-    const extractedKnowledge = await extractKnowledgeFromMessages(
-      messages,
-      this.type,
-      this.llmOptions,
-    );
-
-    if (extractedKnowledge.length === 0) {
-      return [];
-    }
-
-    // Persist knowledge items to database
-    const { createKnowledgeItem } =
-      await import("@/lib/db/queries/knowledge-items");
-    const persistedKnowledgeItems: KnowledgeItem[] = [];
-    for (const item of extractedKnowledge) {
-      const persisted = await createKnowledgeItem(
-        this.id,
-        item.type as "fact" | "technique" | "pattern" | "lesson",
-        item.content,
-        conversationId, // Pass conversationId as sourceThreadId (will be renamed in Phase 7)
-        item.confidence,
-      );
-      persistedKnowledgeItems.push(persisted);
-    }
-
-    return persistedKnowledgeItems;
-  }
-
   // ============================================================================
   // NEW: Briefing Decision (Lead Only)
   // ============================================================================
@@ -780,9 +715,10 @@ If no briefing is warranted, respond with a short sentence starting with \"No br
         ...this.messagesToLLMFormat(messages),
         { role: "user", content: decisionPrompt },
       ];
+      const systemPrompt = await this.buildBackgroundSystemPromptWithGraph();
       const result = await streamLLMResponseWithTools(
         contextWithPrompt,
-        this.buildBackgroundSystemPrompt(),
+        systemPrompt,
         {
           ...this.llmOptions,
           tools: [createBriefingTool],

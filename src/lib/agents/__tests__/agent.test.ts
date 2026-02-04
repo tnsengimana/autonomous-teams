@@ -340,23 +340,19 @@ describe('runWorkSession', () => {
     expect(statusAfter.pendingCount).toBe(0);
   });
 
-  test('loads knowledge items not memories for background work', async () => {
-    // Create some knowledge items for the agent
-    await createKnowledgeItem(testTeamLeadId, 'fact', 'NVIDIA is a GPU company', undefined, 0.9);
-    await createKnowledgeItem(testTeamLeadId, 'pattern', 'Tech stocks rise in Q4', undefined, 0.7);
-
+  test('uses knowledge graph context for background work', async () => {
     // Queue a task
     await queueUserTask(testTeamLeadId, entityInfo(testEntityId), 'Analyze market');
 
     const agent = await createAgent(testTeamLeadId);
 
-    // Before session, no knowledge items loaded
-    expect(agent!.getKnowledge()).toHaveLength(0);
-
+    // Run work session - this will initialize graph types and build graph context
     await agent!.runWorkSession();
 
-    // After session, knowledge items should be loaded
-    expect(agent!.getKnowledge()).toHaveLength(2);
+    // The knowledge graph context is now used instead of knowledge items
+    // This test verifies the session completes successfully with the new system
+    const statusAfter = await getQueueStatus(testTeamLeadId);
+    expect(statusAfter.pendingCount).toBe(0);
   });
 
   test('team lead schedules next run after session', async () => {
@@ -869,30 +865,29 @@ describe('Knowledge Item Tools', () => {
 // Knowledge Context Building Tests
 // ============================================================================
 
-describe('Knowledge Context', () => {
-  test('buildBackgroundSystemPrompt includes knowledge items', async () => {
-    // Create some knowledge items
-    await createKnowledgeItem(testTeamLeadId, 'fact', 'Important domain fact');
-    await createKnowledgeItem(testTeamLeadId, 'technique', 'Useful technique');
-
+describe('Knowledge Graph Context', () => {
+  test('buildBackgroundSystemPromptWithGraph includes knowledge graph context', async () => {
     const agent = await createAgent(testTeamLeadId);
-    await agent!.loadKnowledge();
 
-    const systemPrompt = agent!.buildBackgroundSystemPrompt();
+    // This will initialize graph types and build context
+    const systemPrompt = await agent!.buildBackgroundSystemPromptWithGraph();
 
-    expect(systemPrompt).toContain('professional_knowledge');
-    expect(systemPrompt).toContain('Important domain fact');
-    expect(systemPrompt).toContain('Useful technique');
+    // Should contain knowledge graph block
+    expect(systemPrompt).toContain('knowledge_graph');
+    expect(systemPrompt).toContain('How to Use the Knowledge Graph');
+    expect(systemPrompt).toContain('RETRIEVE first');
+    expect(systemPrompt).toContain('INSERT when needed');
   });
 
-  test('buildBackgroundSystemPrompt handles no knowledge items', async () => {
+  test('buildBackgroundSystemPromptWithGraph includes entity types after initialization', async () => {
     const agent = await createAgent(testTeamLeadId);
-    await agent!.loadKnowledge();
 
-    const systemPrompt = agent!.buildBackgroundSystemPrompt();
+    // First call initializes types
+    const systemPrompt = await agent!.buildBackgroundSystemPromptWithGraph();
 
-    // Should just be the base system prompt without knowledge block
-    expect(systemPrompt).not.toContain('professional_knowledge');
+    // Should contain Node Types and Edge Types sections (initialized by mock LLM)
+    expect(systemPrompt).toContain('Node Types');
+    expect(systemPrompt).toContain('Edge Types');
   });
 });
 
