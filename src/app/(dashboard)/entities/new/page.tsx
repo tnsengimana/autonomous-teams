@@ -21,7 +21,6 @@ export default function NewEntityPage() {
   const [formData, setFormData] = useState({
     name: "",
     purpose: "",
-    systemPrompt: "",
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -71,7 +70,7 @@ export default function NewEntityPage() {
         </Link>
         <h1 className="mt-2 text-3xl font-bold">Create New Entity</h1>
         <p className="text-muted-foreground">
-          Define your entity&apos;s mission and system prompt
+          Define your entity&apos;s mission. The system prompt will be generated automatically.
         </p>
       </div>
 
@@ -118,28 +117,12 @@ export default function NewEntityPage() {
               </p>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="systemPrompt">System Prompt</Label>
-              <textarea
-                id="systemPrompt"
-                name="systemPrompt"
-                placeholder="Define the entity's personality, expertise, and approach. This will be sent to the LLM with every interaction."
-                value={formData.systemPrompt}
-                onChange={handleChange}
-                className="min-h-[200px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                required
-              />
-              <p className="text-xs text-muted-foreground">
-                The system prompt defines the entity&apos;s behavior, personality, and expertise.
-                Be detailed about how the entity should respond, what tools it should use, and its area of focus.
-              </p>
-            </div>
           </CardContent>
         </Card>
 
         <div className="flex gap-4">
           <Button type="submit" disabled={isCreating}>
-            {isCreating ? "Creating..." : "Create Entity"}
+            {isCreating ? "Generating configuration..." : "Create Entity"}
           </Button>
           <Link href="/entities">
             <Button type="button" variant="outline">

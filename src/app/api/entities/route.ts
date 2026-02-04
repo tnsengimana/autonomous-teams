@@ -1,12 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { auth } from "@/lib/auth/config";
 import { createEntity, getEntitiesByUserId } from "@/lib/db/queries/entities";
+import { generateEntityConfiguration } from "@/lib/entities/configuration";
 import { z } from "zod";
 
 const createEntitySchema = z.object({
   name: z.string().min(1, "Name is required"),
   purpose: z.string().min(1, "Purpose is required"),
-  systemPrompt: z.string().min(1, "System prompt is required"),
 });
 
 /**
@@ -51,14 +51,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { name, purpose, systemPrompt } = validation.data;
+    const { name, purpose } = validation.data;
 
-    // Create the entity with systemPrompt
+    // Generate system prompt from entity name and purpose
+    const config = await generateEntityConfiguration(name, purpose, {
+      userId: session.user.id,
+    });
+
+    // Create the entity with generated systemPrompt
     const entity = await createEntity({
       userId: session.user.id,
       name,
       purpose,
-      systemPrompt,
+      systemPrompt: config.systemPrompt,
       status: "active",
     });
 
