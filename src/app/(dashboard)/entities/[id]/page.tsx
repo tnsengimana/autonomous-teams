@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -103,21 +102,6 @@ export default async function EntityDetailPage({
           </CardContent>
         </Card>
       </div>
-
-      {/* System Prompt */}
-      <Card>
-        <CardHeader>
-          <CardTitle>System Prompt</CardTitle>
-          <CardDescription>
-            The system prompt that guides this entity&apos;s behavior.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-md bg-muted p-4 text-sm">
-            {entity.systemPrompt}
-          </pre>
-        </CardContent>
-      </Card>
     </div>
   );
 }

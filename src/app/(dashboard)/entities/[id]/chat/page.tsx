@@ -1,37 +1,7 @@
 import { notFound, redirect } from "next/navigation";
-import Link from "next/link";
 import { auth } from "@/lib/auth/config";
 import { getEntityById } from "@/lib/db/queries/entities";
-import { Chat } from "@/components/chat";
-
-function EntityChatView({
-  entity,
-}: {
-  entity: { id: string; name: string };
-}) {
-  return (
-    <div className="flex h-[calc(100vh-12rem)] flex-col space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <Link
-            href={`/entities/${entity.id}`}
-            className="text-sm text-muted-foreground hover:underline"
-          >
-            Back to Entity
-          </Link>
-          <h1 className="mt-2 text-2xl font-bold">Chat with {entity.name}</h1>
-        </div>
-      </div>
-
-      <Chat
-        entityId={entity.id}
-        entityName={entity.name}
-        title="Conversation"
-        description="Chat with your entity"
-      />
-    </div>
-  );
-}
+import { EntityChatView } from "./chat-view";
 
 export default async function EntityChatPage({
   params,
@@ -51,6 +21,7 @@ export default async function EntityChatPage({
       entity={{
         id: entity.id,
         name: entity.name,
+        systemPrompt: entity.systemPrompt,
       }}
     />
   );
