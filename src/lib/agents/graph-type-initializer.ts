@@ -82,7 +82,7 @@ Return a comprehensive schema that supports the entity's mission.`;
  * This analyzes the entity's purpose and generates domain-specific types.
  */
 export async function initializeTypesForEntity(
-  entity: { name: string; type: string; purpose: string | null },
+  entity: { name: string; purpose: string | null },
   options?: { userId?: string }
 ): Promise<TypeInitializationResult> {
   const purposeDescription = entity.purpose || 'General purpose assistant';
@@ -93,7 +93,6 @@ export async function initializeTypesForEntity(
       content: `Design a knowledge graph schema for the following entity:
 
 Entity Name: ${entity.name}
-Entity Type: ${entity.type}
 Entity Purpose: ${purposeDescription}
 
 Create node types and edge types that would best support this entity's mission. Consider what kinds of information this entity would need to track and the relationships between them.`,
@@ -188,7 +187,7 @@ export async function persistInitializedTypes(
  */
 export async function initializeAndPersistTypesForEntity(
   entityId: string,
-  entity: { name: string; type: string; purpose: string | null },
+  entity: { name: string; purpose: string | null },
   options?: { userId?: string }
 ): Promise<void> {
   const types = await initializeTypesForEntity(entity, options);

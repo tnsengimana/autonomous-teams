@@ -14,18 +14,16 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-type EntityType = "team" | "aide";
-
 interface EntityActionsProps {
-  entityType: EntityType;
   entityId: string;
   entityName: string;
   currentStatus: "active" | "paused" | "archived";
   backUrl: string;
+  // Deprecated prop for backward compatibility
+  entityType?: "team" | "aide";
 }
 
 export function EntityActions({
-  entityType,
   entityId,
   entityName,
   currentStatus,
@@ -38,15 +36,12 @@ export function EntityActions({
   const [editName, setEditName] = useState(entityName);
   const [error, setError] = useState<string | null>(null);
 
-  const apiPath = "entities";
-  const label = entityType === "team" ? "Team" : "Aide";
-
   const handleToggleStatus = async () => {
     setIsLoading(true);
     setError(null);
     try {
       const newStatus = currentStatus === "active" ? "paused" : "active";
-      const response = await fetch(`/api/${apiPath}/${entityId}`, {
+      const response = await fetch(`/api/entities/${entityId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
@@ -54,12 +49,12 @@ export function EntityActions({
 
       if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.error || `Failed to update ${label}`);
+        throw new Error(data.error || "Failed to update entity");
       }
 
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : `Failed to update ${label}`);
+      setError(err instanceof Error ? err.message : "Failed to update entity");
     } finally {
       setIsLoading(false);
     }
@@ -74,7 +69,7 @@ export function EntityActions({
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetch(`/api/${apiPath}/${entityId}`, {
+      const response = await fetch(`/api/entities/${entityId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: editName }),
@@ -82,13 +77,13 @@ export function EntityActions({
 
       if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.error || `Failed to update ${label}`);
+        throw new Error(data.error || "Failed to update entity");
       }
 
       setIsEditOpen(false);
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : `Failed to update ${label}`);
+      setError(err instanceof Error ? err.message : "Failed to update entity");
     } finally {
       setIsLoading(false);
     }
@@ -98,18 +93,18 @@ export function EntityActions({
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetch(`/api/${apiPath}/${entityId}`, {
+      const response = await fetch(`/api/entities/${entityId}`, {
         method: "DELETE",
       });
 
       if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.error || `Failed to delete ${label}`);
+        throw new Error(data.error || "Failed to delete entity");
       }
 
       router.push(backUrl);
     } catch (err) {
-      setError(err instanceof Error ? err.message : `Failed to delete ${label}`);
+      setError(err instanceof Error ? err.message : "Failed to delete entity");
       setIsLoading(false);
     }
   };
@@ -127,7 +122,7 @@ export function EntityActions({
           }}
           disabled={isLoading}
         >
-          Edit {label}
+          Edit
         </Button>
         <Button
           variant="outline"
@@ -135,7 +130,7 @@ export function EntityActions({
           onClick={handleToggleStatus}
           disabled={isLoading}
         >
-          {isLoading ? "..." : currentStatus === "active" ? `Pause ${label}` : `Resume ${label}`}
+          {isLoading ? "..." : currentStatus === "active" ? "Pause" : "Resume"}
         </Button>
         <Button
           variant="destructive"
@@ -146,7 +141,7 @@ export function EntityActions({
           }}
           disabled={isLoading}
         >
-          Delete {label}
+          Delete
         </Button>
       </div>
 
@@ -154,9 +149,9 @@ export function EntityActions({
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Edit {label}</DialogTitle>
+            <DialogTitle>Edit Entity</DialogTitle>
             <DialogDescription>
-              Update the name of your {label.toLowerCase()}.
+              Update the name of your entity.
             </DialogDescription>
           </DialogHeader>
           {error && (
@@ -166,12 +161,12 @@ export function EntityActions({
           )}
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="name">{label} Name</Label>
+              <Label htmlFor="name">Entity Name</Label>
               <Input
                 id="name"
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
-                placeholder={`Enter ${label.toLowerCase()} name`}
+                placeholder="Enter entity name"
               />
             </div>
           </div>
@@ -194,10 +189,10 @@ export function EntityActions({
       <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete {label}</DialogTitle>
+            <DialogTitle>Delete Entity</DialogTitle>
             <DialogDescription>
               Are you sure you want to delete &quot;{entityName}&quot;? This action cannot
-              be undone. All agents and data associated with this {label.toLowerCase()} will
+              be undone. All data associated with this entity will
               be permanently deleted.
             </DialogDescription>
           </DialogHeader>
@@ -219,7 +214,7 @@ export function EntityActions({
               onClick={handleDelete}
               disabled={isLoading}
             >
-              {isLoading ? "Deleting..." : `Delete ${label}`}
+              {isLoading ? "Deleting..." : "Delete"}
             </Button>
           </DialogFooter>
         </DialogContent>

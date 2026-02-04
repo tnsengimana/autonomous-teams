@@ -10,7 +10,6 @@ import type { Briefing } from '@/lib/types';
 export async function createBriefing(data: {
   userId: string;
   entityId: string;
-  agentId: string;
   title: string;
   summary: string;
   content: string;
@@ -20,7 +19,6 @@ export async function createBriefing(data: {
     .values({
       userId: data.userId,
       entityId: data.entityId,
-      agentId: data.agentId,
       title: data.title,
       summary: data.summary,
       content: data.content,

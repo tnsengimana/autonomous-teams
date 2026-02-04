@@ -1,22 +1,13 @@
 import type {
-  Agent,
-  Memory,
-  AgentTask,
   Briefing,
   MemoryType,
 } from "@/lib/types";
-
-/**
- * The entity type (team or aide)
- */
-export type EntityType = "team" | "aide";
 
 /**
  * Entity context passed to components that need entity information
  * Contains all info needed to construct URLs and display labels
  */
 export interface EntityContext {
-  type: EntityType;
   id: string;
   name: string;
 }
@@ -79,40 +70,14 @@ export function getMemoryTypeBadgeVariant(type: MemoryType): BadgeVariant {
   }
 }
 
-
-/**
- * Build a path to an agent page
- * @param entity - The entity context (team or aide)
- * @param agentId - The agent ID
- * @param suffix - Optional path suffix (e.g., "chat", "edit", "inspect")
- * @returns Path like `/entities/[id]/agents/[agentId]`
- */
-export function buildAgentPath(
-  entity: EntityContext,
-  agentId: string,
-  suffix?: string
-): string {
-  const basePath = `/entities/${entity.id}/agents/${agentId}`;
-  return suffix ? `${basePath}/${suffix}` : basePath;
-}
-
 /**
  * Build a path to the entity page
- * @param entity - The entity context (team or aide)
+ * @param entity - The entity context
  * @returns Path like `/entities/[id]`
  */
 export function buildEntityPath(entity: EntityContext): string {
   return `/entities/${entity.id}`;
 }
 
-/**
- * Get the display label for an entity type
- * @param type - The entity type
- * @returns "Team" or "Aide"
- */
-export function getEntityLabel(type: EntityType): string {
-  return type === "team" ? "Team" : "Aide";
-}
-
 // Re-export types that components need
-export type { Agent, Memory, AgentTask, Briefing };
+export type { Briefing };

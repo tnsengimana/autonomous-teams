@@ -38,7 +38,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Item not found' }, { status: 404 });
     }
 
-    const { item, entityId, entityName, entityType } = result;
+    const { item, entityId, entityName } = result;
 
     // 3. Verify user owns this item
     if (item.userId !== session.user.id) {
@@ -58,7 +58,6 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       content: item.content,
       entityId,
       entityName,
-      entityType,
       read: true,
       readAt: item.readAt || new Date(),
       createdAt: item.createdAt,

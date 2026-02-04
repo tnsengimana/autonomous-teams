@@ -14,7 +14,6 @@ import {
 import { Separator } from "@/components/ui/separator";
 import {
   buildEntityPath,
-  getEntityLabel,
   type EntityContext,
   type Briefing,
 } from "@/lib/entities/utils";
@@ -33,7 +32,7 @@ function BriefingDetailView({
           href={buildEntityPath(entity)}
           className="text-sm text-muted-foreground hover:underline"
         >
-          Back to {getEntityLabel(entity.type).toLowerCase()}
+          Back to {entity.name}
         </Link>
         <h1 className="text-3xl font-bold mt-2">{briefing.title}</h1>
       </div>
@@ -82,7 +81,6 @@ export default async function EntityBriefingPage({
   return (
     <BriefingDetailView
       entity={{
-        type: entity.type as "team" | "aide",
         id: entity.id,
         name: entity.name,
       }}

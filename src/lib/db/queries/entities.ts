@@ -1,13 +1,13 @@
 /**
  * Entities Database Queries
  *
- * CRUD operations for entities (teams and aides unified).
+ * CRUD operations for entities.
  */
 
-import { eq, desc, and, isNull } from 'drizzle-orm';
+import { eq, desc } from 'drizzle-orm';
 import { db } from '../client';
-import { entities, agents } from '../schema';
-import type { Entity, EntityStatus, EntityType, EntityWithAgents, Agent } from '@/lib/types';
+import { entities } from '../schema';
+import type { Entity, EntityStatus } from '@/lib/types';
 import { initializeAndPersistTypesForEntity } from '@/lib/agents/graph-type-initializer';
 
 // ============================================================================
@@ -19,18 +19,18 @@ import { initializeAndPersistTypesForEntity } from '@/lib/agents/graph-type-init
  */
 export async function createEntity(data: {
   userId: string;
-  type: EntityType;
   name: string;
   purpose?: string | null;
+  systemPrompt: string;
   status?: EntityStatus;
 }): Promise<Entity> {
   const result = await db
     .insert(entities)
     .values({
       userId: data.userId,
-      type: data.type,
       name: data.name,
       purpose: data.purpose ?? null,
+      systemPrompt: data.systemPrompt,
       status: data.status ?? 'active',
     })
     .returning();
@@ -40,7 +40,7 @@ export async function createEntity(data: {
   // Fire and forget type initialization - don't block entity creation
   initializeAndPersistTypesForEntity(
     entity.id,
-    { name: entity.name, type: entity.type, purpose: entity.purpose },
+    { name: entity.name, purpose: entity.purpose },
     { userId: data.userId }
   ).catch((err) => {
     console.error('[createEntity] Failed to initialize graph types:', err);
@@ -63,19 +63,9 @@ export async function getEntityById(entityId: string): Promise<Entity | null> {
 }
 
 /**
- * Get all entities for a user, optionally filtered by type
+ * Get all entities for a user
  */
-export async function getEntitiesByUserId(
-  userId: string,
-  type?: EntityType
-): Promise<Entity[]> {
-  if (type) {
-    return db
-      .select()
-      .from(entities)
-      .where(and(eq(entities.userId, userId), eq(entities.type, type)))
-      .orderBy(desc(entities.createdAt));
-  }
+export async function getEntitiesByUserId(userId: string): Promise<Entity[]> {
   return db
     .select()
     .from(entities)
@@ -84,20 +74,13 @@ export async function getEntitiesByUserId(
 }
 
 /**
- * Get active entities for a user, optionally filtered by type
+ * Get active entities for a user
  */
-export async function getActiveEntitiesByUserId(
-  userId: string,
-  type?: EntityType
-): Promise<Entity[]> {
-  const conditions = [eq(entities.userId, userId), eq(entities.status, 'active')];
-  if (type) {
-    conditions.push(eq(entities.type, type));
-  }
+export async function getActiveEntitiesByUserId(userId: string): Promise<Entity[]> {
   return db
     .select()
     .from(entities)
-    .where(and(...conditions))
+    .where(eq(entities.userId, userId))
     .orderBy(desc(entities.createdAt));
 }
 
@@ -121,6 +104,7 @@ export async function updateEntity(
   data: {
     name?: string;
     purpose?: string | null;
+    systemPrompt?: string;
     status?: EntityStatus;
   }
 ): Promise<void> {
@@ -151,7 +135,7 @@ export async function activateEntity(entityId: string): Promise<void> {
 }
 
 /**
- * Delete an entity (cascades to agents, conversations, etc.)
+ * Delete an entity (cascades to conversations, etc.)
  */
 export async function deleteEntity(entityId: string): Promise<void> {
   await db.delete(entities).where(eq(entities.id, entityId));
@@ -168,39 +152,4 @@ export async function getEntityUserId(entityId: string): Promise<string | null> 
     .limit(1);
 
   return result[0]?.userId ?? null;
-}
-
-/**
- * Get the lead agent (parentAgentId is null) for an entity
- */
-export async function getEntityLead(entityId: string): Promise<Agent | null> {
-  const result = await db
-    .select()
-    .from(agents)
-    .where(and(eq(agents.entityId, entityId), isNull(agents.parentAgentId)))
-    .limit(1);
-
-  return result[0] ?? null;
-}
-
-/**
- * Get an entity with its agents
- */
-export async function getEntityWithAgents(
-  entityId: string
-): Promise<EntityWithAgents | null> {
-  const entity = await getEntityById(entityId);
-  if (!entity) {
-    return null;
-  }
-
-  const entityAgents = await db
-    .select()
-    .from(agents)
-    .where(eq(agents.entityId, entityId));
-
-  return {
-    ...entity,
-    agents: entityAgents,
-  };
 }

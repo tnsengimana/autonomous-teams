@@ -11,7 +11,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { auth } from "@/lib/auth/config";
-import { getEntityWithAgents } from "@/lib/db/queries/entities";
+import { getEntityById } from "@/lib/db/queries/entities";
 import { getRecentBriefingsByEntity } from "@/lib/db/queries/briefings";
 import { EntityActions } from "@/components/entity-actions";
 
@@ -26,7 +26,7 @@ export default async function EntityDetailPage({
   }
 
   const { id } = await params;
-  const entity = await getEntityWithAgents(id);
+  const entity = await getEntityById(id);
 
   if (!entity || entity.userId !== session.user.id) {
     notFound();
@@ -43,14 +43,6 @@ export default async function EntityDetailPage({
     ? entity.purpose.split("Mission:")[1]?.trim()
     : entity.purpose || "No mission set";
 
-  // Find the lead (agent with no parent)
-  const leadAgent = entity.agents.find((a) => a.parentAgentId === null);
-
-  // Get subordinate agents
-  const subordinateAgents = entity.agents.filter((a) => a.parentAgentId !== null);
-
-  const entityTypeLabel = entity.type === "team" ? "Team" : "Aide";
-
   return (
     <div className="space-y-6">
       <div>
@@ -62,22 +54,27 @@ export default async function EntityDetailPage({
         </Link>
         <div className="mt-2 flex items-center justify-between">
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-3xl font-bold">{entity.name}</h1>
-              <Badge variant="outline" className="capitalize">
-                {entity.type}
-              </Badge>
-            </div>
+            <h1 className="text-3xl font-bold">{entity.name}</h1>
             <p className="text-muted-foreground">{description}</p>
           </div>
           <EntityActions
-            entityType={entity.type as "team" | "aide"}
+            entityType="team"
             entityId={entity.id}
             entityName={entity.name}
             currentStatus={entity.status as "active" | "paused" | "archived"}
             backUrl="/entities"
           />
         </div>
+      </div>
+
+      {/* Quick Actions */}
+      <div className="flex gap-4">
+        <Link href={`/entities/${entity.id}/chat`}>
+          <Button>Chat</Button>
+        </Link>
+        <Link href={`/entities/${entity.id}/interactions`}>
+          <Button variant="outline">View Interactions</Button>
+        </Link>
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">
@@ -98,16 +95,6 @@ export default async function EntityDetailPage({
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Type</span>
-              <Badge variant="outline" className="capitalize">{entity.type}</Badge>
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Agents</span>
-              <span className="text-sm font-medium">{entity.agents.length}</span>
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Status</span>
               <Badge variant="secondary">{entity.status}</Badge>
             </div>
@@ -122,84 +109,18 @@ export default async function EntityDetailPage({
         </Card>
       </div>
 
-      {/* Agents */}
+      {/* System Prompt */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="mb-2">Agents</CardTitle>
-              <CardDescription>
-                {entity.type === "team"
-                  ? "The lead agent runs continuously and coordinates subordinate agents. Subordinates are spawned on-demand to handle specific tasks."
-                  : "Your personal aide agent that handles tasks for you."}
-              </CardDescription>
-            </div>
-            {entity.type === "team" && (
-              <Link href={`/entities/${entity.id}/agents/new`}>
-                <Button variant="outline" size="sm">
-                  Add Subordinate
-                </Button>
-              </Link>
-            )}
-          </div>
+          <CardTitle>System Prompt</CardTitle>
+          <CardDescription>
+            The system prompt that guides this entity&apos;s behavior.
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          {leadAgent && (
-            <Link
-              href={`/entities/${entity.id}/agents/${leadAgent.id}`}
-              className="block"
-            >
-              <div className="flex items-center justify-between rounded-lg border p-4 transition-colors hover:bg-accent">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">{leadAgent.name}</span>
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    {leadAgent.type}
-                  </div>
-                </div>
-                <Badge
-                  variant={
-                    leadAgent.status === "running" ? "default" : "secondary"
-                  }
-                >
-                  {leadAgent.status}
-                </Badge>
-              </div>
-            </Link>
-          )}
-          {subordinateAgents.length > 0 && (
-            <div className="mt-4 space-y-4">
-              {subordinateAgents.map((agent) => (
-                <Link
-                  key={agent.id}
-                  href={`/entities/${entity.id}/agents/${agent.id}`}
-                  className="block"
-                >
-                  <div className="flex items-center justify-between rounded-lg border p-4 transition-colors hover:bg-accent">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{agent.name}</span>
-                        <Badge variant="outline" className="text-xs">
-                          subordinate
-                        </Badge>
-                      </div>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        {agent.type}
-                      </p>
-                    </div>
-                    <Badge
-                      variant={
-                        agent.status === "running" ? "default" : "secondary"
-                      }
-                    >
-                      {agent.status}
-                    </Badge>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
+          <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-md bg-muted p-4 text-sm">
+            {entity.systemPrompt}
+          </pre>
         </CardContent>
       </Card>
 
@@ -207,7 +128,7 @@ export default async function EntityDetailPage({
       <Card>
         <CardHeader>
           <CardTitle className="mb-2">Briefings</CardTitle>
-          <CardDescription>Recent briefings from this {entityTypeLabel.toLowerCase()}.</CardDescription>
+          <CardDescription>Recent briefings from this entity.</CardDescription>
         </CardHeader>
         <CardContent>
           {recentBriefings.length === 0 ? (

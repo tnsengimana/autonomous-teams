@@ -4,18 +4,18 @@ import {
   getEntityById,
   updateEntity,
   deleteEntity,
-  getEntityWithAgents,
 } from "@/lib/db/queries/entities";
 import { z } from "zod";
 
 const updateEntitySchema = z.object({
   name: z.string().min(1).optional(),
   purpose: z.string().optional(),
+  systemPrompt: z.string().optional(),
   status: z.enum(["active", "paused", "archived"]).optional(),
 });
 
 /**
- * GET /api/entities/[id] - Get entity details with agents
+ * GET /api/entities/[id] - Get entity details
  */
 export async function GET(
   request: NextRequest,
@@ -28,7 +28,7 @@ export async function GET(
     }
 
     const { id } = await params;
-    const entity = await getEntityWithAgents(id);
+    const entity = await getEntityById(id);
 
     if (!entity) {
       return NextResponse.json({ error: "Entity not found" }, { status: 404 });

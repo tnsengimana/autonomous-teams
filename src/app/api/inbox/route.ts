@@ -19,25 +19,23 @@ export async function GET() {
 
     const userId = session.user.id;
 
-    // 2. Get inbox items with team/aide names
+    // 2. Get inbox items with entity names
     const itemsWithSources = await getInboxItemsWithSources(userId);
     const unreadCount = await getUnreadCount(userId);
 
     // 3. Format response
     const items = itemsWithSources.map(
-      ({ item, entityId, entityName, entityType }) => ({
-      id: item.id,
-      type: item.type,
-      title: item.title,
-      content: item.content,
-      entityId,
-      entityName,
-      entityType,
-      agentId: item.agentId,
-      briefingId: item.briefingId,
-      read: item.readAt !== null,
-      readAt: item.readAt,
-      createdAt: item.createdAt,
+      ({ item, entityId, entityName }) => ({
+        id: item.id,
+        type: item.type,
+        title: item.title,
+        content: item.content,
+        entityId,
+        entityName,
+        briefingId: item.briefingId,
+        read: item.readAt !== null,
+        readAt: item.readAt,
+        createdAt: item.createdAt,
       })
     );
 

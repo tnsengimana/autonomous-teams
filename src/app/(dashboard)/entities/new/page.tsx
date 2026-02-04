@@ -20,8 +20,8 @@ export default function NewEntityPage() {
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: "",
-    type: "team" as "team" | "aide",
     purpose: "",
+    systemPrompt: "",
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -60,13 +60,6 @@ export default function NewEntityPage() {
     }));
   };
 
-  const handleTypeChange = (value: "team" | "aide") => {
-    setFormData((prev) => ({
-      ...prev,
-      type: value,
-    }));
-  };
-
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div>
@@ -78,7 +71,7 @@ export default function NewEntityPage() {
         </Link>
         <h1 className="mt-2 text-3xl font-bold">Create New Entity</h1>
         <p className="text-muted-foreground">
-          Define your entity&apos;s mission and we&apos;ll configure the lead automatically
+          Define your entity&apos;s mission and system prompt
         </p>
       </div>
 
@@ -98,48 +91,11 @@ export default function NewEntityPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label>Type</Label>
-              <div className="grid grid-cols-2 gap-4">
-                <button
-                  type="button"
-                  onClick={() => handleTypeChange("team")}
-                  className={`rounded-lg border p-4 text-left transition-colors ${
-                    formData.type === "team"
-                      ? "border-primary bg-primary/5"
-                      : "border-input hover:bg-accent"
-                  }`}
-                >
-                  <div className="font-medium">Team</div>
-                  <div className="text-xs text-muted-foreground">
-                    Multi-agent team with lead and subordinates
-                  </div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleTypeChange("aide")}
-                  className={`rounded-lg border p-4 text-left transition-colors ${
-                    formData.type === "aide"
-                      ? "border-primary bg-primary/5"
-                      : "border-input hover:bg-accent"
-                  }`}
-                >
-                  <div className="font-medium">Aide</div>
-                  <div className="text-xs text-muted-foreground">
-                    Personal assistant for individual tasks
-                  </div>
-                </button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Teams have multiple agents working together. Aides are single-agent personal assistants.
-              </p>
-            </div>
-
-            <div className="space-y-2">
               <Label htmlFor="name">Name</Label>
               <Input
                 id="name"
                 name="name"
-                placeholder={formData.type === "team" ? "e.g., Research Team" : "e.g., Personal Research Aide"}
+                placeholder="e.g., Research Assistant"
                 value={formData.name}
                 onChange={handleChange}
                 required
@@ -147,22 +103,35 @@ export default function NewEntityPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="purpose">Mission</Label>
+              <Label htmlFor="purpose">Purpose</Label>
               <textarea
                 id="purpose"
                 name="purpose"
-                placeholder={
-                  formData.type === "team"
-                    ? "What should this team accomplish? Be specific about goals and deliverables."
-                    : "What should this aide help you with? Describe the tasks and responsibilities."
-                }
+                placeholder="What should this entity accomplish? Be specific about goals and deliverables."
                 value={formData.purpose}
                 onChange={handleChange}
-                className="min-h-[150px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className="min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 required
               />
               <p className="text-xs text-muted-foreground">
-                The mission guides all activities. We&apos;ll automatically configure a lead based on your mission.
+                The purpose guides all activities and helps define the mission.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="systemPrompt">System Prompt</Label>
+              <textarea
+                id="systemPrompt"
+                name="systemPrompt"
+                placeholder="Define the entity's personality, expertise, and approach. This will be sent to the LLM with every interaction."
+                value={formData.systemPrompt}
+                onChange={handleChange}
+                className="min-h-[200px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                required
+              />
+              <p className="text-xs text-muted-foreground">
+                The system prompt defines the entity&apos;s behavior, personality, and expertise.
+                Be detailed about how the entity should respond, what tools it should use, and its area of focus.
               </p>
             </div>
           </CardContent>
@@ -170,7 +139,7 @@ export default function NewEntityPage() {
 
         <div className="flex gap-4">
           <Button type="submit" disabled={isCreating}>
-            {isCreating ? `Creating ${formData.type}...` : `Create ${formData.type === "team" ? "Team" : "Aide"}`}
+            {isCreating ? "Creating..." : "Create Entity"}
           </Button>
           <Link href="/entities">
             <Button type="button" variant="outline">
