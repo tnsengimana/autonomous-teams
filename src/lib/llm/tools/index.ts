@@ -145,6 +145,67 @@ export function getInboxTools(): Tool[] {
   );
 }
 
+// ============================================================================
+// Phase-Specific Tool Sets
+// ============================================================================
+
+/**
+ * Get tools for the Conversation phase (user chat interactions)
+ * Tools: queryGraph (for answering questions from knowledge)
+ * Note: Memory tools would be added here when implemented
+ */
+export function getConversationTools(): Tool[] {
+  return getAllTools().filter((tool) =>
+    [
+      "queryGraph",
+      // Memory CRUD tools would go here when implemented
+    ].includes(tool.schema.name),
+  );
+}
+
+/**
+ * Get tools for the Classification phase (deciding synthesize vs populate)
+ * Tools: queryGraph only (to assess current graph state)
+ */
+export function getClassificationTools(): Tool[] {
+  return getAllTools().filter((tool) =>
+    ["queryGraph"].includes(tool.schema.name),
+  );
+}
+
+/**
+ * Get tools for the Insight Synthesis phase (creating insights from existing knowledge)
+ * Tools: queryGraph, addInsightNode, addGraphEdge
+ */
+export function getInsightSynthesisTools(): Tool[] {
+  return getAllTools().filter((tool) =>
+    [
+      "queryGraph",
+      "addInsightNode",
+      "addGraphEdge",
+    ].includes(tool.schema.name),
+  );
+}
+
+/**
+ * Get tools for the Graph Construction phase (gathering external knowledge)
+ * Tools: queryGraph, addGraphNode, addGraphEdge, tavily tools
+ */
+export function getGraphConstructionTools(): Tool[] {
+  return getAllTools().filter((tool) =>
+    [
+      // Graph tools
+      "queryGraph",
+      "addGraphNode",
+      "addGraphEdge",
+      // Tavily tools for web research
+      "tavilySearch",
+      "tavilyExtract",
+      "tavilyResearch",
+    ].includes(tool.schema.name),
+  );
+}
+
 /**
  * Get tool schemas for LLM function calling
  */

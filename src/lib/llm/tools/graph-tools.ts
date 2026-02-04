@@ -655,6 +655,135 @@ const createEdgeTypeTool: Tool = {
 };
 
 // ============================================================================
+// addInsightNode Tool
+// ============================================================================
+
+export const AddInsightNodeParamsSchema = z.object({
+  name: z.string().min(1).describe('Name for the insight node (e.g., "AAPL Buy Signal")'),
+  properties: z.object({
+    type: z.enum(['signal', 'observation', 'pattern']).describe('signal=actionable, observation=notable trend, pattern=recurring behavior'),
+    summary: z.string().min(1).describe('The explanation/reasoning for this insight'),
+    action: z.enum(['buy', 'sell', 'hold']).optional().describe('Recommended action (only for signals)'),
+    strength: z.number().min(0).max(1).optional().describe('Confidence level (0=low, 1=high)'),
+    generated_at: z.string().describe('When this insight was derived (ISO datetime)'),
+  }),
+});
+
+export type AddInsightNodeParams = z.infer<typeof AddInsightNodeParamsSchema>;
+
+const addInsightNodeTool: Tool = {
+  schema: {
+    name: 'addInsightNode',
+    description: 'Create an Insight node in the knowledge graph. This also creates an inbox notification and appends the insight to the conversation for user discussion. Use this for derived analysis including signals, observations, and patterns.',
+    parameters: [
+      {
+        name: 'name',
+        type: 'string',
+        description: 'Name for the insight node (e.g., "AAPL Buy Signal")',
+        required: true,
+      },
+      {
+        name: 'properties',
+        type: 'object',
+        description: 'Properties for the insight: type (signal|observation|pattern), summary (string), action (buy|sell|hold, optional), strength (0-1, optional), generated_at (ISO datetime)',
+        required: true,
+      },
+    ],
+  },
+  handler: async (params, context): Promise<ToolResult> => {
+    const parsed = AddInsightNodeParamsSchema.safeParse(params);
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: `Invalid parameters: ${parsed.error.message}`,
+      };
+    }
+
+    const { name, properties } = parsed.data;
+    const ctx = context as GraphToolContext;
+
+    try {
+      const { createNode } = await import('@/lib/db/queries/graph-data');
+      const { nodeTypeExists } = await import('@/lib/db/queries/graph-types');
+      const { getEntityById } = await import('@/lib/db/queries/entities');
+      const { createInboxItem } = await import('@/lib/db/queries/inboxItems');
+      const { getOrCreateConversation } = await import('@/lib/db/queries/conversations');
+      const { appendLLMMessage } = await import('@/lib/db/queries/messages');
+
+      // Validate Insight type exists
+      if (!(await nodeTypeExists(ctx.entityId, 'Insight'))) {
+        return {
+          success: false,
+          error: 'Insight node type does not exist. This should have been created during entity initialization.',
+        };
+      }
+
+      // Get the entity to find the userId
+      const entity = await getEntityById(ctx.entityId);
+      if (!entity) {
+        return {
+          success: false,
+          error: `Entity not found: ${ctx.entityId}`,
+        };
+      }
+
+      // 1. Create the Insight node in the graph
+      const node = await createNode({
+        entityId: ctx.entityId,
+        type: 'Insight',
+        name,
+        properties,
+        sourceConversationId: ctx.conversationId,
+      });
+
+      // 2. Create inbox item to notify the user
+      const insightTypeLabel = properties.type === 'signal'
+        ? (properties.action ? `${properties.action.toUpperCase()} Signal` : 'Signal')
+        : properties.type.charAt(0).toUpperCase() + properties.type.slice(1);
+
+      const inboxItem = await createInboxItem({
+        userId: entity.userId,
+        entityId: ctx.entityId,
+        type: 'insight',
+        title: `${insightTypeLabel}: ${name}`,
+        content: properties.summary,
+      });
+
+      // 3. Append insight as a message to the entity's conversation
+      const conversation = await getOrCreateConversation(ctx.entityId);
+
+      // Format the insight message for conversation
+      const strengthText = properties.strength !== undefined
+        ? ` (confidence: ${Math.round(properties.strength * 100)}%)`
+        : '';
+      const actionText = properties.action
+        ? `\n\n**Recommended Action:** ${properties.action.toUpperCase()}`
+        : '';
+
+      const conversationMessage = `**New Insight: ${name}**\n\n` +
+        `**Type:** ${insightTypeLabel}${strengthText}\n\n` +
+        `${properties.summary}${actionText}`;
+
+      await appendLLMMessage(conversation.id, { text: conversationMessage });
+
+      return {
+        success: true,
+        data: {
+          nodeId: node.id,
+          inboxItemId: inboxItem.id,
+          message: `Created insight "${name}" and notified user`,
+        },
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to add insight node',
+      };
+    }
+  },
+};
+
+// ============================================================================
 // Registration
 // ============================================================================
 
@@ -668,6 +797,7 @@ export function registerGraphTools(): void {
   registerTool(getGraphSummaryTool);
   registerTool(createNodeTypeTool);
   registerTool(createEdgeTypeTool);
+  registerTool(addInsightNodeTool);
 }
 
 /**
@@ -681,6 +811,7 @@ export function getGraphToolNames(): string[] {
     'getGraphSummary',
     'createNodeType',
     'createEdgeType',
+    'addInsightNode',
   ];
 }
 
@@ -692,4 +823,5 @@ export {
   getGraphSummaryTool,
   createNodeTypeTool,
   createEdgeTypeTool,
+  addInsightNodeTool,
 };
