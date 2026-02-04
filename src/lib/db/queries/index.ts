@@ -12,3 +12,5 @@ export * from './knowledge-items';
 export * from './messages';
 export * from './memories';
 export * from './userApiKeys';
+export * from './graph-types';
+export * from './graph-data';
