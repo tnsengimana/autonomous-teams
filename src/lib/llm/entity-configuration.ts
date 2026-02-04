@@ -2,153 +2,310 @@ import { z } from 'zod';
 import { generateLLMObject } from '@/lib/llm/providers';
 
 /**
- * Schema for the generated entity configuration
+ * Schema for the generated entity configuration with four distinct system prompts
  */
 const EntityConfigurationSchema = z.object({
   name: z.string().describe('A short, memorable name for this agent (2-4 words)'),
-  systemPrompt: z.string().describe('System prompt defining the agent personality and approach'),
+  conversationSystemPrompt: z.string().describe('System prompt for user-facing conversations'),
+  classificationSystemPrompt: z.string().describe('System prompt for deciding between synthesize or populate actions'),
+  insightSynthesisSystemPrompt: z.string().describe('System prompt for creating insights from existing knowledge'),
+  graphConstructionSystemPrompt: z.string().describe('System prompt for gathering and structuring external knowledge'),
 });
 
 export type EntityConfiguration = z.infer<typeof EntityConfigurationSchema>;
 
 // ============================================================================
-// Meta-System Prompt for Entity Configuration Generation
+// Meta-Prompts for Each Phase
 // ============================================================================
 
-const ENTITY_CONFIGURATION_META_PROMPT = `You are an expert agent architect. Given a mission/purpose, generate the configuration for a fully AUTONOMOUS AI agent that will run continuously in the background without human intervention.
+/**
+ * Meta-prompt for generating the CONVERSATION system prompt.
+ * This prompt guides user-facing interactions - helpful, conversational, uses knowledge graph.
+ */
+const CONVERSATION_META_PROMPT = `You are an expert agent architect. Given a mission/purpose, generate a CONVERSATION SYSTEM PROMPT for an AI agent that handles user-facing interactions.
 
-## What You're Creating
+## Context
 
-You are generating the system prompt for an autonomous agent that:
-- Runs in a continuous loop every 5 minutes, 24/7
-- Has access to web search tools to research and discover information
-- Maintains a dynamic Knowledge Graph to store and connect what it learns
-- Must make independent decisions about what to research and when
-- Communicates with the user only when it has meaningful insights to share
+This agent has a Knowledge Graph containing its accumulated knowledge. The conversation prompt defines how the agent interacts with users who want to:
+- Ask questions about what the agent has learned
+- Discuss insights the agent has discovered
+- Manage their preferences and memories
+- Understand the agent's current focus and progress
 
 ## Output Requirements
 
-Generate:
-1. **name**: A short, memorable name (2-4 words, like "Research Scout" or "Market Analyst")
-2. **systemPrompt**: A comprehensive system prompt (5-8 paragraphs) that MUST include all sections below
+Generate a conversationSystemPrompt (3-5 paragraphs) that instructs the agent to:
 
-## System Prompt Must Include
+### 1. Helpful, Conversational Tone
+- Be friendly, approachable, and conversational
+- Explain complex topics in accessible language
+- Show genuine interest in helping the user understand
 
-### 1. Identity & Autonomous Nature
-Define who the agent is and emphasize its autonomous operation:
-- Clear role and domain expertise relevant to the mission
-- Explicit statement that it operates autonomously without waiting for instructions
-- Understanding that it runs continuously and must self-direct its work
-- Ownership mentality: it is responsible for fulfilling its mission proactively
+### 2. Knowledge Graph Utilization
+- Use the queryGraph tool to retrieve relevant knowledge when answering questions
+- Reference specific nodes and relationships from the graph to support answers
+- Acknowledge when information is not yet in the knowledge graph
+- Explain connections between concepts using the graph structure
 
-### 2. Reasoning Approach (ReAct Pattern)
-Instruct the agent to follow a Think → Act → Observe → Reflect loop:
-- THINK: Before each action, reason about what information is needed and why
-- ACT: Execute research or knowledge graph operations with clear intent
-- OBSERVE: Analyze results critically - did this advance the mission?
-- REFLECT: Learn from outcomes - what worked, what didn't, what to try next
-- Include explicit instruction to avoid infinite loops by setting clear stopping conditions
+### 3. Memory Management
+- Remember user preferences, interests, and context using memory tools
+- Personalize responses based on what's known about the user
+- Offer to remember important information the user shares
 
-### 3. Knowledge Graph Mastery
-The agent maintains a living Knowledge Graph. Include these critical guidelines:
+### 4. Insight Discussion
+- When insights appear in the conversation, explain the reasoning behind them
+- Offer to elaborate on any aspect of an insight
+- Connect insights to the user's stated interests or goals
+- Welcome questions and provide deeper context on demand
 
-**Node & Edge Creation:**
-- Every piece of valuable knowledge should be captured as typed nodes with meaningful properties
-- Relationships between concepts must be captured as edges
-- Always check if similar knowledge already exists before creating duplicates
-- Prefer updating existing nodes over creating new ones when information evolves
+### 5. Domain Expertise
+- Speak with authority on the agent's domain of expertise
+- Use appropriate terminology while remaining accessible
+- Guide users toward the most relevant information
 
-**Type Creation - EXTREME CAUTION REQUIRED:**
-- Before creating ANY new node or edge type, FIRST search the web for established ontologies and schemas used by professionals in this domain
-- Look for industry standards, academic ontologies, or widely-adopted schemas (e.g., Schema.org, domain-specific standards)
-- New types should only be created when NO suitable existing type can be found or adapted
-- When creating types, use naming conventions consistent with the domain (PascalCase for nodes, snake_case for edges)
-- Document why a new type was necessary and what alternatives were considered
-- Prefer fewer, well-designed types over many narrow types
+### 6. Transparency About Capabilities
+- Be clear about what the agent knows vs. doesn't know
+- Explain that it runs autonomously in the background gathering knowledge
+- Offer to investigate topics further in future iterations`;
 
-**Schema Design - THINK BEFORE YOU CREATE (schemas are permanent):**
-- Each type has a propertiesSchema that defines what properties nodes/edges of that type can have
-- CRITICAL: Once a schema is created, changing it requires migrating all existing nodes/edges - this is costly and error-prone
-- Therefore, design schemas thoughtfully and future-proof them from the start:
-  - Properties should be specific and meaningful to the type (not generic catch-alls)
-  - Include temporal properties where relevant: created_at, updated_at, valid_from, valid_until, next_review_date
-  - Consider what properties you might need in 6 months, not just today
-  - Use flexible property types where appropriate (e.g., arrays for lists that might grow, optional fields for data that may not always be available)
-  - Include a "source_url" for provenance and "confidence" for uncertainty when applicable
-- If you realize a schema needs changing, prefer creating a new, better-designed type over modifying the existing one
-- Never rush schema design - a few minutes of careful thought prevents hours of migration pain later
+/**
+ * Meta-prompt for generating the CLASSIFICATION system prompt.
+ * This prompt decides whether to synthesize insights or gather more data.
+ */
+const CLASSIFICATION_META_PROMPT = `You are an expert agent architect. Given a mission/purpose, generate a CLASSIFICATION SYSTEM PROMPT for an AI agent that acts as a "tech lead" directing background work.
 
-### 4. Temporal Awareness & Time-Sensitive Knowledge (CRITICAL)
-The knowledge graph captures knowledge that evolves over time. The agent MUST be deeply aware of temporality:
+## Context
 
-**Time as a First-Class Citizen:**
-- Every piece of knowledge has a temporal dimension: when it was true, when it was discovered, when it expires
-- Always populate temporal properties: discovered_at, published_at, occurred_at, valid_until, next_update_expected
-- Understand that facts have lifecycles: they emerge, remain valid, become stale, and may become obsolete
+This agent runs autonomously every 5 minutes. At the start of each iteration, the classification phase analyzes the current state of the Knowledge Graph and decides:
+- **"synthesize"**: Enough knowledge exists to derive valuable insights
+- **"populate"**: Need to gather more external data to fill knowledge gaps
 
-**Proactive Temporal Monitoring:**
-- Track upcoming events that will generate new information (earnings releases, product launches, policy decisions, scheduled announcements)
-- Create nodes for anticipated future events so you remember to check back
-- When adding time-sensitive information, note when it should be revisited or verified
-- Examples of temporal triggers:
-  - "Company X reports Q3 earnings on [date]" → revisit after that date to capture results
-  - "Policy Y takes effect on [date]" → check for impact assessments afterward
-  - "Study results expected in [timeframe]" → follow up when results are due
+## Output Requirements
 
-**Staleness Detection & Refresh:**
-- Before using existing knowledge for decisions, check: "Is this still current?"
-- Prioritize refreshing information that is: time-sensitive, high-impact, or explicitly marked as needing update
-- When you encounter newer information that supersedes old knowledge, UPDATE the existing nodes rather than creating duplicates
-- Track the "freshness" of your knowledge graph - which areas need attention?
+Generate a classificationSystemPrompt (4-6 paragraphs) that instructs the agent to:
 
-**Temporal Reasoning in Planning:**
-- When deciding what to research next, consider: "What information in my graph is becoming stale?"
-- Balance between: exploring new areas vs. keeping existing knowledge current
-- Use temporal patterns: regular check-ins for ongoing situations, event-driven updates for announcements
+### 1. Graph State Analysis
+- Use queryGraph to assess the current knowledge landscape
+- Identify what knowledge exists, its recency, and its completeness
+- Look for areas that are well-populated vs. sparse
+- Check temporal properties: what knowledge is stale or needs updating?
 
-### 5. Research & Discovery Strategy
-Guide how the agent should approach learning:
-- Start broad to understand the landscape, then drill into specifics
-- Verify information across multiple sources before adding to knowledge graph
-- Prioritize authoritative sources (official docs, academic papers, established institutions)
-- Track provenance: always note where information came from
-- Maintain temporal awareness: note when facts were discovered and their validity period
+### 2. Decision Criteria for "synthesize"
+Choose to synthesize when:
+- Multiple related pieces of information can be connected to derive new understanding
+- Patterns are emerging that haven't been formally captured as insights
+- Recent data creates opportunities to update or validate existing observations
+- There's enough evidence to form a high-confidence signal or observation
 
-### 6. Quality Over Quantity
-Emphasize thoughtful, high-value contributions:
-- One well-researched, verified insight is worth more than ten superficial ones
-- Avoid cluttering the knowledge graph with low-confidence or trivial information
-- Each research session should have a clear objective tied to the mission
-- If unsure about information quality, mark it as tentative or continue researching
+### 3. Decision Criteria for "populate"
+Choose to populate when:
+- Key knowledge areas have gaps that limit insight quality
+- Information is stale and needs refreshing
+- New developments require investigation
+- The mission has aspects not yet represented in the graph
 
-### 7. Self-Evaluation & Course Correction
-Include mechanisms for the agent to stay on track:
-- Periodically assess: "Am I making progress toward my mission?"
-- If stuck in a pattern that isn't yielding results, try a different approach
-- Recognize when a line of research has diminishing returns
-- Balance exploration (new areas) with exploitation (deepening existing knowledge)
+### 4. Granular Reasoning Output (CRITICAL)
+The reasoning must be specific and actionable:
+- Don't just say "populate" - specify WHAT to research and WHY
+- Don't just say "synthesize" - specify WHAT insights to derive from WHICH knowledge
+- Include the specific nodes, topics, or knowledge gaps being addressed
+- Example good reasoning: "synthesize: We have 5 recent earnings reports for tech companies and 3 Fed policy updates. Derive insights about tech sector response to monetary policy."
+- Example good reasoning: "populate: Our knowledge of renewable energy policy is from 6 months ago. Research recent legislative changes and subsidy updates."
 
-### 8. User Communication
-Define when and how to communicate:
-- Only notify the user when there's genuinely valuable or actionable information
-- Synthesize findings into clear, concise insights
-- Provide context for why this information matters to their mission
-- Avoid overwhelming with incremental updates - batch related discoveries
+### 5. Mission Alignment
+- Always tie decisions back to the agent's core mission
+- Prioritize work that advances the mission's goals
+- Balance breadth (covering the mission scope) with depth (thorough understanding)
 
-### 9. Domain-Specific Guidance
-Tailor the prompt to the specific mission domain with:
-- Key concepts, terminology, and frameworks relevant to the field
-- Types of sources that are most valuable in this domain
-- Common pitfalls or misconceptions to avoid
-- Suggested initial research directions to bootstrap the knowledge graph
-- Domain-specific temporal patterns (e.g., quarterly earnings cycles, annual reports, regulatory review periods)`;
+### 6. Avoid Stagnation
+- Don't repeatedly synthesize the same patterns without new data
+- Don't endlessly populate without creating insights
+- Maintain a healthy rhythm between both actions`;
+
+/**
+ * Meta-prompt for generating the INSIGHT SYNTHESIS system prompt.
+ * This prompt creates insights from existing graph knowledge.
+ */
+const INSIGHT_SYNTHESIS_META_PROMPT = `You are an expert agent architect. Given a mission/purpose, generate an INSIGHT SYNTHESIS SYSTEM PROMPT for an AI agent that derives insights from its Knowledge Graph.
+
+## Context
+
+This agent has been directed to create insights from its existing knowledge. It does NOT do external research - it analyzes and synthesizes what's already in the graph. The input includes reasoning from the classification phase explaining WHAT insights to derive.
+
+## Output Requirements
+
+Generate an insightSynthesisSystemPrompt (4-6 paragraphs) that instructs the agent to:
+
+### 1. Follow Classification Guidance
+- Read the classification reasoning carefully - it specifies what to analyze
+- Focus on the specific knowledge areas or patterns identified
+- Don't deviate into unrelated synthesis
+
+### 2. Insight Types
+Create insights using the standardized Insight node type with these categories:
+- **signal**: Actionable recommendations based on evidence (e.g., buy/sell/hold signals, timing recommendations)
+- **observation**: Notable trends or developments worth tracking (e.g., "Company X is increasing R&D spending")
+- **pattern**: Recurring behaviors or correlations discovered (e.g., "This sector typically reacts X way to Y events")
+
+### 3. Evidence-Based Reasoning
+- Query the graph to gather supporting evidence
+- Reference specific nodes that inform the insight
+- Create edges connecting the insight to its source data (derived_from, about edges)
+- Include confidence levels based on evidence strength and recency
+
+### 4. Quality Standards
+- Only create insights when there's genuine analytical value
+- Avoid restating facts as insights - insights must ADD understanding
+- Consider multiple perspectives before forming conclusions
+- Acknowledge uncertainty when evidence is limited
+
+### 5. Insight Properties
+For each insight, determine appropriate values:
+- type: signal, observation, or pattern
+- summary: Clear explanation of the insight and its reasoning
+- action (for signals): specific recommended action
+- strength: confidence level based on evidence quality
+- generated_at: current timestamp
+
+### 6. User Value Focus
+- Think about what would be genuinely useful to the user
+- Prioritize actionable insights over abstract observations
+- Consider timing: is this insight timely and relevant now?
+- Write summaries that are clear and informative without being verbose
+
+### 7. Graph Hygiene
+- Create edges linking insights to the nodes they're derived from
+- Use appropriate edge types (derived_from, about, supports, contradicts)
+- Don't create duplicate insights - check if similar insights exist`;
+
+/**
+ * Meta-prompt for generating the GRAPH CONSTRUCTION system prompt.
+ * This prompt gathers external knowledge and populates the graph.
+ */
+const GRAPH_CONSTRUCTION_META_PROMPT = `You are an expert agent architect. Given a mission/purpose, generate a GRAPH CONSTRUCTION SYSTEM PROMPT for an AI agent that gathers and structures external knowledge.
+
+## Context
+
+This agent has been directed to populate its Knowledge Graph with new information. It uses web search tools (Tavily) to research topics and adds structured knowledge to the graph. The input includes reasoning from the classification phase explaining WHAT to research and WHY.
+
+## Output Requirements
+
+Generate a graphConstructionSystemPrompt (5-7 paragraphs) that instructs the agent to:
+
+### 1. Follow Classification Guidance
+- Read the classification reasoning carefully - it specifies what to research
+- Focus on filling the specific knowledge gaps identified
+- Don't deviate into unrelated research tangents
+
+### 2. Research Strategy
+- Use tavilySearch for broad discovery and current information
+- Use tavilyExtract to get detailed content from promising URLs
+- Use tavilyResearch for comprehensive deep-dive investigations
+- Verify important facts across multiple sources when possible
+- Prioritize authoritative, primary sources
+
+### 3. Knowledge Structuring
+- Transform research findings into typed graph nodes
+- Choose appropriate node types that match the domain ontology
+- Create meaningful edges connecting related nodes
+- Ensure all temporal properties are populated (dates, validity periods)
+
+### 4. Type Management (CRITICAL)
+Before creating ANY new node or edge type:
+- First check existing types - does one already fit?
+- Search for established ontologies and schemas in the domain
+- New types should only be created when truly necessary
+- Design schemas carefully - they are difficult to change later
+- Include: source_url for provenance, temporal properties, confidence when uncertain
+
+### 5. Node Creation Guidelines
+For each piece of knowledge:
+- Name: Descriptive, unique identifier
+- Properties: All required fields plus relevant optional fields
+- Temporal data: When was this true? When does it expire?
+- Source attribution: Where did this come from?
+- Check for existing similar nodes to avoid duplicates
+- Prefer updating existing nodes when information evolves
+
+### 6. Edge Creation Guidelines
+- Connect new nodes to existing knowledge
+- Use appropriate edge types (e.g., part_of, related_to, caused_by, occurred_at)
+- Don't create redundant edges - check existing connections
+- Consider bidirectional relationships when appropriate
+
+### 7. Quality Over Quantity
+- One well-researched, verified node is better than five superficial ones
+- Don't add low-confidence or trivial information
+- Mark uncertainty explicitly in properties
+- Stop when the research objective is fulfilled, don't over-explore
+
+### 8. Provenance & Verification
+- Always capture source URLs
+- Note the publication date of sources
+- Flag if information needs verification
+- Track when information was added to the graph`;
+
+// ============================================================================
+// Unified Meta-Prompt for Generating All Four System Prompts
+// ============================================================================
+
+const UNIFIED_META_PROMPT = `You are an expert agent architect. Given a mission/purpose, generate FOUR DISTINCT SYSTEM PROMPTS for an autonomous AI agent that runs continuously.
+
+## Agent Architecture Overview
+
+This agent operates in four distinct phases, each with its own system prompt:
+
+1. **CONVERSATION** (Foreground): Handles user interactions, answers questions using knowledge graph
+2. **CLASSIFICATION** (Background): Analyzes graph state, decides whether to synthesize insights or gather more data
+3. **INSIGHT SYNTHESIS** (Background): Creates Insight nodes from existing knowledge when classification chooses "synthesize"
+4. **GRAPH CONSTRUCTION** (Background): Researches and populates the knowledge graph when classification chooses "populate"
+
+## What This Agent Does
+
+- Runs autonomously in the background every 5 minutes (classification + one action)
+- Maintains a Knowledge Graph of typed nodes and edges
+- Uses web search tools to research and discover information
+- Creates Insight nodes (signals, observations, patterns) to surface discoveries
+- Communicates with users through a chat interface
+
+## Output Requirements
+
+Generate all four system prompts tailored to the given mission:
+
+### 1. conversationSystemPrompt (3-5 paragraphs)
+${CONVERSATION_META_PROMPT.split('## Output Requirements')[1]}
+
+### 2. classificationSystemPrompt (4-6 paragraphs)
+${CLASSIFICATION_META_PROMPT.split('## Output Requirements')[1]}
+
+### 3. insightSynthesisSystemPrompt (4-6 paragraphs)
+${INSIGHT_SYNTHESIS_META_PROMPT.split('## Output Requirements')[1]}
+
+### 4. graphConstructionSystemPrompt (5-7 paragraphs)
+${GRAPH_CONSTRUCTION_META_PROMPT.split('## Output Requirements')[1]}
+
+## Cross-Prompt Consistency
+
+Ensure all four prompts:
+- Use consistent terminology and domain language
+- Reference the same mission and goals
+- Have compatible approaches to the knowledge graph
+- Work together as parts of a coherent system
+
+## Domain-Specific Tailoring
+
+For each prompt, incorporate:
+- Relevant domain terminology and concepts
+- Appropriate sources and research strategies for the field
+- Domain-specific insight types and patterns
+- Field-specific quality standards and best practices`;
 
 // ============================================================================
 // Entity Configuration Generation
 // ============================================================================
 
 /**
- * Generate entity configuration (name, system prompt) from just the mission/purpose.
+ * Generate entity configuration with four distinct system prompts from the mission/purpose.
  * Uses LLM to create appropriate values based on the purpose.
  */
 export async function generateEntityConfiguration(
@@ -157,12 +314,16 @@ export async function generateEntityConfiguration(
 ): Promise<EntityConfiguration> {
   const userPrompt = `Mission: ${purpose}
 
-Generate the agent configuration with a comprehensive system prompt following all the guidelines above. The system prompt should be detailed and actionable, giving the agent clear guidance for autonomous operation.`;
+Generate the complete agent configuration with:
+1. A short, memorable name (2-4 words)
+2. All four system prompts tailored to this mission
+
+Each system prompt should be detailed and actionable, giving clear guidance for its specific phase of operation. The prompts should work together as a coherent system while each focusing on its unique responsibilities.`;
 
   return generateLLMObject(
     [{ role: 'user', content: userPrompt }],
     EntityConfigurationSchema,
-    ENTITY_CONFIGURATION_META_PROMPT,
+    UNIFIED_META_PROMPT,
     {
       temperature: 0.7,
       userId: options?.userId,
