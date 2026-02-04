@@ -15,6 +15,13 @@
       "when": 1770192037041,
       "tag": "0001_awesome_goblin_queen",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1770194535331,
+      "tag": "0002_nice_sentinels",
+      "breakpoints": true
     }
   ]
 }

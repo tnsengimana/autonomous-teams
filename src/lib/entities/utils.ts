@@ -1,11 +1,9 @@
 import type {
   Agent,
   Memory,
-  KnowledgeItem,
   AgentTask,
   Briefing,
   MemoryType,
-  KnowledgeItemType,
 } from "@/lib/types";
 
 /**
@@ -81,26 +79,6 @@ export function getMemoryTypeBadgeVariant(type: MemoryType): BadgeVariant {
   }
 }
 
-/**
- * Get badge variant for knowledge item type
- * technique → default, pattern → secondary, lesson → destructive, fact → outline
- */
-export function getKnowledgeTypeBadgeVariant(
-  type: KnowledgeItemType
-): BadgeVariant {
-  switch (type) {
-    case "technique":
-      return "default";
-    case "pattern":
-      return "secondary";
-    case "lesson":
-      return "destructive";
-    case "fact":
-      return "outline";
-    default:
-      return "default";
-  }
-}
 
 /**
  * Build a path to an agent page
@@ -137,4 +115,4 @@ export function getEntityLabel(type: EntityType): string {
 }
 
 // Re-export types that components need
-export type { Agent, Memory, KnowledgeItem, AgentTask, Briefing };
+export type { Agent, Memory, AgentTask, Briefing };

@@ -61,7 +61,6 @@ export {
   getGraphTools,
   getBackgroundTools,
   getForegroundTools,
-  getKnowledgeItemTools,
   getToolSchemas,
   executeTool,
   toolSchemasToOpenAIFunctions,
@@ -104,13 +103,3 @@ export {
   type GraphToolContext,
 } from "./tools/graph-tools";
 
-// Knowledge extraction and management
-export {
-  extractKnowledgeFromMessages,
-  extractKnowledgeFromConversation,
-  formatKnowledgeForContext,
-  buildKnowledgeContextBlock,
-  loadKnowledgeContext,
-  loadKnowledge,
-  type ExtractedKnowledgeItem,
-} from "./knowledge-items";

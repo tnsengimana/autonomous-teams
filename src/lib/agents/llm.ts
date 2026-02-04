@@ -663,8 +663,6 @@ export async function generateLLMObject<T>(
     const mockValues = [
       // Memory extraction result
       { memories: [] },
-      // Knowledge extraction result
-      { knowledgeItems: [] },
       // Briefing decision (no briefing)
       { shouldBrief: false, reason: "Mock mode - no briefing" },
       // User intent classification (default to regular_chat for most messages)

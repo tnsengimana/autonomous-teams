@@ -1,7 +1,7 @@
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';
 import { db } from '@/lib/db/client';
 import {
-  users, entities, agents, conversations, messages, knowledgeItems, agentTasks
+  users, entities, agents, conversations, messages, agentTasks
 } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 
@@ -224,99 +224,6 @@ describe('messages schema', () => {
 
     // Cleanup
     await db.delete(conversations).where(eq(conversations.id, conversation.id));
-  });
-});
-
-describe('knowledgeItems schema', () => {
-  test('creates knowledge item for agent', async () => {
-    const [knowledgeItem] = await db.insert(knowledgeItems).values({
-      agentId: testAgentId,
-      type: 'fact',
-      content: 'NVIDIA reports earnings in February',
-    }).returning();
-
-    expect(knowledgeItem.agentId).toBe(testAgentId);
-    expect(knowledgeItem.type).toBe('fact');
-    expect(knowledgeItem.content).toBe('NVIDIA reports earnings in February');
-    expect(knowledgeItem.sourceConversationId).toBeNull();
-
-    // Cleanup
-    await db.delete(knowledgeItems).where(eq(knowledgeItems.id, knowledgeItem.id));
-  });
-
-  test('links knowledge item to source conversation', async () => {
-    const [conversation] = await db.insert(conversations).values({
-      agentId: testAgentId,
-      mode: 'background',
-    }).returning();
-
-    const [knowledgeItem] = await db.insert(knowledgeItems).values({
-      agentId: testAgentId,
-      type: 'technique',
-      content: 'Check SEC filings first',
-      sourceConversationId: conversation.id,
-    }).returning();
-
-    expect(knowledgeItem.sourceConversationId).toBe(conversation.id);
-
-    // Cleanup
-    await db.delete(conversations).where(eq(conversations.id, conversation.id));
-  });
-
-  test('nullifies sourceConversationId when conversation deleted', async () => {
-    const [conversation] = await db.insert(conversations).values({
-      agentId: testAgentId,
-      mode: 'background',
-    }).returning();
-
-    const [knowledgeItem] = await db.insert(knowledgeItems).values({
-      agentId: testAgentId,
-      type: 'pattern',
-      content: 'Market volatility increases before earnings',
-      sourceConversationId: conversation.id,
-    }).returning();
-
-    // Delete conversation
-    await db.delete(conversations).where(eq(conversations.id, conversation.id));
-
-    // Knowledge item should remain but with null sourceConversationId
-    const [updated] = await db.select().from(knowledgeItems).where(eq(knowledgeItems.id, knowledgeItem.id));
-    expect(updated).toBeDefined();
-    expect(updated.sourceConversationId).toBeNull();
-
-    // Cleanup
-    await db.delete(knowledgeItems).where(eq(knowledgeItems.id, knowledgeItem.id));
-  });
-
-  test('stores confidence as real number', async () => {
-    const [knowledgeItem] = await db.insert(knowledgeItems).values({
-      agentId: testAgentId,
-      type: 'fact',
-      content: 'Tech stocks tend to rally in Q4',
-      confidence: 0.85,
-    }).returning();
-
-    expect(knowledgeItem.confidence).toBeCloseTo(0.85, 2);
-
-    // Verify retrieval from database
-    const [retrieved] = await db.select().from(knowledgeItems).where(eq(knowledgeItems.id, knowledgeItem.id));
-    expect(retrieved.confidence).toBeCloseTo(0.85, 2);
-
-    // Cleanup
-    await db.delete(knowledgeItems).where(eq(knowledgeItems.id, knowledgeItem.id));
-  });
-
-  test('confidence defaults to null when not provided', async () => {
-    const [knowledgeItem] = await db.insert(knowledgeItems).values({
-      agentId: testAgentId,
-      type: 'lesson',
-      content: 'Always verify data sources',
-    }).returning();
-
-    expect(knowledgeItem.confidence).toBeNull();
-
-    // Cleanup
-    await db.delete(knowledgeItems).where(eq(knowledgeItems.id, knowledgeItem.id));
   });
 });
 

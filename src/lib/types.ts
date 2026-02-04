@@ -18,7 +18,6 @@ import type {
   graphEdgeTypeTargetTypes,
   graphNodes,
   graphNodeTypes,
-  knowledgeItems,
   memories,
   messages,
   userApiKeys,
@@ -33,7 +32,6 @@ export type AgentTask = InferSelectModel<typeof agentTasks>;
 export type Briefing = InferSelectModel<typeof briefings>;
 export type Conversation = InferSelectModel<typeof conversations>;
 export type Entity = InferSelectModel<typeof entities>;
-export type KnowledgeItem = InferSelectModel<typeof knowledgeItems>;
 export type Memory = InferSelectModel<typeof memories>;
 export type Message = InferSelectModel<typeof messages>;
 export type UserApiKey = InferSelectModel<typeof userApiKeys>;
@@ -59,7 +57,6 @@ export type EntityStatus = 'active' | 'paused' | 'archived';
 export type MemoryType = 'preference' | 'insight' | 'fact';
 export type MessageRole = 'user' | 'assistant' | 'tool' | 'summary';
 export type ConversationMode = 'foreground' | 'background';
-export type KnowledgeItemType = 'fact' | 'technique' | 'pattern' | 'lesson';
 
 // ============================================================================
 // Extended Types

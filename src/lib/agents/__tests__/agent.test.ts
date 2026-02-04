@@ -3,9 +3,8 @@
  *
  * Tests cover:
  * - handleUserMessage flow (queue task, return ack)
- * - runWorkSession flow (background conversation creation, task processing, knowledge extraction)
+ * - runWorkSession flow (background conversation creation, task processing, knowledge graph)
  * - decideBriefing (team lead vs subordinate)
- * - Knowledge item tools (add, list, remove)
  *
  * Uses MOCK_LLM=true for testing without real API calls.
  */
@@ -17,7 +16,6 @@ import {
   entities,
   agents,
   agentTasks,
-  knowledgeItems,
   conversations,
   messages,
   briefings,
@@ -33,9 +31,7 @@ import { queueUserTask, getQueueStatus, type TaskEntityInfo } from '@/lib/agents
 function entityInfo(entityId: string): TaskEntityInfo {
   return { entityId };
 }
-import { registerKnowledgeItemTools } from '@/lib/agents/tools/knowledge-item-tools';
-import { getTool, executeTool, type ToolContext } from '@/lib/agents/tools';
-import { createKnowledgeItem, getKnowledgeItemsByAgentId, deleteKnowledgeItem } from '@/lib/db/queries/knowledge-items';
+import { executeTool, type ToolContext } from '@/lib/agents/tools';
 import { getOrCreateConversation } from '@/lib/db/queries/conversations';
 import * as llm from '@/lib/agents/llm';
 import { registerLeadTools } from '@/lib/agents/tools/lead-tools';
@@ -88,8 +84,7 @@ beforeAll(async () => {
   }).returning();
   testSubordinateId = subordinate.id;
 
-  // Register knowledge item tools
-  registerKnowledgeItemTools();
+  // Register tools
   registerLeadTools();
 });
 
@@ -101,10 +96,8 @@ afterAll(async () => {
 
 // Helper to cleanup data created during tests
 async function cleanupTestData() {
-  // Clean up tasks, knowledge items, conversations for test agents
+  // Clean up tasks, conversations for test agents
   await db.delete(agentTasks).where(eq(agentTasks.entityId, testEntityId));
-  await db.delete(knowledgeItems).where(eq(knowledgeItems.agentId, testTeamLeadId));
-  await db.delete(knowledgeItems).where(eq(knowledgeItems.agentId, testSubordinateId));
   await db.delete(inboxItems).where(eq(inboxItems.userId, testUserId));
   await db.delete(briefings).where(eq(briefings.userId, testUserId));
   await db.delete(conversations).where(eq(conversations.agentId, testTeamLeadId));
@@ -655,209 +648,6 @@ describe('requestUserInput tool', () => {
     const afterMessages = await db.select().from(messages)
       .where(eq(messages.conversationId, fgConversation.id));
     expect(afterMessages.length).toBe(beforeMessages.length + 1);
-  });
-});
-
-// ============================================================================
-// Knowledge Item Tools Tests
-// ============================================================================
-
-describe('Knowledge Item Tools', () => {
-  const toolContext: ToolContext = {
-    agentId: '',
-    entityId: '',
-    isLead: true,
-  };
-
-  beforeEach(() => {
-    toolContext.agentId = testTeamLeadId;
-    toolContext.entityId = testEntityId;
-  });
-
-  describe('addKnowledgeItem', () => {
-    test('stores fact knowledge item successfully', async () => {
-      const tool = getTool('addKnowledgeItem');
-      expect(tool).toBeDefined();
-
-      const result = await executeTool('addKnowledgeItem', {
-        type: 'fact',
-        content: 'NVIDIA dominates the AI chip market',
-        confidence: 0.95,
-      }, toolContext);
-
-      expect(result.success).toBe(true);
-      expect(result.data).toHaveProperty('knowledgeItemId');
-
-      // Verify in database
-      const agentKnowledgeItems = await getKnowledgeItemsByAgentId(testTeamLeadId);
-      expect(agentKnowledgeItems.some(k => k.content === 'NVIDIA dominates the AI chip market')).toBe(true);
-    });
-
-    test('stores technique knowledge item successfully', async () => {
-      const result = await executeTool('addKnowledgeItem', {
-        type: 'technique',
-        content: 'Use RSI indicators for timing entries',
-      }, toolContext);
-
-      expect(result.success).toBe(true);
-
-      const agentKnowledgeItems = await getKnowledgeItemsByAgentId(testTeamLeadId);
-      const technique = agentKnowledgeItems.find(k => k.type === 'technique');
-      expect(technique).toBeDefined();
-      expect(technique!.content).toContain('RSI');
-    });
-
-    test('stores pattern knowledge item successfully', async () => {
-      const result = await executeTool('addKnowledgeItem', {
-        type: 'pattern',
-        content: 'Tech stocks rally after earnings beats',
-        confidence: 0.8,
-      }, toolContext);
-
-      expect(result.success).toBe(true);
-
-      const agentKnowledgeItems = await getKnowledgeItemsByAgentId(testTeamLeadId);
-      const pattern = agentKnowledgeItems.find(k => k.type === 'pattern');
-      expect(pattern).toBeDefined();
-      expect(pattern!.confidence).toBe(0.8);
-    });
-
-    test('stores lesson knowledge item successfully', async () => {
-      const result = await executeTool('addKnowledgeItem', {
-        type: 'lesson',
-        content: 'Never chase momentum after major news',
-      }, toolContext);
-
-      expect(result.success).toBe(true);
-
-      const agentKnowledgeItems = await getKnowledgeItemsByAgentId(testTeamLeadId);
-      const lesson = agentKnowledgeItems.find(k => k.type === 'lesson');
-      expect(lesson).toBeDefined();
-    });
-
-    test('fails with invalid type', async () => {
-      const result = await executeTool('addKnowledgeItem', {
-        type: 'invalid_type',
-        content: 'Some content',
-      }, toolContext);
-
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('Invalid parameters');
-    });
-
-    test('fails with empty content', async () => {
-      const result = await executeTool('addKnowledgeItem', {
-        type: 'fact',
-        content: '',
-      }, toolContext);
-
-      expect(result.success).toBe(false);
-    });
-  });
-
-  describe('listKnowledgeItems', () => {
-    test('lists all knowledge items for agent', async () => {
-      // Create some knowledge items
-      await createKnowledgeItem(testTeamLeadId, 'fact', 'Fact 1', undefined, 0.9);
-      await createKnowledgeItem(testTeamLeadId, 'technique', 'Technique 1', undefined, 0.8);
-      await createKnowledgeItem(testTeamLeadId, 'pattern', 'Pattern 1', undefined, 0.7);
-
-      const result = await executeTool('listKnowledgeItems', {}, toolContext);
-
-      expect(result.success).toBe(true);
-      expect(result.data).toHaveProperty('count');
-      expect(result.data).toHaveProperty('knowledgeItems');
-      expect((result.data as { count: number }).count).toBe(3);
-    });
-
-    test('filters by type', async () => {
-      await createKnowledgeItem(testTeamLeadId, 'fact', 'Fact A');
-      await createKnowledgeItem(testTeamLeadId, 'fact', 'Fact B');
-      await createKnowledgeItem(testTeamLeadId, 'technique', 'Technique A');
-
-      const result = await executeTool('listKnowledgeItems', {
-        type: 'fact',
-      }, toolContext);
-
-      expect(result.success).toBe(true);
-      const data = result.data as { count: number; knowledgeItems: Array<{ type: string }> };
-      expect(data.count).toBe(2);
-      expect(data.knowledgeItems.every(k => k.type === 'fact')).toBe(true);
-    });
-
-    test('respects limit parameter', async () => {
-      // Create 5 knowledge items
-      for (let i = 0; i < 5; i++) {
-        await createKnowledgeItem(testTeamLeadId, 'fact', `Fact ${i}`);
-      }
-
-      const result = await executeTool('listKnowledgeItems', {
-        limit: 3,
-      }, toolContext);
-
-      expect(result.success).toBe(true);
-      const data = result.data as { count: number };
-      expect(data.count).toBe(3);
-    });
-
-    test('returns empty array when no knowledge items', async () => {
-      const result = await executeTool('listKnowledgeItems', {}, toolContext);
-
-      expect(result.success).toBe(true);
-      const data = result.data as { count: number; knowledgeItems: unknown[] };
-      expect(data.count).toBe(0);
-      expect(data.knowledgeItems).toEqual([]);
-    });
-  });
-
-  describe('removeKnowledgeItem', () => {
-    test('removes existing knowledge item', async () => {
-      const knowledgeItem = await createKnowledgeItem(testTeamLeadId, 'fact', 'To be deleted');
-
-      const result = await executeTool('removeKnowledgeItem', {
-        knowledgeItemId: knowledgeItem.id,
-      }, toolContext);
-
-      expect(result.success).toBe(true);
-
-      // Verify deleted
-      const agentKnowledgeItems = await getKnowledgeItemsByAgentId(testTeamLeadId);
-      expect(agentKnowledgeItems.find(k => k.id === knowledgeItem.id)).toBeUndefined();
-    });
-
-    test('fails for non-existent knowledge item', async () => {
-      const result = await executeTool('removeKnowledgeItem', {
-        knowledgeItemId: '00000000-0000-0000-0000-000000000000',
-      }, toolContext);
-
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('not found');
-    });
-
-    test('fails for knowledge item belonging to another agent', async () => {
-      // Create knowledge item for subordinate
-      const knowledgeItem = await createKnowledgeItem(testSubordinateId, 'fact', 'Subordinate knowledge item');
-
-      // Try to delete from team lead context
-      const result = await executeTool('removeKnowledgeItem', {
-        knowledgeItemId: knowledgeItem.id,
-      }, toolContext);
-
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('other agents');
-
-      // Cleanup
-      await deleteKnowledgeItem(knowledgeItem.id);
-    });
-
-    test('fails with invalid UUID format', async () => {
-      const result = await executeTool('removeKnowledgeItem', {
-        knowledgeItemId: 'not-a-uuid',
-      }, toolContext);
-
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('Invalid parameters');
-    });
   });
 });
 

@@ -105,13 +105,10 @@ export function getLeadTools(): Tool[] {
 
 /**
  * Get knowledge item management tools (available in user conversations)
+ * @deprecated Knowledge items have been replaced by the knowledge graph system
  */
 export function getKnowledgeItemTools(): Tool[] {
-  return getAllTools().filter((tool) =>
-    ["addKnowledgeItem", "listKnowledgeItems", "removeKnowledgeItem"].includes(
-      tool.schema.name,
-    ),
-  );
+  return [];
 }
 
 /**
@@ -140,9 +137,9 @@ export function getForegroundTools(): Tool[] {
  */
 export function getBackgroundTools(isLead: boolean): Tool[] {
   if (isLead) {
-    return [...getLeadTools(), ...getKnowledgeItemTools()];
+    return [...getLeadTools(), ...getGraphTools()];
   }
-  return [...getSubordinateTools(), ...getKnowledgeItemTools(), ...getGraphTools()];
+  return [...getSubordinateTools(), ...getGraphTools()];
 }
 
 /**

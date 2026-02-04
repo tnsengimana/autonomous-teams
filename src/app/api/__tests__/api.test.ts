@@ -445,7 +445,6 @@ describe('Edge Cases', () => {
         const candidates = [
           { intent: 'work_request', reasoning: 'User is requesting work' },
           { memories: [] },
-          { knowledgeItems: [] },
           { shouldBrief: false, reason: 'Mock mode - no briefing' },
         ];
 

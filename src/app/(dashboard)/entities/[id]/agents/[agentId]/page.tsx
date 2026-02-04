@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth/config";
 import { getEntityById } from "@/lib/db/queries/entities";
 import { getAgentById } from "@/lib/db/queries/agents";
 import { getRecentMemories } from "@/lib/db/queries/memories";
-import { getRecentKnowledgeItems } from "@/lib/db/queries/knowledge-items";
+import { getGraphStats } from "@/lib/db/queries/graph-data";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -16,64 +16,66 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { MessageSquare, Eye, Edit, ListTodo } from "lucide-react";
-import type { MemoryType, KnowledgeItemType } from "@/lib/types";
+import type { MemoryType, GraphStats } from "@/lib/types";
 import {
   buildAgentPath,
   buildEntityPath,
   getEntityLabel,
   formatRelativeDate,
   getMemoryTypeBadgeVariant,
-  getKnowledgeTypeBadgeVariant,
   type EntityContext,
   type Memory,
-  type KnowledgeItem,
 } from "@/lib/entities/utils";
 
-function KnowledgeItemsList({ items }: { items: KnowledgeItem[] }) {
+function GraphStatsCard({ stats }: { stats: GraphStats }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Knowledge Base</CardTitle>
+        <CardTitle>Knowledge Graph</CardTitle>
         <CardDescription>
-          Professional knowledge and techniques extracted from work sessions
+          Structured knowledge discovered from work sessions
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {items.length === 0 ? (
+        {stats.nodeCount === 0 ? (
           <div className="flex h-[300px] items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
-            No knowledge items yet.
+            No knowledge in graph yet.
           </div>
         ) : (
-          <ScrollArea className="h-[300px]">
-            <div className="space-y-3 pr-4">
-              {items.map((item) => (
-                <div
-                  key={item.id}
-                  className="rounded-lg border bg-card p-3 shadow-sm transition-all hover:bg-accent/50"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="flex-1 text-sm">{item.content}</p>
-                    <Badge
-                      variant={getKnowledgeTypeBadgeVariant(
-                        item.type as KnowledgeItemType
-                      )}
-                      className="shrink-0 text-[10px]"
-                    >
-                      {item.type}
-                    </Badge>
-                  </div>
-                  <div className="mt-2 flex items-center justify-between">
-                    <p className="text-xs text-muted-foreground">
-                      Confidence: {Math.round((item.confidence || 0) * 100)}%
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatRelativeDate(item.createdAt)}
-                    </p>
-                  </div>
-                </div>
-              ))}
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="rounded-lg border p-4 text-center">
+                <div className="text-2xl font-bold">{stats.nodeCount}</div>
+                <div className="text-xs text-muted-foreground">Nodes</div>
+              </div>
+              <div className="rounded-lg border p-4 text-center">
+                <div className="text-2xl font-bold">{stats.edgeCount}</div>
+                <div className="text-xs text-muted-foreground">Relationships</div>
+              </div>
             </div>
-          </ScrollArea>
+            <div>
+              <div className="text-sm font-medium mb-2">Nodes by Type</div>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(stats.nodesByType).map(([type, count]) => (
+                  <Badge key={type} variant="outline">
+                    {type}: {count}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+            {Object.keys(stats.edgesByType).length > 0 && (
+              <div>
+                <div className="text-sm font-medium mb-2">Relationships by Type</div>
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(stats.edgesByType).map(([type, count]) => (
+                    <Badge key={type} variant="secondary">
+                      {type}: {count}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         )}
       </CardContent>
     </Card>
@@ -132,7 +134,7 @@ function AgentDetailView({
   entity,
   agent,
   memories,
-  knowledgeItems,
+  graphStats,
 }: {
   entity: EntityContext;
   agent: {
@@ -144,7 +146,7 @@ function AgentDetailView({
     parentAgentId: string | null;
   };
   memories: Memory[];
-  knowledgeItems: KnowledgeItem[];
+  graphStats: GraphStats;
 }) {
   const agentType = agent.parentAgentId === null ? "lead" : "subordinate";
 
@@ -231,8 +233,8 @@ function AgentDetailView({
           </CardContent>
         </Card>
 
-        {/* Knowledge Items Section */}
-        <KnowledgeItemsList items={knowledgeItems} />
+        {/* Knowledge Graph Section */}
+        <GraphStatsCard stats={graphStats} />
 
         {/* Memories Section */}
         <MemoriesList items={memories} />
@@ -257,9 +259,9 @@ export default async function AgentDetailPage({
   const agent = await getAgentById(agentId);
   if (!agent || agent.entityId !== id) notFound();
 
-  const [memories, knowledgeItems] = await Promise.all([
+  const [memories, graphStats] = await Promise.all([
     getRecentMemories(agentId, 20),
-    getRecentKnowledgeItems(agentId, 20),
+    getGraphStats(entity.id),
   ]);
 
   return (
@@ -271,7 +273,7 @@ export default async function AgentDetailPage({
       }}
       agent={agent}
       memories={memories}
-      knowledgeItems={knowledgeItems}
+      graphStats={graphStats}
     />
   );
 }

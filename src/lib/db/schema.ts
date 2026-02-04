@@ -6,7 +6,6 @@ import {
   integer,
   primaryKey,
   jsonb,
-  real,
   index,
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
@@ -228,23 +227,6 @@ export const agentTasks = pgTable('agent_tasks', {
 ]);
 
 // ============================================================================
-// Knowledge Items (Professional Knowledge)
-// ============================================================================
-
-// Knowledge Items - professional knowledge extracted from background conversations
-export const knowledgeItems = pgTable('knowledge_items', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  agentId: uuid('agent_id').notNull().references(() => agents.id, { onDelete: 'cascade' }),
-  type: text('type').notNull(), // 'fact', 'technique', 'pattern', 'lesson'
-  content: text('content').notNull(),
-  sourceConversationId: uuid('source_conversation_id').references(() => conversations.id, { onDelete: 'set null' }),
-  confidence: real('confidence'),
-  createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
-}, (table) => [
-  index('knowledge_items_agent_id_idx').on(table.agentId),
-]);
-
-// ============================================================================
 // Knowledge Graph Type System
 // ============================================================================
 
@@ -398,7 +380,6 @@ export const agentsRelations = relations(agents, ({ one, many }) => ({
   delegatedTasks: many(agentTasks, {
     relationName: 'delegatedTasks',
   }),
-  knowledgeItems: many(knowledgeItems),
 }));
 
 export const conversationsRelations = relations(conversations, ({ one, many }) => ({
@@ -407,7 +388,6 @@ export const conversationsRelations = relations(conversations, ({ one, many }) =
     references: [agents.id],
   }),
   messages: many(messages),
-  knowledgeItems: many(knowledgeItems),
   graphNodes: many(graphNodes),
   graphEdges: many(graphEdges),
 }));
@@ -483,17 +463,6 @@ export const agentTasksRelations = relations(agentTasks, ({ one }) => ({
     fields: [agentTasks.assignedById],
     references: [agents.id],
     relationName: 'delegatedTasks',
-  }),
-}));
-
-export const knowledgeItemsRelations = relations(knowledgeItems, ({ one }) => ({
-  agent: one(agents, {
-    fields: [knowledgeItems.agentId],
-    references: [agents.id],
-  }),
-  sourceConversation: one(conversations, {
-    fields: [knowledgeItems.sourceConversationId],
-    references: [conversations.id],
   }),
 }));
 
