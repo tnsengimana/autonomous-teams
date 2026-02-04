@@ -11,9 +11,9 @@ This is the source of truth for project work tracking (in-repo).
 ---
 
 ## Backlog
-- [ ] Implement Plan 17 (autonomous agent architecture) → `docs/plans/17-autonomous-agent-architecture.md`
-- [ ] Decide how background persona reads user preferences/memories (no plan yet)
-- [ ] Expand local dev docs beyond README (no plan yet)
+- [ ] Make agents truly autonomous, running in the background 24/7
+- [ ] Decide how background persona reads user preferences/memories
+- [ ] Expand local dev docs beyond README
 
 
 ## Doing
