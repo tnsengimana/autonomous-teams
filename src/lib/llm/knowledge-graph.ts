@@ -5,15 +5,20 @@
  * and knowledge context building.
  */
 
-import { formatTypesForLLMContext } from '@/lib/db/queries/graph-types';
-import { serializeGraphForLLM, getGraphStats } from '@/lib/db/queries/graph-data';
+import { formatTypesForLLMContext } from "@/lib/db/queries/graph-types";
+import {
+  serializeGraphForLLM,
+  getGraphStats,
+} from "@/lib/db/queries/graph-data";
 
 /**
  * Build knowledge graph context block for agent system prompts.
  * This is included in background work sessions to help agents understand
  * the available types and current graph state.
  */
-export async function buildGraphContextBlock(entityId: string): Promise<string> {
+export async function buildGraphContextBlock(
+  entityId: string,
+): Promise<string> {
   const [typeContext, graphData, stats] = await Promise.all([
     formatTypesForLLMContext(entityId),
     serializeGraphForLLM(entityId, 50), // Include recent graph state
@@ -99,9 +104,9 @@ When working on tasks, follow this pattern:
 export async function ensureGraphTypesInitialized(
   entityId: string,
   entity: { name: string; type: string; purpose: string | null },
-  options?: { userId?: string }
+  options?: { userId?: string },
 ): Promise<void> {
-  const { getNodeTypesByEntity } = await import('@/lib/db/queries/graph-types');
+  const { getNodeTypesByEntity } = await import("@/lib/db/queries/graph-types");
 
   const existingTypes = await getNodeTypesByEntity(entityId);
   if (existingTypes.length > 0) {
@@ -109,9 +114,8 @@ export async function ensureGraphTypesInitialized(
   }
 
   // Initialize types for this entity
-  const { initializeAndPersistTypesForEntity } = await import(
-    './graph-type-initializer'
-  );
+  const { initializeAndPersistTypesForEntity } =
+    await import("./graph-configuration");
 
   console.log(`[Graph] Initializing types for entity ${entity.name}`);
   await initializeAndPersistTypesForEntity(entityId, entity, options);

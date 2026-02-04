@@ -5,17 +5,17 @@
  * and context building.
  */
 
-import { describe, test, expect, beforeAll, afterAll, vi } from 'vitest';
-import { db } from '@/lib/db/client';
-import { users, entities } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
+import { describe, test, expect, beforeAll, afterAll, vi } from "vitest";
+import { db } from "@/lib/db/client";
+import { users, entities } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 import {
   buildGraphContextBlock,
   ensureGraphTypesInitialized,
-} from '../knowledge-graph';
-import { createNodeType } from '@/lib/db/queries/graph-types';
-import { createNode } from '@/lib/db/queries/graph-data';
-import * as graphTypeInitializer from '../graph-type-initializer';
+} from "../knowledge-graph";
+import { createNodeType } from "@/lib/db/queries/graph-types";
+import { createNode } from "@/lib/db/queries/graph-data";
+import * as graphTypeInitializer from "../graph-configuration";
 
 // ============================================================================
 // Test Setup
@@ -30,7 +30,7 @@ beforeAll(async () => {
     .insert(users)
     .values({
       email: `knowledge-graph-test-${Date.now()}@example.com`,
-      name: 'Knowledge Graph Test User',
+      name: "Knowledge Graph Test User",
     })
     .returning();
   testUserId = user.id;
@@ -40,10 +40,10 @@ beforeAll(async () => {
     .insert(entities)
     .values({
       userId: testUserId,
-      name: 'Test Research Team',
-      purpose: 'Financial research and analysis',
-      systemPrompt: 'You are a test entity for knowledge graph testing.',
-      status: 'active',
+      name: "Test Research Team",
+      purpose: "Financial research and analysis",
+      systemPrompt: "You are a test entity for knowledge graph testing.",
+      status: "active",
     })
     .returning();
   testEntityId = entity.id;
@@ -58,62 +58,62 @@ afterAll(async () => {
 // buildGraphContextBlock Tests
 // ============================================================================
 
-describe('buildGraphContextBlock', () => {
-  test('returns formatted context with types and graph state', async () => {
+describe("buildGraphContextBlock", () => {
+  test("returns formatted context with types and graph state", async () => {
     // First create some types
     await createNodeType({
       entityId: testEntityId,
-      name: 'Company',
-      description: 'A business entity',
+      name: "Company",
+      description: "A business entity",
       propertiesSchema: {
-        type: 'object',
+        type: "object",
         properties: {
-          ticker: { type: 'string' },
+          ticker: { type: "string" },
         },
       },
-      createdBy: 'system',
+      createdBy: "system",
     });
 
     // Create a node
     await createNode({
       entityId: testEntityId,
-      type: 'Company',
-      name: 'Acme Corp',
-      properties: { ticker: 'ACME' },
+      type: "Company",
+      name: "Acme Corp",
+      properties: { ticker: "ACME" },
     });
 
     const context = await buildGraphContextBlock(testEntityId);
 
     // Should contain the knowledge_graph tags
-    expect(context).toContain('<knowledge_graph>');
-    expect(context).toContain('</knowledge_graph>');
+    expect(context).toContain("<knowledge_graph>");
+    expect(context).toContain("</knowledge_graph>");
 
     // Should mention node/edge counts
     expect(context).toMatch(/Current graph has \d+ nodes? and \d+ edges?/);
 
     // Should contain available types section
-    expect(context).toContain('## Available Types');
-    expect(context).toContain('Company');
+    expect(context).toContain("## Available Types");
+    expect(context).toContain("Company");
 
     // Should contain graph state
-    expect(context).toContain('Acme Corp');
+    expect(context).toContain("Acme Corp");
 
     // Should contain usage instructions
-    expect(context).toContain('How to Use the Knowledge Graph');
-    expect(context).toContain('RETRIEVE first');
-    expect(context).toContain('INSERT when needed');
+    expect(context).toContain("How to Use the Knowledge Graph");
+    expect(context).toContain("RETRIEVE first");
+    expect(context).toContain("INSERT when needed");
   });
 
-  test('handles empty graph correctly', async () => {
+  test("handles empty graph correctly", async () => {
     // Create a new entity with no types or nodes
     const [emptyEntity] = await db
       .insert(entities)
       .values({
         userId: testUserId,
-        name: 'Empty Test Entity',
-        purpose: 'Testing empty graph',
-        systemPrompt: 'You are a test entity for empty graph testing.',
-        status: 'active',
+        name: "Empty Test Entity",
+        purpose: "Testing empty graph",
+        systemPrompt: "You are a test entity for empty graph testing.",
+        status: "active",
       })
       .returning();
 
@@ -121,19 +121,19 @@ describe('buildGraphContextBlock', () => {
       const context = await buildGraphContextBlock(emptyEntity.id);
 
       // Should contain the knowledge_graph tags
-      expect(context).toContain('<knowledge_graph>');
-      expect(context).toContain('</knowledge_graph>');
+      expect(context).toContain("<knowledge_graph>");
+      expect(context).toContain("</knowledge_graph>");
 
       // Should indicate empty graph
-      expect(context).toContain('knowledge graph is currently empty');
+      expect(context).toContain("knowledge graph is currently empty");
 
       // Should still contain usage instructions
-      expect(context).toContain('How to Use the Knowledge Graph');
-      expect(context).toContain('RETRIEVE first');
-      expect(context).toContain('INSERT when needed');
+      expect(context).toContain("How to Use the Knowledge Graph");
+      expect(context).toContain("RETRIEVE first");
+      expect(context).toContain("INSERT when needed");
 
       // Should NOT contain the freshness reasoning (only in non-empty graph)
-      expect(context).not.toContain('Reason about freshness');
+      expect(context).not.toContain("Reason about freshness");
     } finally {
       // Cleanup
       await db.delete(entities).where(eq(entities.id, emptyEntity.id));
@@ -145,37 +145,37 @@ describe('buildGraphContextBlock', () => {
 // ensureGraphTypesInitialized Tests
 // ============================================================================
 
-describe('ensureGraphTypesInitialized', () => {
-  test('initializes types for entity without types', async () => {
+describe("ensureGraphTypesInitialized", () => {
+  test("initializes types for entity without types", async () => {
     // Create a new entity with no types
     const [newEntity] = await db
       .insert(entities)
       .values({
         userId: testUserId,
-        name: 'No Types Entity',
-        purpose: 'Testing type initialization',
-        systemPrompt: 'You are a test entity for type initialization.',
-        status: 'active',
+        name: "No Types Entity",
+        purpose: "Testing type initialization",
+        systemPrompt: "You are a test entity for type initialization.",
+        status: "active",
       })
       .returning();
 
     // Mock the initializeAndPersistTypesForEntity function
     const mockInit = vi
-      .spyOn(graphTypeInitializer, 'initializeAndPersistTypesForEntity')
+      .spyOn(graphTypeInitializer, "initializeAndPersistTypesForEntity")
       .mockResolvedValueOnce();
 
     try {
       await ensureGraphTypesInitialized(
         newEntity.id,
-        { name: newEntity.name, type: 'entity', purpose: newEntity.purpose },
-        { userId: testUserId }
+        { name: newEntity.name, type: "entity", purpose: newEntity.purpose },
+        { userId: testUserId },
       );
 
       // Should have called the initializer
       expect(mockInit).toHaveBeenCalledWith(
         newEntity.id,
-        { name: newEntity.name, type: 'entity', purpose: newEntity.purpose },
-        { userId: testUserId }
+        { name: newEntity.name, type: "entity", purpose: newEntity.purpose },
+        { userId: testUserId },
       );
     } finally {
       mockInit.mockRestore();
@@ -184,18 +184,22 @@ describe('ensureGraphTypesInitialized', () => {
     }
   });
 
-  test('skips initialization if types exist', async () => {
+  test("skips initialization if types exist", async () => {
     // The test entity already has types from the first test
     // Mock the initializeAndPersistTypesForEntity function
     const mockInit = vi
-      .spyOn(graphTypeInitializer, 'initializeAndPersistTypesForEntity')
+      .spyOn(graphTypeInitializer, "initializeAndPersistTypesForEntity")
       .mockResolvedValueOnce();
 
     try {
       await ensureGraphTypesInitialized(
         testEntityId,
-        { name: 'Test Research Team', type: 'team', purpose: 'Financial research' },
-        { userId: testUserId }
+        {
+          name: "Test Research Team",
+          type: "team",
+          purpose: "Financial research",
+        },
+        { userId: testUserId },
       );
 
       // Should NOT have called the initializer since types exist
@@ -205,37 +209,37 @@ describe('ensureGraphTypesInitialized', () => {
     }
   });
 
-  test('handles missing userId gracefully', async () => {
+  test("handles missing userId gracefully", async () => {
     // Create a new entity with no types
     const [newEntity] = await db
       .insert(entities)
       .values({
         userId: testUserId,
-        name: 'No UserId Entity',
-        purpose: 'Testing without userId',
-        systemPrompt: 'You are a test entity for userId testing.',
-        status: 'active',
+        name: "No UserId Entity",
+        purpose: "Testing without userId",
+        systemPrompt: "You are a test entity for userId testing.",
+        status: "active",
       })
       .returning();
 
     // Mock the initializeAndPersistTypesForEntity function
     const mockInit = vi
-      .spyOn(graphTypeInitializer, 'initializeAndPersistTypesForEntity')
+      .spyOn(graphTypeInitializer, "initializeAndPersistTypesForEntity")
       .mockResolvedValueOnce();
 
     try {
       // Call without userId option
       await ensureGraphTypesInitialized(newEntity.id, {
         name: newEntity.name,
-        type: 'entity',
+        type: "entity",
         purpose: newEntity.purpose,
       });
 
       // Should still have called the initializer
       expect(mockInit).toHaveBeenCalledWith(
         newEntity.id,
-        { name: newEntity.name, type: 'entity', purpose: newEntity.purpose },
-        undefined
+        { name: newEntity.name, type: "entity", purpose: newEntity.purpose },
+        undefined,
       );
     } finally {
       mockInit.mockRestore();
@@ -249,17 +253,17 @@ describe('ensureGraphTypesInitialized', () => {
 // Integration Tests
 // ============================================================================
 
-describe('Integration', () => {
-  test('buildGraphContextBlock includes recently added nodes', async () => {
+describe("Integration", () => {
+  test("buildGraphContextBlock includes recently added nodes", async () => {
     // Create another entity for isolation
     const [integrationEntity] = await db
       .insert(entities)
       .values({
         userId: testUserId,
-        name: 'Integration Test Team',
-        purpose: 'Integration testing',
-        systemPrompt: 'You are a test entity for integration testing.',
-        status: 'active',
+        name: "Integration Test Team",
+        purpose: "Integration testing",
+        systemPrompt: "You are a test entity for integration testing.",
+        status: "active",
       })
       .returning();
 
@@ -267,40 +271,40 @@ describe('Integration', () => {
       // Create a node type
       await createNodeType({
         entityId: integrationEntity.id,
-        name: 'Analyst',
-        description: 'A financial analyst',
+        name: "Analyst",
+        description: "A financial analyst",
         propertiesSchema: {
-          type: 'object',
+          type: "object",
           properties: {
-            specialty: { type: 'string' },
+            specialty: { type: "string" },
           },
         },
-        createdBy: 'system',
+        createdBy: "system",
       });
 
       // Create multiple nodes
       await createNode({
         entityId: integrationEntity.id,
-        type: 'Analyst',
-        name: 'Alice Smith',
-        properties: { specialty: 'Tech' },
+        type: "Analyst",
+        name: "Alice Smith",
+        properties: { specialty: "Tech" },
       });
 
       await createNode({
         entityId: integrationEntity.id,
-        type: 'Analyst',
-        name: 'Bob Jones',
-        properties: { specialty: 'Finance' },
+        type: "Analyst",
+        name: "Bob Jones",
+        properties: { specialty: "Finance" },
       });
 
       const context = await buildGraphContextBlock(integrationEntity.id);
 
       // Should contain both nodes
-      expect(context).toContain('Alice Smith');
-      expect(context).toContain('Bob Jones');
+      expect(context).toContain("Alice Smith");
+      expect(context).toContain("Bob Jones");
 
       // Should have correct count
-      expect(context).toContain('2 nodes');
+      expect(context).toContain("2 nodes");
     } finally {
       // Cleanup
       await db.delete(entities).where(eq(entities.id, integrationEntity.id));

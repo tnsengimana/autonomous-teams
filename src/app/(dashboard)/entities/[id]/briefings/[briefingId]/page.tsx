@@ -12,24 +12,20 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import {
-  buildEntityPath,
-  type EntityContext,
-  type Briefing,
-} from "@/lib/entities/utils";
+import { Briefing, Entity } from "@/lib/types";
 
 function BriefingDetailView({
   entity,
   briefing,
 }: {
-  entity: EntityContext;
+  entity: Entity;
   briefing: Briefing;
 }) {
   return (
     <div className="space-y-6">
       <div>
         <Link
-          href={buildEntityPath(entity)}
+          href={`/entities/${entity.id}`}
           className="text-sm text-muted-foreground hover:underline"
         >
           Back to {entity.name}
@@ -78,13 +74,5 @@ export default async function EntityBriefingPage({
     notFound();
   }
 
-  return (
-    <BriefingDetailView
-      entity={{
-        id: entity.id,
-        name: entity.name,
-      }}
-      briefing={briefing}
-    />
-  );
+  return <BriefingDetailView entity={entity} briefing={briefing} />;
 }

@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { auth } from "@/lib/auth/config";
 import { createEntity, getEntitiesByUserId } from "@/lib/db/queries/entities";
-import { generateEntityConfiguration } from "@/lib/entities/configuration";
+import { generateEntityConfiguration } from "@/lib/llm/entity-configuration";
 import { z } from "zod";
 
 const createEntitySchema = z.object({
@@ -25,7 +25,7 @@ export async function GET() {
     console.error("Error fetching entities:", error);
     return NextResponse.json(
       { error: "Failed to fetch entities" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     if (!validation.success) {
       return NextResponse.json(
         { error: validation.error.issues[0].message },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
     console.error("Error creating entity:", error);
     return NextResponse.json(
       { error: "Failed to create entity" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

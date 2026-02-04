@@ -5,8 +5,8 @@ import { generateLLMObject } from '@/lib/llm/providers';
  * Schema for the generated entity configuration
  */
 const EntityConfigurationSchema = z.object({
-  name: z.string().describe('A short, memorable name for this entity (2-4 words)'),
-  systemPrompt: z.string().describe('System prompt defining the entity personality and approach'),
+  name: z.string().describe('A short, memorable name for this agent (2-4 words)'),
+  systemPrompt: z.string().describe('System prompt defining the agent personality and approach'),
 });
 
 export type EntityConfiguration = z.infer<typeof EntityConfigurationSchema>;
@@ -19,12 +19,12 @@ export async function generateEntityConfiguration(
   purpose: string,
   options?: { userId?: string }
 ): Promise<EntityConfiguration> {
-  const systemPromptInstructions = `You are an entity configuration assistant. Given a mission/purpose, generate the configuration for an autonomous AI entity.
+  const systemPromptInstructions = `You are an agent configuration assistant. Given a mission/purpose, generate the configuration for an autonomous AI agent.
 
 Generate:
-1. **name**: A short, memorable name for this entity (2-4 words, like "Research Scout" or "Market Analyst")
+1. **name**: A short, memorable name for this agent (2-4 words, like "Research Scout" or "Market Analyst")
 2. **systemPrompt**: A detailed system prompt that defines:
-   - The entity's role and expertise
+   - The agent's role and expertise
    - Their approach to fulfilling the mission
    - How they should communicate and work
    - Key responsibilities and areas of focus
@@ -33,7 +33,7 @@ The system prompt should be comprehensive (3-5 paragraphs) and tailored to the s
 
   const userPrompt = `Mission: ${purpose}
 
-Generate the entity configuration.`;
+Generate the agent configuration.`;
 
   return generateLLMObject(
     [{ role: 'user', content: userPrompt }],

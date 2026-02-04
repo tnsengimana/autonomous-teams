@@ -4,11 +4,11 @@
  * CRUD operations for entities.
  */
 
-import { eq, desc } from 'drizzle-orm';
-import { db } from '../client';
-import { entities } from '../schema';
-import type { Entity, EntityStatus } from '@/lib/types';
-import { initializeAndPersistTypesForEntity } from '@/lib/llm/graph-type-initializer';
+import { eq, desc } from "drizzle-orm";
+import { db } from "../client";
+import { entities } from "../schema";
+import type { Entity, EntityStatus } from "@/lib/types";
+import { initializeAndPersistTypesForEntity } from "@/lib/llm/graph-configuration";
 
 // ============================================================================
 // CRUD Operations
@@ -31,7 +31,7 @@ export async function createEntity(data: {
       name: data.name,
       purpose: data.purpose ?? null,
       systemPrompt: data.systemPrompt,
-      status: data.status ?? 'active',
+      status: data.status ?? "active",
     })
     .returning();
 
@@ -41,9 +41,9 @@ export async function createEntity(data: {
   initializeAndPersistTypesForEntity(
     entity.id,
     { name: entity.name, purpose: entity.purpose },
-    { userId: data.userId }
+    { userId: data.userId },
   ).catch((err) => {
-    console.error('[createEntity] Failed to initialize graph types:', err);
+    console.error("[createEntity] Failed to initialize graph types:", err);
   });
 
   return entity;
@@ -76,7 +76,9 @@ export async function getEntitiesByUserId(userId: string): Promise<Entity[]> {
 /**
  * Get active entities for a user
  */
-export async function getActiveEntitiesByUserId(userId: string): Promise<Entity[]> {
+export async function getActiveEntitiesByUserId(
+  userId: string,
+): Promise<Entity[]> {
   return db
     .select()
     .from(entities)
@@ -92,7 +94,7 @@ export async function getActiveEntities(): Promise<Entity[]> {
   return db
     .select()
     .from(entities)
-    .where(eq(entities.status, 'active'))
+    .where(eq(entities.status, "active"))
     .orderBy(desc(entities.createdAt));
 }
 
@@ -106,7 +108,7 @@ export async function updateEntity(
     purpose?: string | null;
     systemPrompt?: string;
     status?: EntityStatus;
-  }
+  },
 ): Promise<void> {
   await db
     .update(entities)
@@ -119,7 +121,7 @@ export async function updateEntity(
  */
 export async function updateEntityStatus(
   entityId: string,
-  status: EntityStatus
+  status: EntityStatus,
 ): Promise<void> {
   await db
     .update(entities)
@@ -131,7 +133,7 @@ export async function updateEntityStatus(
  * Activate an entity (set status to 'active')
  */
 export async function activateEntity(entityId: string): Promise<void> {
-  await updateEntityStatus(entityId, 'active');
+  await updateEntityStatus(entityId, "active");
 }
 
 /**
@@ -144,7 +146,9 @@ export async function deleteEntity(entityId: string): Promise<void> {
 /**
  * Get the user ID for an entity
  */
-export async function getEntityUserId(entityId: string): Promise<string | null> {
+export async function getEntityUserId(
+  entityId: string,
+): Promise<string | null> {
   const result = await db
     .select({ userId: entities.userId })
     .from(entities)
