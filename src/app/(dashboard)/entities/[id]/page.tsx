@@ -69,6 +69,9 @@ export default async function EntityDetailPage({
         <Link href={`/entities/${entity.id}/briefings`}>
           <Button variant="outline">Briefings</Button>
         </Link>
+        <Link href={`/entities/${entity.id}/knowledge-graph`}>
+          <Button variant="outline">Knowledge Graph</Button>
+        </Link>
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">

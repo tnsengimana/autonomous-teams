@@ -173,6 +173,16 @@ export async function createEdge(data: {
 }
 
 /**
+ * Get all edges for an entity
+ */
+export async function getEdgesByEntity(entityId: string): Promise<GraphEdge[]> {
+  return db
+    .select()
+    .from(graphEdges)
+    .where(eq(graphEdges.entityId, entityId));
+}
+
+/**
  * Get all edges connected to a node
  */
 export async function getEdgesByNode(
