@@ -417,7 +417,6 @@ describe('graphNodes schema', () => {
       type: 'Asset',
       name: 'AAPL',
       properties,
-      sourceConversationId: testConversationId,
     }).returning();
 
     expect(node.id).toBeDefined();
@@ -425,7 +424,6 @@ describe('graphNodes schema', () => {
     expect(node.type).toBe('Asset');
     expect(node.name).toBe('AAPL');
     expect(node.properties).toEqual(properties);
-    expect(node.sourceConversationId).toBe(testConversationId);
     expect(node.createdAt).toBeDefined();
 
     // Cleanup
@@ -440,20 +438,6 @@ describe('graphNodes schema', () => {
     }).returning();
 
     expect(node.properties).toEqual({});
-
-    // Cleanup
-    await db.delete(graphNodes).where(eq(graphNodes.id, node.id));
-  });
-
-  test('sourceConversationId can be null', async () => {
-    const [node] = await db.insert(graphNodes).values({
-      entityId: testEntityId,
-      type: 'NoSourceNode',
-      name: 'No Source Conversation',
-      sourceConversationId: null,
-    }).returning();
-
-    expect(node.sourceConversationId).toBeNull();
 
     // Cleanup
     await db.delete(graphNodes).where(eq(graphNodes.id, node.id));
@@ -483,41 +467,6 @@ describe('graphNodes schema', () => {
     const remaining = await db.select().from(graphNodes).where(eq(graphNodes.id, node.id));
     expect(remaining).toHaveLength(0);
   });
-
-  test('sets sourceConversationId to null when conversation deleted', async () => {
-    // Create a separate entity and conversation
-    const [tempEntity] = await db.insert(entities).values({
-      userId: testUserId,
-      name: 'Temp Entity for Node Source Test',
-      conversationSystemPrompt: 'Test prompt',
-      classificationSystemPrompt: 'Test prompt',
-      insightSynthesisSystemPrompt: 'Test prompt',
-      graphConstructionSystemPrompt: 'Test prompt',
-    }).returning();
-
-    const [tempConversation] = await db.insert(conversations).values({
-      entityId: tempEntity.id,
-    }).returning();
-
-    const [node] = await db.insert(graphNodes).values({
-      entityId: testEntityId,
-      type: 'NodeWithSource',
-      name: 'Has Source Conversation',
-      sourceConversationId: tempConversation.id,
-    }).returning();
-
-    // Delete conversation
-    await db.delete(conversations).where(eq(conversations.id, tempConversation.id));
-
-    // Node should remain but with null sourceConversationId
-    const [updated] = await db.select().from(graphNodes).where(eq(graphNodes.id, node.id));
-    expect(updated).toBeDefined();
-    expect(updated.sourceConversationId).toBeNull();
-
-    // Cleanup
-    await db.delete(graphNodes).where(eq(graphNodes.id, node.id));
-    await db.delete(entities).where(eq(entities.id, tempEntity.id));
-  });
 });
 
 describe('graphEdges schema', () => {
@@ -543,7 +492,6 @@ describe('graphEdges schema', () => {
       sourceId: sourceNode.id,
       targetId: targetNode.id,
       properties,
-      sourceConversationId: testConversationId,
     }).returning();
 
     expect(edge.id).toBeDefined();
@@ -552,7 +500,6 @@ describe('graphEdges schema', () => {
     expect(edge.sourceId).toBe(sourceNode.id);
     expect(edge.targetId).toBe(targetNode.id);
     expect(edge.properties).toEqual(properties);
-    expect(edge.sourceConversationId).toBe(testConversationId);
     expect(edge.createdAt).toBeDefined();
 
     // Cleanup
@@ -705,55 +652,6 @@ describe('graphEdges schema', () => {
     expect(remainingTarget).toHaveLength(0);
   });
 
-  test('sets sourceConversationId to null when conversation deleted', async () => {
-    // Create nodes
-    const [sourceNode] = await db.insert(graphNodes).values({
-      entityId: testEntityId,
-      type: 'EdgeSource',
-      name: 'Source',
-    }).returning();
-
-    const [targetNode] = await db.insert(graphNodes).values({
-      entityId: testEntityId,
-      type: 'EdgeTarget',
-      name: 'Target',
-    }).returning();
-
-    // Create a separate entity and conversation
-    const [tempEntity] = await db.insert(entities).values({
-      userId: testUserId,
-      name: 'Temp Entity for Edge Source Test',
-      conversationSystemPrompt: 'Test prompt',
-      classificationSystemPrompt: 'Test prompt',
-      insightSynthesisSystemPrompt: 'Test prompt',
-      graphConstructionSystemPrompt: 'Test prompt',
-    }).returning();
-
-    const [tempConversation] = await db.insert(conversations).values({
-      entityId: tempEntity.id,
-    }).returning();
-
-    const [edge] = await db.insert(graphEdges).values({
-      entityId: testEntityId,
-      type: 'conversation_ref_edge',
-      sourceId: sourceNode.id,
-      targetId: targetNode.id,
-      sourceConversationId: tempConversation.id,
-    }).returning();
-
-    // Delete conversation
-    await db.delete(conversations).where(eq(conversations.id, tempConversation.id));
-
-    // Edge should remain but with null sourceConversationId
-    const [updated] = await db.select().from(graphEdges).where(eq(graphEdges.id, edge.id));
-    expect(updated).toBeDefined();
-    expect(updated.sourceConversationId).toBeNull();
-
-    // Cleanup
-    await db.delete(graphNodes).where(eq(graphNodes.id, sourceNode.id));
-    await db.delete(graphNodes).where(eq(graphNodes.id, targetNode.id));
-    await db.delete(entities).where(eq(entities.id, tempEntity.id));
-  });
 });
 
 describe('graph schema indexes', () => {

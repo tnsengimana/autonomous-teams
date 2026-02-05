@@ -34,7 +34,6 @@ export async function createNode(data: {
   type: string;
   name: string;
   properties?: object;
-  sourceConversationId?: string;
 }): Promise<GraphNode> {
   const result = await db
     .insert(graphNodes)
@@ -43,7 +42,6 @@ export async function createNode(data: {
       type: data.type,
       name: data.name,
       properties: data.properties ?? {},
-      sourceConversationId: data.sourceConversationId ?? null,
     })
     .returning();
 
@@ -155,7 +153,6 @@ export async function createEdge(data: {
   sourceId: string;
   targetId: string;
   properties?: object;
-  sourceConversationId?: string;
 }): Promise<GraphEdge> {
   const result = await db
     .insert(graphEdges)
@@ -165,7 +162,6 @@ export async function createEdge(data: {
       sourceId: data.sourceId,
       targetId: data.targetId,
       properties: data.properties ?? {},
-      sourceConversationId: data.sourceConversationId ?? null,
     })
     .returning();
 

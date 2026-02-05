@@ -160,7 +160,6 @@ const addGraphNodeTool: Tool = {
         type,
         name,
         properties,
-        sourceConversationId: ctx.conversationId,
       });
 
       return {
@@ -286,7 +285,6 @@ const addGraphEdgeTool: Tool = {
         sourceId: sourceNode.id,
         targetId: targetNode.id,
         properties: properties || {},
-        sourceConversationId: ctx.conversationId,
       });
 
       return {
@@ -733,7 +731,6 @@ const addInsightNodeTool: Tool = {
         type: 'Insight',
         name,
         properties,
-        sourceConversationId: ctx.conversationId,
       });
 
       // 2. Create inbox item to notify the user

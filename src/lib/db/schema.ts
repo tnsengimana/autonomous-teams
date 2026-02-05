@@ -295,10 +295,6 @@ export const graphNodes = pgTable(
     type: text("type").notNull(), // References graphNodeTypes.name
     name: text("name").notNull(), // Human-readable identifier
     properties: jsonb("properties").notNull().default({}), // Validated against type schema; temporal fields live here
-    sourceConversationId: uuid("source_conversation_id").references(
-      () => conversations.id,
-      { onDelete: "set null" },
-    ),
     createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
   },
   (table) => [
@@ -323,10 +319,6 @@ export const graphEdges = pgTable(
       .notNull()
       .references(() => graphNodes.id, { onDelete: "cascade" }),
     properties: jsonb("properties").notNull().default({}), // Validated against type schema
-    sourceConversationId: uuid("source_conversation_id").references(
-      () => conversations.id,
-      { onDelete: "set null" },
-    ),
     createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
   },
   (table) => [
@@ -395,8 +387,6 @@ export const conversationsRelations = relations(
       references: [entities.id],
     }),
     messages: many(messages),
-    graphNodes: many(graphNodes),
-    graphEdges: many(graphEdges),
   }),
 );
 
@@ -519,10 +509,6 @@ export const graphNodesRelations = relations(graphNodes, ({ one, many }) => ({
     fields: [graphNodes.entityId],
     references: [entities.id],
   }),
-  sourceConversation: one(conversations, {
-    fields: [graphNodes.sourceConversationId],
-    references: [conversations.id],
-  }),
   outgoingEdges: many(graphEdges, { relationName: "sourceNode" }),
   incomingEdges: many(graphEdges, { relationName: "targetNode" }),
 }));
@@ -541,9 +527,5 @@ export const graphEdgesRelations = relations(graphEdges, ({ one }) => ({
     fields: [graphEdges.targetId],
     references: [graphNodes.id],
     relationName: "targetNode",
-  }),
-  sourceConversation: one(conversations, {
-    fields: [graphEdges.sourceConversationId],
-    references: [conversations.id],
   }),
 }));

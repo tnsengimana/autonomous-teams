@@ -121,18 +121,6 @@ describe('createNode', () => {
     await cleanupNodes([node.id]);
   });
 
-  test('creates a node with source conversation ID', async () => {
-    const node = await createNode({
-      entityId: testEntityId,
-      type: 'Concept',
-      name: 'Test Concept',
-      sourceConversationId: testConversationId,
-    });
-
-    expect(node.sourceConversationId).toBe(testConversationId);
-
-    await cleanupNodes([node.id]);
-  });
 });
 
 // ============================================================================
