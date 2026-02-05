@@ -1,5 +1,5 @@
-import { z } from 'zod';
-import { generateLLMObject } from '@/lib/llm/providers';
+import { z } from "zod";
+import { generateLLMObject } from "@/lib/llm/providers";
 
 /**
  * Format interval in milliseconds to human-readable string
@@ -10,23 +10,35 @@ function formatInterval(ms: number): string {
   const days = ms / (24 * 60 * 60 * 1000);
 
   if (days >= 1 && Number.isInteger(days)) {
-    return days === 1 ? '1 day' : `${days} days`;
+    return days === 1 ? "1 day" : `${days} days`;
   }
   if (hours >= 1 && Number.isInteger(hours)) {
-    return hours === 1 ? '1 hour' : `${hours} hours`;
+    return hours === 1 ? "1 hour" : `${hours} hours`;
   }
-  return minutes === 1 ? '1 minute' : `${minutes} minutes`;
+  return minutes === 1 ? "1 minute" : `${minutes} minutes`;
 }
 
 /**
  * Schema for the generated agent configuration with four distinct system prompts
  */
 const AgentConfigurationSchema = z.object({
-  name: z.string().describe('A short, memorable name for this agent (2-4 words)'),
-  conversationSystemPrompt: z.string().describe('System prompt for user-facing conversations'),
-  classificationSystemPrompt: z.string().describe('System prompt for deciding between synthesize or populate actions'),
-  insightSynthesisSystemPrompt: z.string().describe('System prompt for creating insights from existing knowledge'),
-  graphConstructionSystemPrompt: z.string().describe('System prompt for gathering and structuring external knowledge'),
+  name: z
+    .string()
+    .describe("A short, memorable name for this agent (2-4 words)"),
+  conversationSystemPrompt: z
+    .string()
+    .describe("System prompt for user-facing conversations"),
+  classificationSystemPrompt: z
+    .string()
+    .describe(
+      "System prompt for deciding between synthesize or populate actions",
+    ),
+  insightSynthesisSystemPrompt: z
+    .string()
+    .describe("System prompt for creating insights from existing knowledge"),
+  graphConstructionSystemPrompt: z
+    .string()
+    .describe("System prompt for gathering and structuring external knowledge"),
 });
 
 export type AgentConfiguration = z.infer<typeof AgentConfigurationSchema>;
@@ -193,10 +205,10 @@ Insights have two distinct text fields that serve different purposes:
 - Comprehensive analysis document with full supporting details
 - Structure with markdown headers for readability (##, ###)
 - Include ALL evidence from the graph that supports this insight
-- CRITICAL: Add citations to graph nodes/edges using [node:id] or [edge:id] format
-  - Example: "The Q4 earnings report [node:abc123] exceeded expectations..."
-  - Example: "Based on technical indicators [node:def456], the stock is oversold..."
-  - Example: "This relationship [edge:ghi789] shows a strong correlation..."
+- CRITICAL: Add citations to graph nodes/edges using [node:nodeUUId] or [edge:edgeUUID] format
+  - Example: "The Q4 earnings report [node:fa09195c-a510-4d05-bbdb-299e6ec5c1de] exceeded expectations..."
+  - Example: "Based on technical indicators [node:ed2cb222-60cb-4d94-b6ca-f42b8fe77fb0], the stock is oversold..."
+  - Example: "This relationship [edge:7c7ca1b3-09be-4550-822a-205d0c15c0ef] shows a strong correlation..."
 - These citations allow users to trace claims back to source data in the graph
 - Include sections for: Analysis, Supporting Evidence, Risk Factors, Recommendation
 - For signals: include a clear "Recommendation" section with detailed action rationale
@@ -323,16 +335,16 @@ This agent operates in four distinct phases, each with its own system prompt:
 Generate all four system prompts tailored to the given mission:
 
 ### 1. conversationSystemPrompt (3-5 paragraphs)
-${CONVERSATION_META_PROMPT.split('## Output Requirements')[1]}
+${CONVERSATION_META_PROMPT.split("## Output Requirements")[1]}
 
 ### 2. classificationSystemPrompt (4-6 paragraphs)
-${classificationMetaPrompt.split('## Output Requirements')[1]}
+${classificationMetaPrompt.split("## Output Requirements")[1]}
 
 ### 3. insightSynthesisSystemPrompt (4-6 paragraphs)
-${INSIGHT_SYNTHESIS_META_PROMPT.split('## Output Requirements')[1]}
+${INSIGHT_SYNTHESIS_META_PROMPT.split("## Output Requirements")[1]}
 
 ### 4. graphConstructionSystemPrompt (5-7 paragraphs)
-${GRAPH_CONSTRUCTION_META_PROMPT.split('## Output Requirements')[1]}
+${GRAPH_CONSTRUCTION_META_PROMPT.split("## Output Requirements")[1]}
 
 ## Cross-Prompt Consistency
 
@@ -362,7 +374,7 @@ For each prompt, incorporate:
 export async function generateAgentConfiguration(
   purpose: string,
   iterationIntervalMs: number,
-  options?: { userId?: string }
+  options?: { userId?: string },
 ): Promise<AgentConfiguration> {
   const interval = formatInterval(iterationIntervalMs);
 
@@ -375,12 +387,12 @@ Generate the complete agent configuration with:
 Each system prompt should be detailed and actionable, giving clear guidance for its specific phase of operation. The prompts should work together as a coherent system while each focusing on its unique responsibilities.`;
 
   return generateLLMObject(
-    [{ role: 'user', content: userPrompt }],
+    [{ role: "user", content: userPrompt }],
     AgentConfigurationSchema,
     getUnifiedMetaPrompt(interval),
     {
       temperature: 0.7,
       userId: options?.userId,
-    }
+    },
   );
 }

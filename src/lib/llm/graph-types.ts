@@ -44,7 +44,7 @@ export const INSIGHT_NODE_TYPE = {
       content: {
         type: "string",
         description:
-          "Detailed insight with supporting evidence and citations to graph nodes/edges. Include [NodeId] or [EdgeId] annotations for traceability. For signals, include detailed action rationale.",
+          "Detailed insight with supporting evidence and citations to graph nodes/edges. Include [node:nodeUUId] or [edge:nodeUUId] annotations for traceability. For signals, include detailed action rationale.",
       },
       confidence: {
         type: "number",

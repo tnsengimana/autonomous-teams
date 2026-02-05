@@ -101,7 +101,17 @@ async function isAgentDueForIteration(agent: Agent): Promise<boolean> {
   const lastIteration = await getLastCompletedIteration(agent.id);
 
   // Never processed - due immediately
-  if (!lastIteration || !lastIteration.completedAt) {
+  if (!lastIteration) {
+    return true;
+  }
+
+  // Skip if we are still running
+  if (lastIteration.status === "running") {
+    return false;
+  }
+
+  // Never finished running successfully last time
+  if (!lastIteration.completedAt) {
     return true;
   }
 
@@ -250,10 +260,15 @@ Analyze the existing knowledge in your graph and create Insight nodes that captu
   const result = await fullResponse;
 
   // Count tool calls from events for logging
-  const toolCallCount = result.events.filter(
-    (e): e is { toolCalls: Array<{ toolName: string; args: Record<string, unknown> }> } =>
-      "toolCalls" in e
-  ).reduce((sum, e) => sum + e.toolCalls.length, 0);
+  const toolCallCount = result.events
+    .filter(
+      (
+        e,
+      ): e is {
+        toolCalls: Array<{ toolName: string; args: Record<string, unknown> }>;
+      } => "toolCalls" in e,
+    )
+    .reduce((sum, e) => sum + e.toolCalls.length, 0);
 
   // Get total text length from llmOutput events
   const textLength = result.events
@@ -342,10 +357,15 @@ Research and gather external information to fill knowledge gaps. Use Tavily tool
   const result = await fullResponse;
 
   // Count tool calls from events for logging
-  const toolCallCount = result.events.filter(
-    (e): e is { toolCalls: Array<{ toolName: string; args: Record<string, unknown> }> } =>
-      "toolCalls" in e
-  ).reduce((sum, e) => sum + e.toolCalls.length, 0);
+  const toolCallCount = result.events
+    .filter(
+      (
+        e,
+      ): e is {
+        toolCalls: Array<{ toolName: string; args: Record<string, unknown> }>;
+      } => "toolCalls" in e,
+    )
+    .reduce((sum, e) => sum + e.toolCalls.length, 0);
 
   // Get total text length from llmOutput events
   const textLength = result.events
