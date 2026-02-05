@@ -237,6 +237,13 @@ Analyze the existing knowledge in your graph and create Insight nodes that captu
       toolContext,
       agentId: agent.id,
       maxSteps: 10,
+      // Incremental save: update database after each step completes
+      onStepFinish: async (events) => {
+        await updateLLMInteraction(interaction.id, {
+          response: { events },
+        });
+        log(`[InsightSynthesis] Step saved. Events: ${events.length}`);
+      },
     },
   );
 
@@ -253,6 +260,7 @@ Analyze the existing knowledge in your graph and create Insight nodes that captu
     .filter((e): e is { llmOutput: string } => "llmOutput" in e)
     .reduce((sum, e) => sum + e.llmOutput.length, 0);
 
+  // Final save with completedAt timestamp
   await updateLLMInteraction(interaction.id, {
     response: { events: result.events },
     completedAt: new Date(),
@@ -321,6 +329,13 @@ Research and gather external information to fill knowledge gaps. Use Tavily tool
       toolContext,
       agentId: agent.id,
       maxSteps: 10,
+      // Incremental save: update database after each step completes
+      onStepFinish: async (events) => {
+        await updateLLMInteraction(interaction.id, {
+          response: { events },
+        });
+        log(`[GraphConstruction] Step saved. Events: ${events.length}`);
+      },
     },
   );
 
@@ -337,6 +352,7 @@ Research and gather external information to fill knowledge gaps. Use Tavily tool
     .filter((e): e is { llmOutput: string } => "llmOutput" in e)
     .reduce((sum, e) => sum + e.llmOutput.length, 0);
 
+  // Final save with completedAt timestamp
   await updateLLMInteraction(interaction.id, {
     response: { events: result.events },
     completedAt: new Date(),

@@ -173,6 +173,8 @@ export interface StreamWithToolsOptions extends StreamOptions {
   tools: Tool[];
   toolContext: ToolContext;
   maxSteps?: number;
+  /** Callback fired after each step completes with accumulated events so far */
+  onStepFinish?: (events: LLMResponseEvent[]) => Promise<void>;
 }
 
 /**
@@ -460,6 +462,57 @@ export async function streamLLMResponseWithTools(
       | ReturnType<typeof createGoogleGenerativeAI>
     >,
   ) {
+    // Event-based format: chronologically ordered events
+    // Events are accumulated incrementally via onStepFinish callback
+    const events: LLMResponseEvent[] = [];
+    let totalToolCalls = 0;
+    let totalToolResults = 0;
+    let stepCount = 0;
+
+    /**
+     * Convert a step to events and add to the accumulated events array
+     */
+    function processStep(step: {
+      text?: string;
+      toolCalls?: Array<{ toolName: string }>;
+      toolResults?: Array<{ toolName: string }>;
+    } & Record<string, unknown>): void {
+      // Check for reasoning (from reasoning models like DeepSeek-R1, o1)
+      if (step.reasoning && Array.isArray(step.reasoning)) {
+        for (const reasoningPart of step.reasoning as Array<Record<string, unknown>>) {
+          const reasoningText = String(reasoningPart.text || reasoningPart.reasoning || "");
+          if (reasoningText.trim()) {
+            events.push({ llmThought: reasoningText });
+          }
+        }
+      }
+
+      // Text output (what the user sees)
+      if (step.text && step.text.trim()) {
+        events.push({ llmOutput: step.text });
+      }
+
+      // Tool calls (AI SDK v4 uses 'input' not 'args')
+      if (step.toolCalls && step.toolCalls.length > 0) {
+        const toolCalls = step.toolCalls.map((tc) => ({
+          toolName: tc.toolName,
+          args: (tc as unknown as { input: Record<string, unknown> }).input,
+        }));
+        events.push({ toolCalls });
+        totalToolCalls += toolCalls.length;
+      }
+
+      // Tool results (AI SDK v4 uses 'output' not 'result')
+      if (step.toolResults && step.toolResults.length > 0) {
+        const toolResults = step.toolResults.map((tr) => ({
+          toolName: tr.toolName,
+          result: (tr as unknown as { output: unknown }).output,
+        }));
+        events.push({ toolResults });
+        totalToolResults += toolResults.length;
+      }
+    }
+
     const result = streamText({
       model: providerModel,
       messages,
@@ -469,70 +522,33 @@ export async function streamLLMResponseWithTools(
       tools: vercelTools,
       toolChoice: "auto",
       // stopWhen controls how many tool-calling rounds can happen
-      // Default is stepCountIs(1) which stops after first step
-      // We allow up to maxSteps for multi-turn tool calling
       stopWhen: stepCountIs(maxSteps),
+      // Incremental event processing: fires after each step completes
+      onStepFinish: async (step) => {
+        stepCount++;
+        processStep(step as Parameters<typeof processStep>[0]);
+
+        // Log step completion
+        console.log(
+          `[LLM] Step ${stepCount} complete. Events so far: ${events.length}, Tool calls: ${totalToolCalls}`,
+        );
+
+        // Call user-provided callback with accumulated events
+        if (options.onStepFinish) {
+          await options.onStepFinish(events);
+        }
+      },
     });
 
-    // Event-based format: chronologically ordered events
-    const events: LLMResponseEvent[] = [];
-    let totalToolCalls = 0;
-    let totalToolResults = 0;
-
-    // Create a wrapped stream that collects data as it's consumed
+    // Create a wrapped stream that yields text chunks
     const wrappedStream = (async function* () {
       for await (const chunk of result.textStream) {
         yield chunk;
       }
 
-      // After stream completes, collect data from ALL steps
-      // response.steps contains ALL steps with their tool calls and results
-      const response = await result;
-      const steps = await response.steps;
-
-      for (const step of steps || []) {
-        const stepAny = step as Record<string, unknown>;
-
-        // Check for reasoning (from reasoning models like DeepSeek-R1, o1)
-        // AI SDK stores reasoning in step.reasoning as an array
-        if (stepAny.reasoning && Array.isArray(stepAny.reasoning)) {
-          for (const reasoningPart of stepAny.reasoning as Array<Record<string, unknown>>) {
-            const reasoningText = String(reasoningPart.text || reasoningPart.reasoning || "");
-            if (reasoningText.trim()) {
-              events.push({ llmThought: reasoningText });
-            }
-          }
-        }
-
-        // Text output (what the user sees)
-        if (step.text && step.text.trim()) {
-          events.push({ llmOutput: step.text });
-        }
-
-        // Tool calls (AI SDK v4 uses 'input' not 'args')
-        if (step.toolCalls && step.toolCalls.length > 0) {
-          const toolCalls = step.toolCalls.map((tc) => ({
-            toolName: tc.toolName,
-            args: (tc as unknown as { input: Record<string, unknown> }).input,
-          }));
-          events.push({ toolCalls });
-          totalToolCalls += toolCalls.length;
-        }
-
-        // Tool results (AI SDK v4 uses 'output' not 'result')
-        if (step.toolResults && step.toolResults.length > 0) {
-          const toolResults = step.toolResults.map((tr) => ({
-            toolName: tr.toolName,
-            result: (tr as unknown as { output: unknown }).output,
-          }));
-          events.push({ toolResults });
-          totalToolResults += toolResults.length;
-        }
-      }
-
-      // Debug: Log summary
+      // Debug: Log final summary
       console.log(
-        `[LLM] Stream complete. Steps: ${steps?.length || 0}, Events: ${events.length}, Tool calls: ${totalToolCalls}, Tool results: ${totalToolResults}`,
+        `[LLM] Stream complete. Steps: ${stepCount}, Events: ${events.length}, Tool calls: ${totalToolCalls}, Tool results: ${totalToolResults}`,
       );
       if (totalToolCalls > 0) {
         const toolNames = events

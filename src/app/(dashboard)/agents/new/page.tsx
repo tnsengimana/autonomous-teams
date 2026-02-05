@@ -41,7 +41,8 @@ export default function NewAgentPage() {
       hours: 60 * 60 * 1000,
       days: 24 * 60 * 60 * 1000,
     };
-    const iterationIntervalMs = intervalValue * multipliers[formData.intervalUnit];
+    const iterationIntervalMs =
+      intervalValue * multipliers[formData.intervalUnit];
 
     try {
       const response = await fetch("/api/agents", {
@@ -69,7 +70,7 @@ export default function NewAgentPage() {
   };
 
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {
     setFormData((prev) => ({
       ...prev,
@@ -88,7 +89,8 @@ export default function NewAgentPage() {
         </Link>
         <h1 className="mt-2 text-3xl font-bold">Create New Agent</h1>
         <p className="text-muted-foreground">
-          Define your agent&apos;s mission. Everything else will be generated automatically.
+          Define your agent&apos;s mission. Everything else will be generated
+          automatically.
         </p>
       </div>
 
@@ -119,7 +121,8 @@ export default function NewAgentPage() {
                 required
               />
               <p className="text-xs text-muted-foreground">
-                Describe the mission clearly. The agent&apos;s name and configuration will be generated automatically.
+                Describe the mission clearly. The agent&apos;s name and
+                configuration will be generated automatically.
               </p>
             </div>
 
@@ -131,7 +134,7 @@ export default function NewAgentPage() {
                   name="intervalValue"
                   type="number"
                   min="1"
-                  placeholder="5"
+                  placeholder="60"
                   value={formData.intervalValue}
                   onChange={handleChange}
                   className="w-24 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
@@ -140,7 +143,15 @@ export default function NewAgentPage() {
                 <select
                   name="intervalUnit"
                   value={formData.intervalUnit}
-                  onChange={(e) => setFormData(prev => ({ ...prev, intervalUnit: e.target.value as "minutes" | "hours" | "days" }))}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      intervalUnit: e.target.value as
+                        | "minutes"
+                        | "hours"
+                        | "days",
+                    }))
+                  }
                   className="rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
                   <option value="minutes">Minutes</option>
@@ -152,7 +163,6 @@ export default function NewAgentPage() {
                 How often the agent should run its background iteration cycle.
               </p>
             </div>
-
           </CardContent>
         </Card>
 

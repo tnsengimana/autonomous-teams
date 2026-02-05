@@ -33,8 +33,8 @@ export interface CreateLLMInteractionInput {
 }
 
 export interface UpdateLLMInteractionInput {
-  response: Record<string, unknown>;
-  completedAt: Date;
+  response?: Record<string, unknown>;
+  completedAt?: Date;
 }
 
 // ============================================================================
@@ -73,18 +73,25 @@ export async function createLLMInteraction(
 }
 
 /**
- * Update an LLM interaction record with response and completion time
+ * Update an LLM interaction record with response and/or completion time.
+ * Supports incremental updates (response only) and final updates (response + completedAt).
  */
 export async function updateLLMInteraction(
   id: string,
   data: UpdateLLMInteractionInput
 ): Promise<void> {
+  const updateData: { response?: Record<string, unknown>; completedAt?: Date } = {};
+
+  if (data.response !== undefined) {
+    updateData.response = data.response;
+  }
+  if (data.completedAt !== undefined) {
+    updateData.completedAt = data.completedAt;
+  }
+
   await db
     .update(llmInteractions)
-    .set({
-      response: data.response,
-      completedAt: data.completedAt,
-    })
+    .set(updateData)
     .where(eq(llmInteractions.id, id));
 }
 
