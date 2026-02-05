@@ -21,11 +21,10 @@ export async function createEntity(data: {
   userId: string;
   name: string;
   purpose?: string | null;
-  systemPrompt: string;
-  conversationSystemPrompt?: string | null;
-  classificationSystemPrompt?: string | null;
-  insightSynthesisSystemPrompt?: string | null;
-  graphConstructionSystemPrompt?: string | null;
+  conversationSystemPrompt: string;
+  classificationSystemPrompt: string;
+  insightSynthesisSystemPrompt: string;
+  graphConstructionSystemPrompt: string;
   status?: EntityStatus;
 }): Promise<Entity> {
   const result = await db
@@ -34,11 +33,10 @@ export async function createEntity(data: {
       userId: data.userId,
       name: data.name,
       purpose: data.purpose ?? null,
-      systemPrompt: data.systemPrompt,
-      conversationSystemPrompt: data.conversationSystemPrompt ?? null,
-      classificationSystemPrompt: data.classificationSystemPrompt ?? null,
-      insightSynthesisSystemPrompt: data.insightSynthesisSystemPrompt ?? null,
-      graphConstructionSystemPrompt: data.graphConstructionSystemPrompt ?? null,
+      conversationSystemPrompt: data.conversationSystemPrompt,
+      classificationSystemPrompt: data.classificationSystemPrompt,
+      insightSynthesisSystemPrompt: data.insightSynthesisSystemPrompt,
+      graphConstructionSystemPrompt: data.graphConstructionSystemPrompt,
       status: data.status ?? "active",
     })
     .returning();
@@ -114,7 +112,6 @@ export async function updateEntity(
   data: {
     name?: string;
     purpose?: string | null;
-    systemPrompt?: string;
     status?: EntityStatus;
   },
 ): Promise<void> {

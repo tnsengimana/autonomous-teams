@@ -42,7 +42,10 @@ beforeAll(async () => {
       userId: testUserId,
       name: "Test Research Team",
       purpose: "Financial research and analysis",
-      systemPrompt: "You are a test entity for knowledge graph testing.",
+      conversationSystemPrompt: "You are a test entity for knowledge graph testing.",
+      classificationSystemPrompt: "You classify information for testing.",
+      insightSynthesisSystemPrompt: "You synthesize insights for testing.",
+      graphConstructionSystemPrompt: "You construct graphs for testing.",
       status: "active",
     })
     .returning();
@@ -112,7 +115,10 @@ describe("buildGraphContextBlock", () => {
         userId: testUserId,
         name: "Empty Test Entity",
         purpose: "Testing empty graph",
-        systemPrompt: "You are a test entity for empty graph testing.",
+        conversationSystemPrompt: "You are a test entity for empty graph testing.",
+        classificationSystemPrompt: "You classify information for testing.",
+        insightSynthesisSystemPrompt: "You synthesize insights for testing.",
+        graphConstructionSystemPrompt: "You construct graphs for testing.",
         status: "active",
       })
       .returning();
@@ -154,7 +160,10 @@ describe("ensureGraphTypesInitialized", () => {
         userId: testUserId,
         name: "No Types Entity",
         purpose: "Testing type initialization",
-        systemPrompt: "You are a test entity for type initialization.",
+        conversationSystemPrompt: "You are a test entity for type initialization.",
+        classificationSystemPrompt: "You classify information for testing.",
+        insightSynthesisSystemPrompt: "You synthesize insights for testing.",
+        graphConstructionSystemPrompt: "You construct graphs for testing.",
         status: "active",
       })
       .returning();
@@ -217,7 +226,10 @@ describe("ensureGraphTypesInitialized", () => {
         userId: testUserId,
         name: "No UserId Entity",
         purpose: "Testing without userId",
-        systemPrompt: "You are a test entity for userId testing.",
+        conversationSystemPrompt: "You are a test entity for userId testing.",
+        classificationSystemPrompt: "You classify information for testing.",
+        insightSynthesisSystemPrompt: "You synthesize insights for testing.",
+        graphConstructionSystemPrompt: "You construct graphs for testing.",
         status: "active",
       })
       .returning();
@@ -262,7 +274,10 @@ describe("Integration", () => {
         userId: testUserId,
         name: "Integration Test Team",
         purpose: "Integration testing",
-        systemPrompt: "You are a test entity for integration testing.",
+        conversationSystemPrompt: "You are a test entity for integration testing.",
+        classificationSystemPrompt: "You classify information for testing.",
+        insightSynthesisSystemPrompt: "You synthesize insights for testing.",
+        graphConstructionSystemPrompt: "You construct graphs for testing.",
         status: "active",
       })
       .returning();

@@ -62,7 +62,6 @@ export async function POST(request: NextRequest) {
       userId: session.user.id,
       name: config.name,
       purpose,
-      systemPrompt: config.conversationSystemPrompt, // For backwards compatibility
       conversationSystemPrompt: config.conversationSystemPrompt,
       classificationSystemPrompt: config.classificationSystemPrompt,
       insightSynthesisSystemPrompt: config.insightSynthesisSystemPrompt,

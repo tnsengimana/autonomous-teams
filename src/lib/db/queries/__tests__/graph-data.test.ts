@@ -53,7 +53,10 @@ beforeAll(async () => {
     userId: testUserId,
     name: 'Graph Data Test Team',
     purpose: 'Testing graph data management',
-    systemPrompt: 'You are a test entity for graph data testing.',
+    conversationSystemPrompt: 'You are a test entity for graph data testing.',
+    classificationSystemPrompt: 'You classify information for testing.',
+    insightSynthesisSystemPrompt: 'You synthesize insights for testing.',
+    graphConstructionSystemPrompt: 'You construct graphs for testing.',
   }).returning();
   testEntityId = entity.id;
 
@@ -580,7 +583,10 @@ describe('serializeGraphForLLM', () => {
     const [freshEntity] = await db.insert(entities).values({
       userId: testUserId,
       name: 'Empty Graph Test',
-      systemPrompt: 'Test prompt',
+      conversationSystemPrompt: 'Test prompt',
+      classificationSystemPrompt: 'Test prompt',
+      insightSynthesisSystemPrompt: 'Test prompt',
+      graphConstructionSystemPrompt: 'Test prompt',
     }).returning();
 
     const serialized = await serializeGraphForLLM(freshEntity.id);
@@ -647,7 +653,10 @@ describe('getGraphStats', () => {
     const [freshEntity] = await db.insert(entities).values({
       userId: testUserId,
       name: 'Empty Stats Test',
-      systemPrompt: 'Test prompt',
+      conversationSystemPrompt: 'Test prompt',
+      classificationSystemPrompt: 'Test prompt',
+      insightSynthesisSystemPrompt: 'Test prompt',
+      graphConstructionSystemPrompt: 'Test prompt',
     }).returning();
 
     const stats = await getGraphStats(freshEntity.id);

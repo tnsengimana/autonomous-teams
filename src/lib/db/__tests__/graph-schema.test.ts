@@ -31,7 +31,10 @@ beforeAll(async () => {
     userId: testUserId,
     name: 'Graph Test Team',
     purpose: 'Testing knowledge graph',
-    systemPrompt: 'You are a test entity for knowledge graph testing.',
+    conversationSystemPrompt: 'You are a test entity for knowledge graph testing.',
+    classificationSystemPrompt: 'You classify information for testing.',
+    insightSynthesisSystemPrompt: 'You synthesize insights for testing.',
+    graphConstructionSystemPrompt: 'You construct graphs for testing.',
   }).returning();
   testEntityId = entity.id;
 
@@ -131,7 +134,10 @@ describe('graphNodeTypes schema', () => {
     const [tempEntity] = await db.insert(entities).values({
       userId: testUserId,
       name: 'Temp Entity for Cascade Test',
-      systemPrompt: 'Test prompt',
+      conversationSystemPrompt: 'Test prompt',
+      classificationSystemPrompt: 'Test prompt',
+      insightSynthesisSystemPrompt: 'Test prompt',
+      graphConstructionSystemPrompt: 'Test prompt',
     }).returning();
 
     const [nodeType] = await db.insert(graphNodeTypes).values({
@@ -202,7 +208,10 @@ describe('graphEdgeTypes schema', () => {
     const [tempEntity] = await db.insert(entities).values({
       userId: testUserId,
       name: 'Temp Entity for Edge Cascade Test',
-      systemPrompt: 'Test prompt',
+      conversationSystemPrompt: 'Test prompt',
+      classificationSystemPrompt: 'Test prompt',
+      insightSynthesisSystemPrompt: 'Test prompt',
+      graphConstructionSystemPrompt: 'Test prompt',
     }).returning();
 
     const [edgeType] = await db.insert(graphEdgeTypes).values({
@@ -455,7 +464,10 @@ describe('graphNodes schema', () => {
     const [tempEntity] = await db.insert(entities).values({
       userId: testUserId,
       name: 'Temp Entity for Node Cascade',
-      systemPrompt: 'Test prompt',
+      conversationSystemPrompt: 'Test prompt',
+      classificationSystemPrompt: 'Test prompt',
+      insightSynthesisSystemPrompt: 'Test prompt',
+      graphConstructionSystemPrompt: 'Test prompt',
     }).returning();
 
     const [node] = await db.insert(graphNodes).values({
@@ -477,7 +489,10 @@ describe('graphNodes schema', () => {
     const [tempEntity] = await db.insert(entities).values({
       userId: testUserId,
       name: 'Temp Entity for Node Source Test',
-      systemPrompt: 'Test prompt',
+      conversationSystemPrompt: 'Test prompt',
+      classificationSystemPrompt: 'Test prompt',
+      insightSynthesisSystemPrompt: 'Test prompt',
+      graphConstructionSystemPrompt: 'Test prompt',
     }).returning();
 
     const [tempConversation] = await db.insert(conversations).values({
@@ -650,7 +665,10 @@ describe('graphEdges schema', () => {
     const [tempEntity] = await db.insert(entities).values({
       userId: testUserId,
       name: 'Temp Entity for Edge Cascade',
-      systemPrompt: 'Test prompt',
+      conversationSystemPrompt: 'Test prompt',
+      classificationSystemPrompt: 'Test prompt',
+      insightSynthesisSystemPrompt: 'Test prompt',
+      graphConstructionSystemPrompt: 'Test prompt',
     }).returning();
 
     // Create nodes in the temp entity
@@ -705,7 +723,10 @@ describe('graphEdges schema', () => {
     const [tempEntity] = await db.insert(entities).values({
       userId: testUserId,
       name: 'Temp Entity for Edge Source Test',
-      systemPrompt: 'Test prompt',
+      conversationSystemPrompt: 'Test prompt',
+      classificationSystemPrompt: 'Test prompt',
+      insightSynthesisSystemPrompt: 'Test prompt',
+      graphConstructionSystemPrompt: 'Test prompt',
     }).returning();
 
     const [tempConversation] = await db.insert(conversations).values({

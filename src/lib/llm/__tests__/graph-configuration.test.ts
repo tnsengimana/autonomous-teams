@@ -330,7 +330,10 @@ describe("persistInitializedTypes", () => {
         userId: testUserId,
         name: "Persist Test Entity",
         purpose: "Testing persistence",
-        systemPrompt: "You are a test entity for persistence testing.",
+        conversationSystemPrompt: "You are a test entity for persistence testing.",
+        classificationSystemPrompt: "You classify information for testing.",
+        insightSynthesisSystemPrompt: "You synthesize insights for testing.",
+        graphConstructionSystemPrompt: "You construct graphs for testing.",
         status: "active",
       })
       .returning();
@@ -370,7 +373,10 @@ describe("persistInitializedTypes", () => {
         userId: testUserId,
         name: "Edge Persist Test Entity",
         purpose: "Testing edge persistence",
-        systemPrompt: "You are a test entity for edge persistence testing.",
+        conversationSystemPrompt: "You are a test entity for edge persistence testing.",
+        classificationSystemPrompt: "You classify information for testing.",
+        insightSynthesisSystemPrompt: "You synthesize insights for testing.",
+        graphConstructionSystemPrompt: "You construct graphs for testing.",
         status: "active",
       })
       .returning();
@@ -410,8 +416,11 @@ describe("persistInitializedTypes", () => {
         userId: testUserId,
         name: "Constraint Persist Test Entity",
         purpose: "Testing constraint persistence",
-        systemPrompt:
+        conversationSystemPrompt:
           "You are a test entity for constraint persistence testing.",
+        classificationSystemPrompt: "You classify information for testing.",
+        insightSynthesisSystemPrompt: "You synthesize insights for testing.",
+        graphConstructionSystemPrompt: "You construct graphs for testing.",
         status: "active",
       })
       .returning();
@@ -453,7 +462,10 @@ describe("persistInitializedTypes", () => {
         userId: testUserId,
         name: "Empty Types Test Entity",
         purpose: "Testing empty types",
-        systemPrompt: "You are a test entity for empty types testing.",
+        conversationSystemPrompt: "You are a test entity for empty types testing.",
+        classificationSystemPrompt: "You classify information for testing.",
+        insightSynthesisSystemPrompt: "You synthesize insights for testing.",
+        graphConstructionSystemPrompt: "You construct graphs for testing.",
         status: "active",
       })
       .returning();
@@ -483,7 +495,10 @@ describe("persistInitializedTypes", () => {
         userId: testUserId,
         name: "Invalid Ref Test Entity",
         purpose: "Testing invalid references",
-        systemPrompt: "You are a test entity for invalid reference testing.",
+        conversationSystemPrompt: "You are a test entity for invalid reference testing.",
+        classificationSystemPrompt: "You classify information for testing.",
+        insightSynthesisSystemPrompt: "You synthesize insights for testing.",
+        graphConstructionSystemPrompt: "You construct graphs for testing.",
         status: "active",
       })
       .returning();
@@ -541,7 +556,10 @@ describe("Integration", () => {
         userId: testUserId,
         name: "E2E Test Aide",
         purpose: "End-to-end type initialization testing",
-        systemPrompt: "You are a test entity for E2E testing.",
+        conversationSystemPrompt: "You are a test entity for E2E testing.",
+        classificationSystemPrompt: "You classify information for testing.",
+        insightSynthesisSystemPrompt: "You synthesize insights for testing.",
+        graphConstructionSystemPrompt: "You construct graphs for testing.",
         status: "active",
       })
       .returning();

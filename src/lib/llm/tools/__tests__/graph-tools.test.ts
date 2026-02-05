@@ -48,7 +48,10 @@ beforeAll(async () => {
     userId: testUserId,
     name: 'Graph Tools Test Team',
     purpose: 'Testing graph tools',
-    systemPrompt: 'You are a test entity for graph tools testing.',
+    conversationSystemPrompt: 'You are a test entity for graph tools testing.',
+    classificationSystemPrompt: 'You classify information for testing.',
+    insightSynthesisSystemPrompt: 'You synthesize insights for testing.',
+    graphConstructionSystemPrompt: 'You construct graphs for testing.',
   }).returning();
   testEntityId = entity.id;
 

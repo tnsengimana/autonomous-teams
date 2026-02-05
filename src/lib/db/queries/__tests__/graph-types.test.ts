@@ -49,7 +49,10 @@ beforeAll(async () => {
     userId: testUserId,
     name: 'Graph Types Test Team',
     purpose: 'Testing graph type management',
-    systemPrompt: 'You are a test entity for graph type testing.',
+    conversationSystemPrompt: 'You are a test entity for graph type testing.',
+    classificationSystemPrompt: 'You classify information for testing.',
+    insightSynthesisSystemPrompt: 'You synthesize insights for testing.',
+    graphConstructionSystemPrompt: 'You construct graphs for testing.',
   }).returning();
   testEntityId = entity.id;
 
@@ -57,7 +60,10 @@ beforeAll(async () => {
     userId: testUserId,
     name: 'Graph Types Test Team 2',
     purpose: 'Testing graph type isolation',
-    systemPrompt: 'You are a test entity for graph type isolation testing.',
+    conversationSystemPrompt: 'You are a test entity for graph type isolation testing.',
+    classificationSystemPrompt: 'You classify information for testing.',
+    insightSynthesisSystemPrompt: 'You synthesize insights for testing.',
+    graphConstructionSystemPrompt: 'You construct graphs for testing.',
   }).returning();
   testEntity2Id = entity2.id;
 });
@@ -515,7 +521,10 @@ describe('formatTypesForLLMContext', () => {
     const [freshEntity] = await db.insert(entities).values({
       userId: testUserId,
       name: 'Empty Types Test',
-      systemPrompt: 'Test prompt',
+      conversationSystemPrompt: 'Test prompt',
+      classificationSystemPrompt: 'Test prompt',
+      insightSynthesisSystemPrompt: 'Test prompt',
+      graphConstructionSystemPrompt: 'Test prompt',
     }).returning();
 
     const formatted = await formatTypesForLLMContext(freshEntity.id);

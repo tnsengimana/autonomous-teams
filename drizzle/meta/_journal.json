@@ -15,6 +15,20 @@
       "when": 1770248525388,
       "tag": "0001_blue_the_hood",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1770249970247,
+      "tag": "0002_careless_impossible_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1770250021779,
+      "tag": "0003_overjoyed_random",
+      "breakpoints": true
     }
   ]
 }

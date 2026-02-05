@@ -21,7 +21,7 @@ export default async function EntityChatPage({
       entity={{
         id: entity.id,
         name: entity.name,
-        systemPrompt: entity.systemPrompt,
+        systemPrompt: entity.conversationSystemPrompt ?? '',
       }}
     />
   );

@@ -18,7 +18,6 @@ import {
   ensureGraphTypesInitialized,
 } from "@/lib/llm/knowledge-graph";
 import {
-  getBackgroundTools,
   getClassificationTools,
   getInsightSynthesisTools,
   getGraphConstructionTools,
@@ -354,98 +353,10 @@ Research and gather external information to fill knowledge gaps. Use Tavily tool
   );
 }
 
-// ============================================================================
-// Legacy Single-Step Flow (Backwards Compatibility)
-// ============================================================================
-
-/**
- * Process entity using the legacy single-step flow.
- * Used when entity doesn't have the new phase-specific prompts.
- */
-async function processEntityIterationLegacy(entity: Entity): Promise<void> {
-  log(`[Legacy] Processing iteration for entity: ${entity.name} (${entity.id})`);
-
-  // Build context with graph information
-  const graphContext = await buildGraphContextBlock(entity.id);
-  const systemPrompt = entity.systemPrompt;
-
-  // Create the request message with graph context
-  const requestMessages = [
-    {
-      role: "user" as const,
-      content: `
-<request>
-Continue your work. Review your knowledge graph state below and decide what to do next to further your mission. You can:
-- Use queryGraph to search for existing knowledge
-- Use tavilySearch, tavilyExtract, or tavilyResearch to gather new information from the web
-- Use addGraphNode to add new knowledge to your graph
-- Use addGraphEdge to create relationships between nodes
-- Use createNodeType or createEdgeType if you need new types
-- Use requestUserInput if you need clarification or input from the user
-
-Think about what would be most valuable to research or learn about right now, then take action.
-<request>
-
-
-${graphContext}
-`,
-    },
-  ];
-
-  // Create llm_interaction record
-  const interaction = await createLLMInteraction({
-    entityId: entity.id,
-    systemPrompt: systemPrompt,
-    request: { messages: requestMessages },
-  });
-
-  // Get tools with context
-  const toolContext: ToolContext = { entityId: entity.id };
-  const tools = getBackgroundTools();
-
-  log(`[Legacy] Calling LLM for entity ${entity.name} with ${tools.length} tools`);
-
-  const { fullResponse } = await streamLLMResponseWithTools(
-    requestMessages,
-    systemPrompt,
-    {
-      tools,
-      toolContext,
-      entityId: entity.id,
-    },
-  );
-
-  const result = await fullResponse;
-
-  await updateLLMInteraction(interaction.id, {
-    response: {
-      text: result.text,
-      toolCalls: result.toolCalls,
-      toolResults: result.toolResults,
-    },
-    completedAt: new Date(),
-  });
-
-  log(
-    `[Legacy] Completed iteration for entity ${entity.name}. ` +
-      `Tool calls: ${result.toolCalls.length}, Response length: ${result.text.length}`,
-  );
-}
 
 // ============================================================================
 // Entity Iteration Processing
 // ============================================================================
-
-/**
- * Check if entity has the new multi-phase prompts configured.
- */
-function hasMultiPhasePrompts(entity: Entity): boolean {
-  return !!(
-    entity.classificationSystemPrompt &&
-    entity.insightSynthesisSystemPrompt &&
-    entity.graphConstructionSystemPrompt
-  );
-}
 
 /**
  * Process one entity's iteration using the two-step classification -> action flow.
@@ -468,12 +379,16 @@ async function processEntityIteration(entity: Entity): Promise<void> {
       { userId: entity.userId },
     );
 
-    // Check if entity has multi-phase prompts; if not, use legacy flow
-    if (!hasMultiPhasePrompts(entity)) {
-      log(
-        `Entity ${entity.name} missing multi-phase prompts, using legacy flow`,
+    // Validate that entity has all required multi-phase prompts
+    if (
+      !entity.classificationSystemPrompt ||
+      !entity.insightSynthesisSystemPrompt ||
+      !entity.graphConstructionSystemPrompt
+    ) {
+      logError(
+        `Entity ${entity.name} missing required multi-phase prompts, skipping`,
+        new Error("Missing required prompts"),
       );
-      await processEntityIterationLegacy(entity);
       return;
     }
 

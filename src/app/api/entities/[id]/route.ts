@@ -10,7 +10,6 @@ import { z } from "zod";
 const updateEntitySchema = z.object({
   name: z.string().min(1).optional(),
   purpose: z.string().optional(),
-  systemPrompt: z.string().optional(),
   status: z.enum(["active", "paused", "archived"]).optional(),
 });
 
