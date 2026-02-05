@@ -31,7 +31,7 @@ const DEFAULT_MODEL = {
   openai: "gpt-4o",
   anthropic: "claude-sonnet-4-20250514",
   google: "gemini-3-flash-preview", // Using flash as default since pro has reliability issues
-  lmstudio: "openai/gpt-oss-20b",
+  lmstudio: "zai-org/glm-4.7-flash",
 } as const;
 
 const FALLBACK_MODEL = {
