@@ -22,6 +22,7 @@ import {
 } from "@/lib/llm/knowledge-graph";
 import {
   getInsightSynthesisTools,
+  getKnowledgeAcquisitionTools,
   getGraphConstructionTools,
   type ToolContext,
 } from "@/lib/llm/tools";
@@ -66,6 +67,12 @@ const ClassificationResultSchema = z.object({
     .string()
     .describe(
       "Detailed reasoning explaining why this action was chosen and what specific work should be done",
+    ),
+  knowledge_gaps: z
+    .array(z.string())
+    .optional()
+    .describe(
+      "Required when action='populate'. Each string is a query representing a knowledge gap to fill",
     ),
 });
 
@@ -149,7 +156,9 @@ ${graphContext}
 
 Based on the graph state above, decide:
 - "synthesize" if you have enough knowledge to derive meaningful insights
-- "populate" if you need to gather more external knowledge`,
+- "populate" if you need to gather more external knowledge
+
+If you choose "populate", you MUST also provide a "knowledge_gaps" array with specific research queries describing what information needs to be gathered.`,
     },
   ];
 
@@ -288,12 +297,113 @@ Analyze the existing knowledge in your graph and create Insight nodes that captu
 }
 
 /**
+ * Run the knowledge acquisition phase.
+ * Gathers raw information using web search tools for a specific knowledge gap.
+ * Returns a markdown document with the findings.
+ */
+async function runKnowledgeAcquisitionPhase(
+  agent: Agent,
+  knowledgeGap: string,
+  graphContext: string,
+  workerIterationId: string,
+): Promise<string> {
+  log(`[KnowledgeAcquisition] Starting for agent: ${agent.name}, gap: "${knowledgeGap.substring(0, 50)}..."`);
+
+  const systemPrompt = agent.knowledgeAcquisitionSystemPrompt;
+  if (!systemPrompt) {
+    throw new Error("Agent missing knowledgeAcquisitionSystemPrompt");
+  }
+
+  const requestMessages = [
+    {
+      role: "user" as const,
+      content: `Research the following knowledge gap and return a comprehensive markdown document with your findings.
+
+## Knowledge Gap to Research
+${knowledgeGap}
+
+## Current Knowledge Graph (for context)
+${graphContext}
+
+Use the available web search tools (tavilySearch, tavilyExtract, tavilyResearch) to gather comprehensive information about this topic. Return a well-organized markdown document with all findings, including source URLs and publication dates.`,
+    },
+  ];
+
+  // Create llm_interaction record
+  const interaction = await createLLMInteraction({
+    agentId: agent.id,
+    workerIterationId,
+    systemPrompt: systemPrompt,
+    request: { messages: requestMessages },
+    phase: "knowledge_acquisition",
+  });
+
+  // Get knowledge acquisition tools (tavily tools only)
+  const toolContext: ToolContext = { agentId: agent.id };
+  const tools = getKnowledgeAcquisitionTools();
+
+  log(
+    `[KnowledgeAcquisition] Calling LLM with ${tools.length} tools for agent ${agent.name}`,
+  );
+
+  const { fullResponse } = await streamLLMResponseWithTools(
+    requestMessages,
+    systemPrompt,
+    {
+      tools,
+      toolContext,
+      agentId: agent.id,
+      maxSteps: 10,
+      // Incremental save: update database after each step completes
+      onStepFinish: async (events) => {
+        await updateLLMInteraction(interaction.id, {
+          response: { events },
+        });
+        log(`[KnowledgeAcquisition] Step saved. Events: ${events.length}`);
+      },
+    },
+  );
+
+  const result = await fullResponse;
+
+  // Count tool calls from events for logging
+  const toolCallCount = result.events
+    .filter(
+      (
+        e,
+      ): e is {
+        toolCalls: Array<{ toolName: string; args: Record<string, unknown> }>;
+      } => "toolCalls" in e,
+    )
+    .reduce((sum, e) => sum + e.toolCalls.length, 0);
+
+  // Get the final text output (markdown document)
+  const markdownOutput = result.events
+    .filter((e): e is { llmOutput: string } => "llmOutput" in e)
+    .map((e) => e.llmOutput)
+    .join("");
+
+  // Final save with completedAt timestamp
+  await updateLLMInteraction(interaction.id, {
+    response: { events: result.events },
+    completedAt: new Date(),
+  });
+
+  log(
+    `[KnowledgeAcquisition] Completed for agent ${agent.name}. ` +
+      `Tool calls: ${toolCallCount}, Output length: ${markdownOutput.length}`,
+  );
+
+  return markdownOutput;
+}
+
+/**
  * Run the graph construction phase.
- * Gathers external knowledge via Tavily tools and populates the graph.
+ * Structures acquired knowledge (from markdown) into the graph.
  */
 async function runGraphConstructionPhase(
   agent: Agent,
-  classificationReasoning: string,
+  acquiredKnowledge: string,
   graphContext: string,
   workerIterationId: string,
 ): Promise<void> {
@@ -307,15 +417,15 @@ async function runGraphConstructionPhase(
   const requestMessages = [
     {
       role: "user" as const,
-      content: `Execute graph population based on the classification decision.
+      content: `Structure the following acquired knowledge into your knowledge graph.
 
-## Classification Decision
-${classificationReasoning}
+## Acquired Knowledge (from research)
+${acquiredKnowledge}
 
 ## Current Knowledge Graph
 ${graphContext}
 
-Research and gather external information to fill knowledge gaps. Use Tavily tools (tavilySearch, tavilyExtract, tavilyResearch) to find information, then use addGraphNode and addGraphEdge to add the knowledge to your graph.`,
+Transform the research findings above into structured graph nodes and edges. Use queryGraph to check for existing nodes, addGraphNode to create new nodes, and addGraphEdge to create relationships.`,
     },
   ];
 
@@ -328,7 +438,7 @@ Research and gather external information to fill knowledge gaps. Use Tavily tool
     phase: "graph_construction",
   });
 
-  // Get graph construction tools
+  // Get graph construction tools (graph tools only, no tavily)
   const toolContext: ToolContext = { agentId: agent.id };
   const tools = getGraphConstructionTools();
 
@@ -440,12 +550,44 @@ async function processAgentIteration(agent: Agent): Promise<void> {
         workerIteration.id,
       );
     } else {
-      await runGraphConstructionPhase(
-        agent,
-        classification.reasoning,
-        graphContext,
-        workerIteration.id,
-      );
+      // Populate action: loop through knowledge gaps
+      const knowledgeGaps = classification.knowledge_gaps ?? [];
+
+      if (knowledgeGaps.length === 0) {
+        log(`[Populate] No knowledge gaps provided, using reasoning as single gap`);
+        // Fallback: use reasoning as the knowledge gap if no specific gaps provided
+        const markdown = await runKnowledgeAcquisitionPhase(
+          agent,
+          classification.reasoning,
+          graphContext,
+          workerIteration.id,
+        );
+        await runGraphConstructionPhase(
+          agent,
+          markdown,
+          graphContext,
+          workerIteration.id,
+        );
+      } else {
+        log(`[Populate] Processing ${knowledgeGaps.length} knowledge gaps`);
+        for (const gap of knowledgeGaps) {
+          // Step 2a: Acquire knowledge for this gap
+          const markdown = await runKnowledgeAcquisitionPhase(
+            agent,
+            gap,
+            graphContext,
+            workerIteration.id,
+          );
+
+          // Step 2b: Construct graph from acquired knowledge
+          await runGraphConstructionPhase(
+            agent,
+            markdown,
+            graphContext,
+            workerIteration.id,
+          );
+        }
+      }
     }
 
     // Mark iteration as completed

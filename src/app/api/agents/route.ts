@@ -56,14 +56,14 @@ export async function POST(request: NextRequest) {
 
     const { purpose, iterationIntervalMs } = validation.data;
 
-    // Generate name and all four system prompts from mission/purpose
+    // Generate name and all five system prompts from mission/purpose
     const config = await generateAgentConfiguration(
       purpose,
       iterationIntervalMs,
       { userId: session.user.id },
     );
 
-    // Create the agent with generated name and all four system prompts
+    // Create the agent with generated name and all five system prompts
     const agent = await createAgent({
       userId: session.user.id,
       name: config.name,
@@ -71,6 +71,7 @@ export async function POST(request: NextRequest) {
       conversationSystemPrompt: config.conversationSystemPrompt,
       classificationSystemPrompt: config.classificationSystemPrompt,
       insightSynthesisSystemPrompt: config.insightSynthesisSystemPrompt,
+      knowledgeAcquisitionSystemPrompt: config.knowledgeAcquisitionSystemPrompt,
       graphConstructionSystemPrompt: config.graphConstructionSystemPrompt,
       iterationIntervalMs,
       isActive: true,

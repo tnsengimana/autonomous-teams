@@ -99,6 +99,7 @@ export const agents = pgTable(
     conversationSystemPrompt: text("conversation_system_prompt").notNull(),
     classificationSystemPrompt: text("classification_system_prompt").notNull(),
     insightSynthesisSystemPrompt: text("insight_synthesis_system_prompt").notNull(),
+    knowledgeAcquisitionSystemPrompt: text("knowledge_acquisition_system_prompt"),
     graphConstructionSystemPrompt: text("graph_construction_system_prompt").notNull(),
     // Worker iteration interval in milliseconds
     iterationIntervalMs: integer("iteration_interval_ms").notNull(),
@@ -199,7 +200,7 @@ export const llmInteractions = pgTable(
       { onDelete: "cascade" },
     ),
     systemPrompt: text("system_prompt").notNull(),
-    phase: text("phase"), // 'classification' | 'insight_synthesis' | 'graph_construction'
+    phase: text("phase"), // 'classification' | 'insight_synthesis' | 'knowledge_acquisition' | 'graph_construction'
     request: jsonb("request").notNull(),
     response: jsonb("response"),
     createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),

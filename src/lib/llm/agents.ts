@@ -19,7 +19,7 @@ function formatInterval(ms: number): string {
 }
 
 /**
- * Schema for the generated agent configuration with four distinct system prompts
+ * Schema for the generated agent configuration with five distinct system prompts
  */
 const AgentConfigurationSchema = z.object({
   name: z
@@ -36,9 +36,12 @@ const AgentConfigurationSchema = z.object({
   insightSynthesisSystemPrompt: z
     .string()
     .describe("System prompt for creating insights from existing knowledge"),
+  knowledgeAcquisitionSystemPrompt: z
+    .string()
+    .describe("System prompt for gathering raw information using web search tools"),
   graphConstructionSystemPrompt: z
     .string()
-    .describe("System prompt for gathering and structuring external knowledge"),
+    .describe("System prompt for structuring acquired knowledge into the graph"),
 });
 
 export type AgentConfiguration = z.infer<typeof AgentConfigurationSchema>;
@@ -238,23 +241,23 @@ NOTE: There is no separate "action" field. For signals, the recommended action s
 - Every node cited in content should have a corresponding edge in the graph`;
 
 /**
- * Meta-prompt for generating the GRAPH CONSTRUCTION system prompt.
- * This prompt gathers external knowledge and populates the graph.
+ * Meta-prompt for generating the KNOWLEDGE ACQUISITION system prompt.
+ * This prompt gathers raw information using web search tools.
  */
-const GRAPH_CONSTRUCTION_META_PROMPT = `You are an expert agent architect. Given a mission/purpose, generate a GRAPH CONSTRUCTION SYSTEM PROMPT for an AI agent that gathers and structures external knowledge.
+const KNOWLEDGE_ACQUISITION_META_PROMPT = `You are an expert agent architect. Given a mission/purpose, generate a KNOWLEDGE ACQUISITION SYSTEM PROMPT for an AI agent that gathers raw information.
 
 ## Context
 
-This agent has been directed to populate its Knowledge Graph with new information. It uses web search tools (Tavily) to research topics and adds structured knowledge to the graph. The input includes reasoning from the classification phase explaining WHAT to research and WHY.
+This agent has been directed to research a specific knowledge gap. It uses web search tools (Tavily) to gather comprehensive information and returns a markdown document with its findings. This phase focuses ONLY on information gathering - NOT on structuring the data into the knowledge graph.
 
 ## Output Requirements
 
-Generate a graphConstructionSystemPrompt (5-7 paragraphs) that instructs the agent to:
+Generate a knowledgeAcquisitionSystemPrompt (3-5 paragraphs) that instructs the agent to:
 
-### 1. Follow Classification Guidance
-- Read the classification reasoning carefully - it specifies what to research
-- Focus on filling the specific knowledge gaps identified
-- Don't deviate into unrelated research tangents
+### 1. Input Understanding
+- The agent receives a single knowledge gap query describing what to research
+- Focus exclusively on addressing this specific query
+- Don't deviate into tangential topics
 
 ### 2. Research Strategy
 - Use tavilySearch for broad discovery and current information
@@ -263,7 +266,46 @@ Generate a graphConstructionSystemPrompt (5-7 paragraphs) that instructs the age
 - Verify important facts across multiple sources when possible
 - Prioritize authoritative, primary sources
 
-### 3. Knowledge Structuring
+### 3. Information Gathering
+- Collect raw facts, data points, quotes, and references
+- Note publication dates and source credibility
+- Capture numerical data precisely
+- Include relevant context and background information
+
+### 4. Output Format
+- Return a comprehensive markdown document with findings
+- Use clear headers to organize different aspects of the research
+- Include direct quotes when relevant
+- List all source URLs for attribution
+- Note any conflicting information found across sources
+
+### 5. Quality Standards
+- Prioritize accuracy over comprehensiveness
+- Flag uncertain or unverified claims
+- Include publication dates to establish recency
+- Don't add interpretation or analysis - just gather raw information
+- The output will be passed to the Graph Construction phase for structuring`;
+
+/**
+ * Meta-prompt for generating the GRAPH CONSTRUCTION system prompt.
+ * This prompt structures acquired knowledge into the graph.
+ */
+const GRAPH_CONSTRUCTION_META_PROMPT = `You are an expert agent architect. Given a mission/purpose, generate a GRAPH CONSTRUCTION SYSTEM PROMPT for an AI agent that structures acquired knowledge into the graph.
+
+## Context
+
+This agent receives a markdown document containing raw research findings from the Knowledge Acquisition phase. Its job is to transform this unstructured information into structured graph nodes and edges. It does NOT do web research - that was already done.
+
+## Output Requirements
+
+Generate a graphConstructionSystemPrompt (4-6 paragraphs) that instructs the agent to:
+
+### 1. Input Understanding
+- The agent receives a markdown document with research findings
+- Parse the document carefully to extract all relevant facts, entities, and relationships
+- Use the source URLs and dates provided in the document for attribution
+
+### 2. Knowledge Structuring
 - Transform research findings into typed graph nodes
 - Choose appropriate node types that match the domain ontology
 - Create meaningful edges connecting related nodes
@@ -305,22 +347,23 @@ For each piece of knowledge:
 - Track when information was added to the graph`;
 
 // ============================================================================
-// Unified Meta-Prompt for Generating All Four System Prompts
+// Unified Meta-Prompt for Generating All Five System Prompts
 // ============================================================================
 
 function getUnifiedMetaPrompt(interval: string): string {
   const classificationMetaPrompt = getClassificationMetaPrompt(interval);
 
-  return `You are an expert agent architect. Given a mission/purpose, generate FOUR DISTINCT SYSTEM PROMPTS for an autonomous AI agent that runs continuously.
+  return `You are an expert agent architect. Given a mission/purpose, generate FIVE DISTINCT SYSTEM PROMPTS for an autonomous AI agent that runs continuously.
 
 ## Agent Architecture Overview
 
-This agent operates in four distinct phases, each with its own system prompt:
+This agent operates in five distinct phases, each with its own system prompt:
 
 1. **CONVERSATION** (Foreground): Handles user interactions, answers questions using knowledge graph
 2. **CLASSIFICATION** (Background): Analyzes graph state, decides whether to synthesize insights or gather more data
 3. **INSIGHT SYNTHESIS** (Background): Creates Insight nodes from existing knowledge when classification chooses "synthesize"
-4. **GRAPH CONSTRUCTION** (Background): Researches and populates the knowledge graph when classification chooses "populate"
+4. **KNOWLEDGE ACQUISITION** (Background): Gathers raw information using web search when classification chooses "populate"
+5. **GRAPH CONSTRUCTION** (Background): Structures acquired knowledge into the graph after knowledge acquisition
 
 ## What This Agent Does
 
@@ -332,7 +375,7 @@ This agent operates in four distinct phases, each with its own system prompt:
 
 ## Output Requirements
 
-Generate all four system prompts tailored to the given mission:
+Generate all five system prompts tailored to the given mission:
 
 ### 1. conversationSystemPrompt (3-5 paragraphs)
 ${CONVERSATION_META_PROMPT.split("## Output Requirements")[1]}
@@ -343,12 +386,15 @@ ${classificationMetaPrompt.split("## Output Requirements")[1]}
 ### 3. insightSynthesisSystemPrompt (4-6 paragraphs)
 ${INSIGHT_SYNTHESIS_META_PROMPT.split("## Output Requirements")[1]}
 
-### 4. graphConstructionSystemPrompt (5-7 paragraphs)
+### 4. knowledgeAcquisitionSystemPrompt (3-5 paragraphs)
+${KNOWLEDGE_ACQUISITION_META_PROMPT.split("## Output Requirements")[1]}
+
+### 5. graphConstructionSystemPrompt (4-6 paragraphs)
 ${GRAPH_CONSTRUCTION_META_PROMPT.split("## Output Requirements")[1]}
 
 ## Cross-Prompt Consistency
 
-Ensure all four prompts:
+Ensure all five prompts:
 - Use consistent terminology and domain language
 - Reference the same mission and goals
 - Have compatible approaches to the knowledge graph
@@ -368,7 +414,7 @@ For each prompt, incorporate:
 // ============================================================================
 
 /**
- * Generate agent configuration with four distinct system prompts from the mission/purpose.
+ * Generate agent configuration with five distinct system prompts from the mission/purpose.
  * Uses LLM to create appropriate values based on the purpose.
  */
 export async function generateAgentConfiguration(
@@ -382,7 +428,7 @@ export async function generateAgentConfiguration(
 
 Generate the complete agent configuration with:
 1. A short, memorable name (2-4 words)
-2. All four system prompts tailored to this mission
+2. All five system prompts tailored to this mission
 
 Each system prompt should be detailed and actionable, giving clear guidance for its specific phase of operation. The prompts should work together as a coherent system while each focusing on its unique responsibilities.`;
 

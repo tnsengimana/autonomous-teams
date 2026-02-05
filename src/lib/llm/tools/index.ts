@@ -183,20 +183,30 @@ export function getInsightSynthesisTools(): Tool[] {
 }
 
 /**
- * Get tools for the Graph Construction phase (gathering external knowledge)
- * Tools: queryGraph, addGraphNode, addGraphEdge, tavily tools
+ * Get tools for the Knowledge Acquisition phase (gathering raw information)
+ * Tools: tavilySearch, tavilyExtract, tavilyResearch
+ */
+export function getKnowledgeAcquisitionTools(): Tool[] {
+  return getAllTools().filter((tool) =>
+    [
+      "tavilySearch",
+      "tavilyExtract",
+      "tavilyResearch",
+    ].includes(tool.schema.name),
+  );
+}
+
+/**
+ * Get tools for the Graph Construction phase (structuring acquired knowledge into the graph)
+ * Tools: queryGraph, addGraphNode, addGraphEdge
+ * Note: Tavily tools are now in the separate Knowledge Acquisition phase
  */
 export function getGraphConstructionTools(): Tool[] {
   return getAllTools().filter((tool) =>
     [
-      // Graph tools
       "queryGraph",
       "addGraphNode",
       "addGraphEdge",
-      // Tavily tools for web research
-      "tavilySearch",
-      "tavilyExtract",
-      "tavilyResearch",
     ].includes(tool.schema.name),
   );
 }
