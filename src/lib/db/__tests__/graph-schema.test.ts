@@ -34,6 +34,7 @@ beforeAll(async () => {
     conversationSystemPrompt: 'You are a test agent for knowledge graph testing.',
     classificationSystemPrompt: 'You classify information for testing.',
     insightSynthesisSystemPrompt: 'You synthesize insights for testing.',
+    adviceGenerationSystemPrompt: 'You generate advice for testing.',
     graphConstructionSystemPrompt: 'You construct graphs for testing.',
     iterationIntervalMs: 300000,
   }).returning();
@@ -138,6 +139,7 @@ describe('graphNodeTypes schema', () => {
       conversationSystemPrompt: 'Test prompt',
       classificationSystemPrompt: 'Test prompt',
       insightSynthesisSystemPrompt: 'Test prompt',
+      adviceGenerationSystemPrompt: 'Test prompt',
       graphConstructionSystemPrompt: 'Test prompt',
       iterationIntervalMs: 300000,
     }).returning();
@@ -213,6 +215,7 @@ describe('graphEdgeTypes schema', () => {
       conversationSystemPrompt: 'Test prompt',
       classificationSystemPrompt: 'Test prompt',
       insightSynthesisSystemPrompt: 'Test prompt',
+      adviceGenerationSystemPrompt: 'Test prompt',
       graphConstructionSystemPrompt: 'Test prompt',
       iterationIntervalMs: 300000,
     }).returning();
@@ -454,6 +457,7 @@ describe('graphNodes schema', () => {
       conversationSystemPrompt: 'Test prompt',
       classificationSystemPrompt: 'Test prompt',
       insightSynthesisSystemPrompt: 'Test prompt',
+      adviceGenerationSystemPrompt: 'Test prompt',
       graphConstructionSystemPrompt: 'Test prompt',
       iterationIntervalMs: 300000,
     }).returning();
@@ -619,6 +623,7 @@ describe('graphEdges schema', () => {
       conversationSystemPrompt: 'Test prompt',
       classificationSystemPrompt: 'Test prompt',
       insightSynthesisSystemPrompt: 'Test prompt',
+      adviceGenerationSystemPrompt: 'Test prompt',
       graphConstructionSystemPrompt: 'Test prompt',
       iterationIntervalMs: 300000,
     }).returning();

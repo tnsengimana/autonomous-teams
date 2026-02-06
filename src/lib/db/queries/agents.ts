@@ -24,6 +24,7 @@ export async function createAgent(data: {
   conversationSystemPrompt: string;
   classificationSystemPrompt: string;
   insightSynthesisSystemPrompt: string;
+  adviceGenerationSystemPrompt: string;
   knowledgeAcquisitionSystemPrompt?: string | null;
   graphConstructionSystemPrompt: string;
   iterationIntervalMs: number;
@@ -38,6 +39,7 @@ export async function createAgent(data: {
       conversationSystemPrompt: data.conversationSystemPrompt,
       classificationSystemPrompt: data.classificationSystemPrompt,
       insightSynthesisSystemPrompt: data.insightSynthesisSystemPrompt,
+      adviceGenerationSystemPrompt: data.adviceGenerationSystemPrompt,
       knowledgeAcquisitionSystemPrompt: data.knowledgeAcquisitionSystemPrompt ?? null,
       graphConstructionSystemPrompt: data.graphConstructionSystemPrompt,
       iterationIntervalMs: data.iterationIntervalMs,

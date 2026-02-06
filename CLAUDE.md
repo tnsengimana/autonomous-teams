@@ -58,9 +58,9 @@ The system is built around agents that run autonomously:
 - `compaction.ts` - Conversation compaction via summary messages
 
 **Tools** (`src/lib/llm/tools/`)
-- `graph-tools.ts` - Knowledge graph manipulation (addGraphNode, addGraphEdge, queryGraph, etc.)
+- `graph-tools.ts` - Knowledge graph manipulation (addGraphNode, addGraphEdge, queryGraph, addAgentInsightNode, addAgentAdviceNode, etc.)
 - `tavily-tools.ts` - Web search tools (tavilySearch, tavilyExtract, tavilyResearch)
-- `index.ts` - Tool registry, provides `getBackgroundTools()` and `getForegroundTools()`
+- `index.ts` - Tool registry, provides phase-specific tool sets (getInsightSynthesisTools, getAdviceGenerationTools, etc.)
 
 **Database** (`src/lib/db/`)
 - PostgreSQL with Drizzle ORM
@@ -69,13 +69,12 @@ The system is built around agents that run autonomously:
 - `drizzle.config.ts` points to `src/lib/db/schema.ts`
 
 **Background Worker** (`src/worker/runner.ts`)
-- 5-minute iteration loop for each active agent
-- Each iteration:
-  1. Creates `llm_interaction` record
-  2. Builds system prompt with graph context
-  3. Calls LLM with graph and web search tools
-  4. Saves response to `llm_interaction`
-- Node creation can trigger user notifications (via `notifyUser` flag on node types)
+- Per-agent iteration loop based on `iterationIntervalMs`
+- Each iteration runs a multi-phase pipeline:
+  1. **Classification**: Decides "synthesize" or "populate"
+  2. If synthesize: **Insight Synthesis** (creates AgentInsight nodes) → **Advice Generation** (may create AgentAdvice nodes)
+  3. If populate: **Knowledge Acquisition** (web research) → **Graph Construction** (structure into graph)
+- AgentAdvice node creation triggers user notifications via inbox items
 
 **Authentication** (`src/lib/auth/config.ts`)
 - NextAuth.js with passwordless magic links
@@ -91,15 +90,15 @@ The system is built around agents that run autonomously:
 4. Can optionally use foreground tools (web search, graph queries)
 
 **Autonomous Work (Background)**:
-1. Worker picks up active agent every 5 minutes
-2. Builds system prompt with agent's purpose and graph context
-3. Calls LLM with "Continue your work" prompt
-4. LLM uses tools to:
-   - Search the web (Tavily)
-   - Query existing knowledge graph
-   - Add new nodes/edges to graph
-5. Response and tool calls logged to `llm_interactions`
-6. If node type has `notifyUser=true`, creates inbox item
+1. Worker picks up active agent based on its iteration interval
+2. **Classification phase**: Analyzes graph state, decides "synthesize" or "populate"
+3. If "synthesize":
+   - **Insight Synthesis**: Creates AgentInsight nodes (observations, patterns) from existing knowledge
+   - **Advice Generation**: Reviews AgentInsight nodes, may create AgentAdvice nodes (BUY/SELL/HOLD) which notify user
+4. If "populate":
+   - **Knowledge Acquisition**: Uses Tavily tools to research knowledge gaps
+   - **Graph Construction**: Structures acquired knowledge into typed graph nodes/edges
+5. All phases logged to `llm_interactions` with phase tracking
 
 ### Key Patterns
 
@@ -119,7 +118,7 @@ For agents to run autonomously:
    npx ts-node --project tsconfig.json src/worker/index.ts
    ```
 3. **5-minute iterations**: Worker processes all active agents every 5 minutes
-4. **Insights via notifications**: Configure node types with `notifyUser=true` to push discoveries to inbox
+4. **Advice via notifications**: AgentAdvice nodes (BUY/SELL/HOLD) automatically create inbox notifications
 
 ## Workflow Preferences
 

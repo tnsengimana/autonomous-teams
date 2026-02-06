@@ -1,5 +1,5 @@
 {
-  "id": "8e88bd2e-9f71-4ebf-968f-9e3f088ebc21",
+  "id": "10a7c19d-14d6-4dde-ba02-4757b731c05c",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -148,6 +148,12 @@
         },
         "insight_synthesis_system_prompt": {
           "name": "insight_synthesis_system_prompt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "advice_generation_system_prompt": {
+          "name": "advice_generation_system_prompt",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -757,13 +763,6 @@
           "type": "jsonb",
           "primaryKey": false,
           "notNull": false
-        },
-        "notify_user": {
-          "name": "notify_user",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
         },
         "created_by": {
           "name": "created_by",

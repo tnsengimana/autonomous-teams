@@ -22,6 +22,7 @@ import {
 } from "@/lib/llm/knowledge-graph";
 import {
   getInsightSynthesisTools,
+  getAdviceGenerationTools,
   getKnowledgeAcquisitionTools,
   getGraphConstructionTools,
   type ToolContext,
@@ -227,7 +228,7 @@ ${classificationReasoning}
 ## Current Knowledge Graph
 ${graphContext}
 
-Analyze the existing knowledge in your graph and create Insight nodes that capture signals, observations, or patterns. Use the addInsightNode tool to create insights and addGraphEdge to connect them to relevant nodes.`,
+Analyze the existing knowledge in your graph and create AgentInsight nodes that capture observations or patterns. Use the addAgentInsightNode tool to create insights and addGraphEdge to connect them to relevant nodes.`,
     },
   ];
 
@@ -292,6 +293,100 @@ Analyze the existing knowledge in your graph and create Insight nodes that captu
 
   log(
     `[InsightSynthesis] Completed for agent ${agent.name}. ` +
+      `Tool calls: ${toolCallCount}, Response length: ${textLength}`,
+  );
+}
+
+/**
+ * Run the advice generation phase.
+ * Reviews AgentInsight nodes and may create AgentAdvice recommendations.
+ * This phase is deliberately conservative - default is to create nothing.
+ */
+async function runAdviceGenerationPhase(
+  agent: Agent,
+  graphContext: string,
+  workerIterationId: string,
+): Promise<void> {
+  log(`[AdviceGeneration] Starting for agent: ${agent.name}`);
+
+  const systemPrompt = agent.adviceGenerationSystemPrompt;
+  if (!systemPrompt) {
+    throw new Error("Agent missing adviceGenerationSystemPrompt");
+  }
+
+  const requestMessages = [
+    {
+      role: "user" as const,
+      content: `Review recent AgentInsight nodes and determine if an actionable recommendation is warranted.
+
+## Current Knowledge Graph
+${graphContext}
+
+Review the AgentInsight nodes in your knowledge graph. Only create AgentAdvice if you have comprehensive AgentInsight coverage that addresses every aspect of the recommendation. The default action is to create NOTHING - only proceed if you have absolute conviction supported by thorough AgentInsight analysis.`,
+    },
+  ];
+
+  // Create llm_interaction record
+  const interaction = await createLLMInteraction({
+    agentId: agent.id,
+    workerIterationId,
+    systemPrompt: systemPrompt,
+    request: { messages: requestMessages },
+    phase: "advice_generation",
+  });
+
+  // Get advice generation tools
+  const toolContext: ToolContext = { agentId: agent.id };
+  const tools = getAdviceGenerationTools();
+
+  log(
+    `[AdviceGeneration] Calling LLM with ${tools.length} tools for agent ${agent.name}`,
+  );
+
+  const { fullResponse } = await streamLLMResponseWithTools(
+    requestMessages,
+    systemPrompt,
+    {
+      tools,
+      toolContext,
+      agentId: agent.id,
+      maxSteps: 10,
+      // Incremental save: update database after each step completes
+      onStepFinish: async (events) => {
+        await updateLLMInteraction(interaction.id, {
+          response: { events },
+        });
+        log(`[AdviceGeneration] Step saved. Events: ${events.length}`);
+      },
+    },
+  );
+
+  const result = await fullResponse;
+
+  // Count tool calls from events for logging
+  const toolCallCount = result.events
+    .filter(
+      (
+        e,
+      ): e is {
+        toolCalls: Array<{ toolName: string; args: Record<string, unknown> }>;
+      } => "toolCalls" in e,
+    )
+    .reduce((sum, e) => sum + e.toolCalls.length, 0);
+
+  // Get total text length from llmOutput events
+  const textLength = result.events
+    .filter((e): e is { llmOutput: string } => "llmOutput" in e)
+    .reduce((sum, e) => sum + e.llmOutput.length, 0);
+
+  // Final save with completedAt timestamp
+  await updateLLMInteraction(interaction.id, {
+    response: { events: result.events },
+    completedAt: new Date(),
+  });
+
+  log(
+    `[AdviceGeneration] Completed for agent ${agent.name}. ` +
       `Tool calls: ${toolCallCount}, Response length: ${textLength}`,
   );
 }
@@ -547,6 +642,16 @@ async function processAgentIteration(agent: Agent): Promise<void> {
         agent,
         classification.reasoning,
         graphContext,
+        workerIteration.id,
+      );
+
+      // Rebuild graph context so advice generation sees new AgentInsight nodes
+      const updatedGraphContext = await buildGraphContextBlock(agent.id);
+
+      // Run advice generation after insight synthesis
+      await runAdviceGenerationPhase(
+        agent,
+        updatedGraphContext,
         workerIteration.id,
       );
     } else {

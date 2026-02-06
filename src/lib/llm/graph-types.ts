@@ -18,33 +18,27 @@ import {
 // Hardcoded Seed Types
 // ============================================================================
 
-/**
- * The standardized Insight node type that all entities share.
- * This type is used for derived analysis including signals, observations, and patterns.
- * Creating an Insight node always notifies the user via inbox item.
- */
-export const INSIGHT_NODE_TYPE = {
-  name: "Insight",
-  description: "Derived analysis including signals, observations, and patterns",
+export const AGENT_INSIGHT_NODE_TYPE = {
+  name: "AgentInsight",
+  description: "Agent-derived observations and patterns from knowledge analysis",
   propertiesSchema: {
     type: "object" as const,
     required: ["type", "summary", "content", "generated_at"],
     properties: {
       type: {
         type: "string",
-        enum: ["signal", "observation", "pattern"],
+        enum: ["observation", "pattern"],
         description:
-          "signal=actionable, observation=notable trend, pattern=recurring behavior",
+          "observation=notable trend or development, pattern=recurring behavior or relationship",
       },
       summary: {
         type: "string",
-        description:
-          "Executive summary of the insight (1-2 sentences). Used for inbox notifications. For signals, briefly mention the recommended action.",
+        description: "Brief 1-2 sentence summary of the insight",
       },
       content: {
         type: "string",
         description:
-          "Detailed insight with supporting evidence and citations to graph nodes/edges. Include [node:nodeUUId] or [edge:nodeUUId] annotations for traceability. For signals, include detailed action rationale.",
+          "Detailed analysis with [node:uuid] or [edge:uuid] citations",
       },
       confidence: {
         type: "number",
@@ -60,35 +54,80 @@ export const INSIGHT_NODE_TYPE = {
     },
   },
   exampleProperties: {
-    type: "signal",
+    type: "observation",
     summary:
-      "Strong buy signal for AAPL: oversold technicals combined with positive earnings momentum suggest 22% upside potential.",
+      "Apple's services revenue growth is outpacing hardware sales.",
     content: `## Analysis
 
-AAPL presents a compelling buying opportunity based on multiple converging factors.
+Apple's services segment continues to demonstrate accelerating growth compared to its hardware divisions.
 
-### Technical Analysis
-The stock is currently oversold with an RSI of 28 [node:abc123], significantly below the typical oversold threshold of 30. Historical analysis of Apple [node:def456] shows that RSI levels below 30 have preceded 15%+ rallies in 7 of the last 10 occurrences.
+### Supporting Evidence
+- Q4 earnings report [node:abc-123] showed services revenue grew 24% YoY
+- Hardware revenue [node:def-456] grew only 3% in the same period
+- Services margins [node:ghi-789] reached 71%, significantly above hardware margins
 
-### Fundamental Catalyst
-The Q4 2025 earnings report [node:ghi789] delivered a positive surprise of 12%, with:
-- Revenue: $124.3B vs. $121.1B expected
-- EPS: $2.18 vs. $1.95 expected
-- Services revenue grew 24% YoY [node:jkl012]
+### Implications
+This shift suggests Apple is successfully transitioning toward a higher-margin business model, which could impact long-term valuation multiples.`,
+    confidence: 0.85,
+    generated_at: "2025-01-15T10:30:00Z",
+  },
+} as const;
 
-### Macro Tailwinds
-The Federal Reserve's decision to hold rates [node:mno345] provides sector-wide support for growth stocks. The Technology sector [node:pqr678] has historically outperformed during rate pause periods by an average of 8% over 6 months.
+export const AGENT_ADVICE_NODE_TYPE = {
+  name: "AgentAdvice",
+  description: "Actionable investment recommendation derived exclusively from AgentInsight analysis",
+  propertiesSchema: {
+    type: "object" as const,
+    required: ["action", "summary", "content", "generated_at"],
+    properties: {
+      action: {
+        type: "string",
+        enum: ["BUY", "SELL", "HOLD"],
+        description: "The recommended action",
+      },
+      summary: {
+        type: "string",
+        description: "Executive summary of the recommendation (1-2 sentences)",
+      },
+      content: {
+        type: "string",
+        description:
+          "Detailed reasoning citing ONLY AgentInsight nodes using [node:uuid] format. Other node types are prohibited.",
+      },
+      confidence: {
+        type: "number",
+        minimum: 0,
+        maximum: 1,
+        description: "Confidence level (0=low, 1=high)",
+      },
+      generated_at: {
+        type: "string",
+        format: "date-time",
+        description: "When this advice was generated",
+      },
+    },
+  },
+  exampleProperties: {
+    action: "BUY",
+    summary:
+      "Strong buy signal for AAPL based on services growth momentum and undervaluation.",
+    content: `## Recommendation: BUY
+
+Based on recent analysis, AAPL presents a compelling buying opportunity.
+
+### Supporting AgentInsights
+- [node:insight-123] Services revenue pattern shows accelerating growth trajectory
+- [node:insight-456] Institutional accumulation observation indicates smart money confidence
 
 ### Risk Factors
-- China revenue uncertainty (18% of total revenue)
-- Supply chain constraints in Vietnam facility [node:stu901]
+- China revenue exposure remains elevated
+- Hardware cycle timing uncertainty
 
-### Recommendation
-**Action: BUY** with 12-month price target of $245, representing 22% upside from current levels. This recommendation is based on the convergence of technical oversold conditions, strong fundamental catalysts, and supportive macro environment.`,
-    confidence: 0.8,
-    generated_at: "2026-02-04T10:30:00Z",
+### Why Now
+The convergence of strong services momentum and technical oversold conditions creates an asymmetric risk/reward setup that may not persist beyond the next earnings cycle.`,
+    confidence: 0.78,
+    generated_at: "2025-01-15T14:00:00Z",
   },
-  notifyUser: true,
 } as const;
 
 // ============================================================================
@@ -183,27 +222,45 @@ Valid JSON Schema object with:
 /**
  * Create the standardized seed node types that all agents share.
  * Currently includes:
- * - Insight: Derived analysis including signals, observations, and patterns
+ * - AgentInsight: Derived observations and patterns from knowledge analysis
+ * - AgentAdvice: Actionable recommendations derived from AgentInsight analysis
  *
  * This function is idempotent - it checks if types exist before creating them.
  */
 export async function createSeedNodeTypes(agentId: string): Promise<void> {
-  // Check if Insight type already exists for this agent
-  const insightExists = await nodeTypeExists(agentId, INSIGHT_NODE_TYPE.name);
+  // Check if AgentInsight type already exists for this agent
+  const insightExists = await nodeTypeExists(agentId, AGENT_INSIGHT_NODE_TYPE.name);
 
   if (!insightExists) {
     await createNodeType({
       agentId: agentId,
-      name: INSIGHT_NODE_TYPE.name,
-      description: INSIGHT_NODE_TYPE.description,
-      propertiesSchema: INSIGHT_NODE_TYPE.propertiesSchema,
-      exampleProperties: INSIGHT_NODE_TYPE.exampleProperties,
-      notifyUser: INSIGHT_NODE_TYPE.notifyUser,
+      name: AGENT_INSIGHT_NODE_TYPE.name,
+      description: AGENT_INSIGHT_NODE_TYPE.description,
+      propertiesSchema: AGENT_INSIGHT_NODE_TYPE.propertiesSchema,
+      exampleProperties: AGENT_INSIGHT_NODE_TYPE.exampleProperties,
       createdBy: "system",
     });
 
     console.log(
-      `[GraphTypeInitializer] Created seed Insight node type for agent ${agentId}`,
+      `[GraphTypeInitializer] Created seed AgentInsight node type for agent ${agentId}`,
+    );
+  }
+
+  // Check if AgentAdvice type already exists for this agent
+  const adviceExists = await nodeTypeExists(agentId, AGENT_ADVICE_NODE_TYPE.name);
+
+  if (!adviceExists) {
+    await createNodeType({
+      agentId: agentId,
+      name: AGENT_ADVICE_NODE_TYPE.name,
+      description: AGENT_ADVICE_NODE_TYPE.description,
+      propertiesSchema: AGENT_ADVICE_NODE_TYPE.propertiesSchema,
+      exampleProperties: AGENT_ADVICE_NODE_TYPE.exampleProperties,
+      createdBy: "system",
+    });
+
+    console.log(
+      `[GraphTypeInitializer] Created seed AgentAdvice node type for agent ${agentId}`,
     );
   }
 }
@@ -260,15 +317,15 @@ export async function persistInitializedTypes(
   agentId: string,
   types: TypeInitializationResult,
 ): Promise<void> {
-  // First, create seed node types (e.g., Insight)
+  // First, create seed node types (AgentInsight, AgentAdvice)
   await createSeedNodeTypes(agentId);
 
   // Then, create all LLM-generated node types
   for (const nodeType of types.nodeTypes) {
-    // Skip if this is the Insight type (already created as seed type)
-    if (nodeType.name === INSIGHT_NODE_TYPE.name) {
+    // Skip if this is a seed type (already created)
+    if (nodeType.name === AGENT_INSIGHT_NODE_TYPE.name || nodeType.name === AGENT_ADVICE_NODE_TYPE.name) {
       console.log(
-        `[GraphTypeInitializer] Skipping LLM-generated Insight type (using seed type instead)`,
+        `[GraphTypeInitializer] Skipping LLM-generated ${nodeType.name} type (using seed type instead)`,
       );
       continue;
     }

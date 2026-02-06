@@ -21,6 +21,7 @@ CREATE TABLE "agents" (
 	"conversation_system_prompt" text NOT NULL,
 	"classification_system_prompt" text NOT NULL,
 	"insight_synthesis_system_prompt" text NOT NULL,
+	"advice_generation_system_prompt" text NOT NULL,
 	"knowledge_acquisition_system_prompt" text,
 	"graph_construction_system_prompt" text NOT NULL,
 	"iteration_interval_ms" integer NOT NULL,
@@ -76,7 +77,6 @@ CREATE TABLE "graph_node_types" (
 	"description" text NOT NULL,
 	"properties_schema" jsonb NOT NULL,
 	"example_properties" jsonb,
-	"notify_user" boolean DEFAULT false NOT NULL,
 	"created_by" text DEFAULT 'system' NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL
 );

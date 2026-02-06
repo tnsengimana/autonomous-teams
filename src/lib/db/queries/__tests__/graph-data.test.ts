@@ -56,6 +56,7 @@ beforeAll(async () => {
     conversationSystemPrompt: 'You are a test agent for graph data testing.',
     classificationSystemPrompt: 'You classify information for testing.',
     insightSynthesisSystemPrompt: 'You synthesize insights for testing.',
+    adviceGenerationSystemPrompt: 'You generate advice for testing.',
     graphConstructionSystemPrompt: 'You construct graphs for testing.',
     iterationIntervalMs: 300000,
   }).returning();
@@ -575,6 +576,7 @@ describe('serializeGraphForLLM', () => {
       conversationSystemPrompt: 'Test prompt',
       classificationSystemPrompt: 'Test prompt',
       insightSynthesisSystemPrompt: 'Test prompt',
+      adviceGenerationSystemPrompt: 'Test prompt',
       graphConstructionSystemPrompt: 'Test prompt',
       iterationIntervalMs: 300000,
     }).returning();
@@ -646,6 +648,7 @@ describe('getGraphStats', () => {
       conversationSystemPrompt: 'Test prompt',
       classificationSystemPrompt: 'Test prompt',
       insightSynthesisSystemPrompt: 'Test prompt',
+      adviceGenerationSystemPrompt: 'Test prompt',
       graphConstructionSystemPrompt: 'Test prompt',
       iterationIntervalMs: 300000,
     }).returning();

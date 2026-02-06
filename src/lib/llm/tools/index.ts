@@ -170,14 +170,27 @@ export function getClassificationTools(): Tool[] {
 
 /**
  * Get tools for the Insight Synthesis phase (creating insights from existing knowledge)
- * Tools: queryGraph, addInsightNode, addGraphEdge
+ * Tools: queryGraph, addAgentInsightNode, addGraphEdge
  */
 export function getInsightSynthesisTools(): Tool[] {
   return getAllTools().filter((tool) =>
     [
       "queryGraph",
-      "addInsightNode",
+      "addAgentInsightNode",
       "addGraphEdge",
+    ].includes(tool.schema.name),
+  );
+}
+
+/**
+ * Get tools for the Advice Generation phase (creating actionable recommendations)
+ * Tools: queryGraph, addAgentAdviceNode
+ */
+export function getAdviceGenerationTools(): Tool[] {
+  return getAllTools().filter((tool) =>
+    [
+      "queryGraph",
+      "addAgentAdviceNode",
     ].includes(tool.schema.name),
   );
 }

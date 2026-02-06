@@ -653,43 +653,129 @@ const createEdgeTypeTool: Tool = {
 };
 
 // ============================================================================
-// addInsightNode Tool
+// addAgentInsightNode Tool
 // ============================================================================
 
-export const AddInsightNodeParamsSchema = z.object({
-  name: z.string().min(1).describe('Name for the insight node (e.g., "AAPL Buy Signal")'),
+export const AddAgentInsightNodeParamsSchema = z.object({
+  name: z.string().min(1).describe('Name for the insight node (e.g., "Services Revenue Growth Pattern")'),
   properties: z.object({
-    type: z.enum(['signal', 'observation', 'pattern']).describe('signal=actionable, observation=notable trend, pattern=recurring behavior'),
-    summary: z.string().min(1).describe('1-2 sentence executive summary for inbox notifications'),
-    content: z.string().min(1).describe('REQUIRED: Detailed markdown analysis document with citations. Include sections for Analysis, Supporting Evidence, Risk Factors. Use [node:uuid] and [edge:uuid] citations to reference source data.'),
+    type: z.enum(['observation', 'pattern']).describe('observation=notable trend or development, pattern=recurring behavior or relationship'),
+    summary: z.string().min(1).describe('Brief 1-2 sentence summary of the insight'),
+    content: z.string().min(1).describe('Detailed analysis with [node:uuid] or [edge:uuid] citations'),
     confidence: z.number().min(0).max(1).optional().describe('Confidence level (0=low, 1=high)'),
     generated_at: z.string().describe('When this insight was derived (ISO datetime)'),
   }),
 });
 
-export type AddInsightNodeParams = z.infer<typeof AddInsightNodeParamsSchema>;
+export type AddAgentInsightNodeParams = z.infer<typeof AddAgentInsightNodeParamsSchema>;
 
-const addInsightNodeTool: Tool = {
+const addAgentInsightNodeTool: Tool = {
   schema: {
-    name: 'addInsightNode',
-    description: 'Create an Insight node in the knowledge graph. This also creates an inbox notification and appends the insight to the conversation for user discussion. Use this for derived analysis including signals, observations, and patterns. IMPORTANT: Both summary AND content fields are REQUIRED.',
+    name: 'addAgentInsightNode',
+    description: 'Create an AgentInsight node for observations or patterns. This does NOT notify users - it is for internal analysis only.',
     parameters: [
       {
         name: 'name',
         type: 'string',
-        description: 'Name for the insight node (e.g., "AAPL Buy Signal")',
+        description: 'Descriptive name for the insight',
         required: true,
       },
       {
         name: 'properties',
         type: 'object',
-        description: 'Properties for the insight: type (signal|observation|pattern), summary (1-2 sentence executive summary for notifications), content (REQUIRED: detailed markdown analysis with [node:uuid] and [edge:uuid] citations), confidence (0-1, optional), generated_at (ISO datetime)',
+        description: 'Properties: type (observation|pattern), summary (1-2 sentences), content (detailed analysis with [node:uuid] citations), confidence (0-1, optional), generated_at (ISO datetime)',
         required: true,
       },
     ],
   },
   handler: async (params, context): Promise<ToolResult> => {
-    const parsed = AddInsightNodeParamsSchema.safeParse(params);
+    const parsed = AddAgentInsightNodeParamsSchema.safeParse(params);
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: `Invalid parameters: ${parsed.error.message}`,
+      };
+    }
+
+    const { name, properties } = parsed.data;
+    const ctx = context as GraphToolContext;
+
+    try {
+      const { createNode } = await import('@/lib/db/queries/graph-data');
+      const { nodeTypeExists } = await import('@/lib/db/queries/graph-types');
+
+      // Validate AgentInsight type exists
+      if (!(await nodeTypeExists(ctx.agentId, 'AgentInsight'))) {
+        return {
+          success: false,
+          error: 'AgentInsight node type does not exist. This should have been created during agent initialization.',
+        };
+      }
+
+      // Create the AgentInsight node in the graph
+      // NO inbox item creation - AgentInsight nodes are internal analysis
+      // NO conversation message - these don't notify users
+      const node = await createNode({
+        agentId: ctx.agentId,
+        type: 'AgentInsight',
+        name,
+        properties,
+      });
+
+      return {
+        success: true,
+        data: {
+          nodeId: node.id,
+          message: `Created AgentInsight "${name}"`,
+        },
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to add AgentInsight node',
+      };
+    }
+  },
+};
+
+// ============================================================================
+// addAgentAdviceNode Tool
+// ============================================================================
+
+export const AddAgentAdviceNodeParamsSchema = z.object({
+  name: z.string().min(1).describe('Name for the advice node (e.g., "AAPL Buy Recommendation")'),
+  properties: z.object({
+    action: z.enum(['BUY', 'SELL', 'HOLD']).describe('The recommended action'),
+    summary: z.string().min(1).describe('Executive summary of the recommendation (1-2 sentences)'),
+    content: z.string().min(1).describe('Detailed reasoning citing ONLY AgentInsight nodes via [node:uuid] format'),
+    confidence: z.number().min(0).max(1).optional().describe('Confidence level (0=low, 1=high)'),
+    generated_at: z.string().describe('When this advice was generated (ISO datetime)'),
+  }),
+});
+
+export type AddAgentAdviceNodeParams = z.infer<typeof AddAgentAdviceNodeParamsSchema>;
+
+const addAgentAdviceNodeTool: Tool = {
+  schema: {
+    name: 'addAgentAdviceNode',
+    description: 'Create an AgentAdvice node with an actionable recommendation. This WILL notify the user via inbox and append to conversation.',
+    parameters: [
+      {
+        name: 'name',
+        type: 'string',
+        description: 'Descriptive name (e.g., "AAPL Buy Recommendation")',
+        required: true,
+      },
+      {
+        name: 'properties',
+        type: 'object',
+        description: 'Properties: action (BUY|SELL|HOLD), summary (1-2 sentence executive summary), content (detailed reasoning citing AgentInsight nodes via [node:uuid]), confidence (0-1, optional), generated_at (ISO datetime)',
+        required: true,
+      },
+    ],
+  },
+  handler: async (params, context): Promise<ToolResult> => {
+    const parsed = AddAgentAdviceNodeParamsSchema.safeParse(params);
     if (!parsed.success) {
       return {
         success: false,
@@ -708,11 +794,11 @@ const addInsightNodeTool: Tool = {
       const { getOrCreateConversation } = await import('@/lib/db/queries/conversations');
       const { appendLLMMessage } = await import('@/lib/db/queries/messages');
 
-      // Validate Insight type exists
-      if (!(await nodeTypeExists(ctx.agentId, 'Insight'))) {
+      // Validate AgentAdvice type exists
+      if (!(await nodeTypeExists(ctx.agentId, 'AgentAdvice'))) {
         return {
           success: false,
-          error: 'Insight node type does not exist. This should have been created during agent initialization.',
+          error: 'AgentAdvice node type does not exist. This should have been created during agent initialization.',
         };
       }
 
@@ -725,34 +811,31 @@ const addInsightNodeTool: Tool = {
         };
       }
 
-      // 1. Create the Insight node in the graph
+      // 1. Create the AgentAdvice node in the graph
       const node = await createNode({
         agentId: ctx.agentId,
-        type: 'Insight',
+        type: 'AgentAdvice',
         name,
         properties,
       });
 
       // 2. Create inbox item to notify the user
-      const insightTypeLabel = properties.type.charAt(0).toUpperCase() + properties.type.slice(1);
-
       const inboxItem = await createInboxItem({
         userId: agent.userId,
         agentId: ctx.agentId,
-        title: `${insightTypeLabel}: ${name}`,
+        title: `${properties.action}: ${name}`,
         content: properties.summary,
       });
 
-      // 3. Append insight as a message to the agent's conversation
+      // 3. Append advice as a message to the agent's conversation
       const conversation = await getOrCreateConversation(ctx.agentId);
 
-      // Format the insight message for conversation
       const confidenceText = properties.confidence !== undefined
         ? ` (confidence: ${Math.round(properties.confidence * 100)}%)`
         : '';
 
-      const conversationMessage = `**New Insight: ${name}**\n\n` +
-        `**Type:** ${insightTypeLabel}${confidenceText}\n\n` +
+      const conversationMessage = `**New Advice: ${name}**\n\n` +
+        `**Action:** ${properties.action}${confidenceText}\n\n` +
         `${properties.summary}\n\n---\n\n${properties.content}`;
 
       await appendLLMMessage(conversation.id, { text: conversationMessage });
@@ -762,13 +845,13 @@ const addInsightNodeTool: Tool = {
         data: {
           nodeId: node.id,
           inboxItemId: inboxItem.id,
-          message: `Created insight "${name}" and notified user`,
+          message: `Created AgentAdvice "${name}" and notified user`,
         },
       };
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to add insight node',
+        error: error instanceof Error ? error.message : 'Failed to add AgentAdvice node',
       };
     }
   },
@@ -788,7 +871,8 @@ export function registerGraphTools(): void {
   registerTool(getGraphSummaryTool);
   registerTool(createNodeTypeTool);
   registerTool(createEdgeTypeTool);
-  registerTool(addInsightNodeTool);
+  registerTool(addAgentInsightNodeTool);
+  registerTool(addAgentAdviceNodeTool);
 }
 
 /**
@@ -802,7 +886,8 @@ export function getGraphToolNames(): string[] {
     'getGraphSummary',
     'createNodeType',
     'createEdgeType',
-    'addInsightNode',
+    'addAgentInsightNode',
+    'addAgentAdviceNode',
   ];
 }
 
@@ -814,5 +899,6 @@ export {
   getGraphSummaryTool,
   createNodeTypeTool,
   createEdgeTypeTool,
-  addInsightNodeTool,
+  addAgentInsightNodeTool,
+  addAgentAdviceNodeTool,
 };

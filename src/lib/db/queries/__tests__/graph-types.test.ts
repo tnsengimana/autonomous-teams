@@ -52,6 +52,7 @@ beforeAll(async () => {
     conversationSystemPrompt: 'You are a test agent for graph type testing.',
     classificationSystemPrompt: 'You classify information for testing.',
     insightSynthesisSystemPrompt: 'You synthesize insights for testing.',
+    adviceGenerationSystemPrompt: 'You generate advice for testing.',
     graphConstructionSystemPrompt: 'You construct graphs for testing.',
     iterationIntervalMs: 300000,
   }).returning();
@@ -64,6 +65,7 @@ beforeAll(async () => {
     conversationSystemPrompt: 'You are a test agent for graph type isolation testing.',
     classificationSystemPrompt: 'You classify information for testing.',
     insightSynthesisSystemPrompt: 'You synthesize insights for testing.',
+    adviceGenerationSystemPrompt: 'You generate advice for testing.',
     graphConstructionSystemPrompt: 'You construct graphs for testing.',
     iterationIntervalMs: 300000,
   }).returning();
@@ -526,6 +528,7 @@ describe('formatTypesForLLMContext', () => {
       conversationSystemPrompt: 'Test prompt',
       classificationSystemPrompt: 'Test prompt',
       insightSynthesisSystemPrompt: 'Test prompt',
+      adviceGenerationSystemPrompt: 'Test prompt',
       graphConstructionSystemPrompt: 'Test prompt',
       iterationIntervalMs: 300000,
     }).returning();

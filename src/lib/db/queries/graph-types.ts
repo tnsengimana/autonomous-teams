@@ -41,7 +41,6 @@ export async function createNodeType(data: {
   description: string;
   propertiesSchema: object;
   exampleProperties?: object;
-  notifyUser?: boolean;
   createdBy?: GraphTypeCreator;
 }): Promise<GraphNodeType> {
   const result = await db
@@ -52,7 +51,6 @@ export async function createNodeType(data: {
       description: data.description,
       propertiesSchema: data.propertiesSchema,
       exampleProperties: data.exampleProperties ?? null,
-      notifyUser: data.notifyUser ?? false,
       createdBy: data.createdBy ?? "system",
     })
     .returning();

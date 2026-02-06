@@ -99,6 +99,7 @@ export const agents = pgTable(
     conversationSystemPrompt: text("conversation_system_prompt").notNull(),
     classificationSystemPrompt: text("classification_system_prompt").notNull(),
     insightSynthesisSystemPrompt: text("insight_synthesis_system_prompt").notNull(),
+    adviceGenerationSystemPrompt: text("advice_generation_system_prompt").notNull(),
     knowledgeAcquisitionSystemPrompt: text("knowledge_acquisition_system_prompt"),
     graphConstructionSystemPrompt: text("graph_construction_system_prompt").notNull(),
     // Worker iteration interval in milliseconds
@@ -200,7 +201,7 @@ export const llmInteractions = pgTable(
       { onDelete: "cascade" },
     ),
     systemPrompt: text("system_prompt").notNull(),
-    phase: text("phase"), // 'classification' | 'insight_synthesis' | 'knowledge_acquisition' | 'graph_construction'
+    phase: text("phase"), // 'classification' | 'insight_synthesis' | 'advice_generation' | 'knowledge_acquisition' | 'graph_construction'
     request: jsonb("request").notNull(),
     response: jsonb("response"),
     createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
@@ -228,7 +229,6 @@ export const graphNodeTypes = pgTable(
     description: text("description").notNull(),
     propertiesSchema: jsonb("properties_schema").notNull(), // JSON Schema for validation
     exampleProperties: jsonb("example_properties"), // For LLM few-shot learning
-    notifyUser: boolean("notify_user").notNull().default(false), // Whether creating nodes of this type should notify user
     createdBy: text("created_by").notNull().default("system"), // 'system' | 'agent' | 'user'
     createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
   },
