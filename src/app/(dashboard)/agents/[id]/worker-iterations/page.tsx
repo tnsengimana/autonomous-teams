@@ -45,8 +45,8 @@ function getPhaseLabel(phase: string | null): string {
   switch (phase) {
     case "classification":
       return "Classification";
-    case "insight_synthesis":
-      return "Insight Synthesis";
+    case "analysis_generation":
+      return "Analysis Generation";
     case "graph_construction":
       return "Graph Construction";
     default:
@@ -60,7 +60,7 @@ function getPhaseVariant(
   switch (phase) {
     case "classification":
       return "outline";
-    case "insight_synthesis":
+    case "analysis_generation":
       return "default";
     case "graph_construction":
       return "secondary";

@@ -333,7 +333,7 @@ describe("persistInitializedTypes", () => {
         conversationSystemPrompt:
           "You are a test agent for persistence testing.",
         classificationSystemPrompt: "You classify information for testing.",
-        insightSynthesisSystemPrompt: "You synthesize insights for testing.",
+        analysisGenerationSystemPrompt: "You generate analyses for testing.",
         adviceGenerationSystemPrompt: 'You generate advice for testing.',
         graphConstructionSystemPrompt: "You construct graphs for testing.",
         iterationIntervalMs: 300000,
@@ -346,7 +346,7 @@ describe("persistInitializedTypes", () => {
 
       const nodeTypes = await getNodeTypesByAgent(testAgent.id);
 
-      // Should have persisted all node types + 2 seed types (AgentInsight + AgentAdvice)
+      // Should have persisted all node types + 2 seed types (AgentAnalysis + AgentAdvice)
       expect(nodeTypes.length).toBe(
         mockTypeInitializationResult.nodeTypes.length + 2,
       );
@@ -376,7 +376,7 @@ describe("persistInitializedTypes", () => {
         conversationSystemPrompt:
           "You are a test agent for edge persistence testing.",
         classificationSystemPrompt: "You classify information for testing.",
-        insightSynthesisSystemPrompt: "You synthesize insights for testing.",
+        analysisGenerationSystemPrompt: "You generate analyses for testing.",
         adviceGenerationSystemPrompt: 'You generate advice for testing.',
         graphConstructionSystemPrompt: "You construct graphs for testing.",
         iterationIntervalMs: 300000,
@@ -419,7 +419,7 @@ describe("persistInitializedTypes", () => {
         conversationSystemPrompt:
           "You are a test agent for constraint persistence testing.",
         classificationSystemPrompt: "You classify information for testing.",
-        insightSynthesisSystemPrompt: "You synthesize insights for testing.",
+        analysisGenerationSystemPrompt: "You generate analyses for testing.",
         adviceGenerationSystemPrompt: 'You generate advice for testing.',
         graphConstructionSystemPrompt: "You construct graphs for testing.",
         iterationIntervalMs: 300000,
@@ -464,7 +464,7 @@ describe("persistInitializedTypes", () => {
         conversationSystemPrompt:
           "You are a test agent for empty types testing.",
         classificationSystemPrompt: "You classify information for testing.",
-        insightSynthesisSystemPrompt: "You synthesize insights for testing.",
+        analysisGenerationSystemPrompt: "You generate analyses for testing.",
         adviceGenerationSystemPrompt: 'You generate advice for testing.',
         graphConstructionSystemPrompt: "You construct graphs for testing.",
         iterationIntervalMs: 300000,
@@ -481,10 +481,10 @@ describe("persistInitializedTypes", () => {
       const nodeTypes = await getNodeTypesByAgent(testAgent.id);
       const edgeTypes = await getEdgeTypesByAgent(testAgent.id);
 
-      // Seed node types (AgentInsight and AgentAdvice) are always created, even with empty LLM types
+      // Seed node types (AgentAnalysis and AgentAdvice) are always created, even with empty LLM types
       expect(nodeTypes.length).toBe(2);
       const nodeTypeNames = nodeTypes.map(t => t.name).sort();
-      expect(nodeTypeNames).toEqual(["AgentAdvice", "AgentInsight"]);
+      expect(nodeTypeNames).toEqual(["AgentAdvice", "AgentAnalysis"]);
       expect(edgeTypes.length).toBe(0);
     } finally {
       // Cleanup
@@ -503,7 +503,7 @@ describe("persistInitializedTypes", () => {
         conversationSystemPrompt:
           "You are a test agent for invalid reference testing.",
         classificationSystemPrompt: "You classify information for testing.",
-        insightSynthesisSystemPrompt: "You synthesize insights for testing.",
+        analysisGenerationSystemPrompt: "You generate analyses for testing.",
         adviceGenerationSystemPrompt: 'You generate advice for testing.',
         graphConstructionSystemPrompt: "You construct graphs for testing.",
         iterationIntervalMs: 300000,
@@ -566,7 +566,7 @@ describe("Integration", () => {
         purpose: "End-to-end type initialization testing",
         conversationSystemPrompt: "You are a test agent for E2E testing.",
         classificationSystemPrompt: "You classify information for testing.",
-        insightSynthesisSystemPrompt: "You synthesize insights for testing.",
+        analysisGenerationSystemPrompt: "You generate analyses for testing.",
         adviceGenerationSystemPrompt: 'You generate advice for testing.',
         graphConstructionSystemPrompt: "You construct graphs for testing.",
         iterationIntervalMs: 300000,
@@ -588,7 +588,7 @@ describe("Integration", () => {
       const nodeTypes = await getNodeTypesByAgent(testAgent.id);
       const edgeTypes = await getEdgeTypesByAgent(testAgent.id);
 
-      // +2 for the seed types (AgentInsight + AgentAdvice)
+      // +2 for the seed types (AgentAnalysis + AgentAdvice)
       expect(nodeTypes.length).toBe(
         mockTypeInitializationResult.nodeTypes.length + 2,
       );

@@ -20,7 +20,7 @@ CREATE TABLE "agents" (
 	"purpose" text,
 	"conversation_system_prompt" text NOT NULL,
 	"classification_system_prompt" text NOT NULL,
-	"insight_synthesis_system_prompt" text NOT NULL,
+	"analysis_generation_system_prompt" text NOT NULL,
 	"advice_generation_system_prompt" text NOT NULL,
 	"knowledge_acquisition_system_prompt" text,
 	"graph_construction_system_prompt" text NOT NULL,

@@ -27,8 +27,8 @@ import {
   getGraphSummaryTool,
   createNodeTypeTool,
   createEdgeTypeTool,
-  addAgentInsightNodeTool,
-  AddAgentInsightNodeParamsSchema,
+  addAgentAnalysisNodeTool,
+  AddAgentAnalysisNodeParamsSchema,
   addAgentAdviceNodeTool,
   AddAgentAdviceNodeParamsSchema,
 } from '../graph-tools';
@@ -57,7 +57,7 @@ beforeAll(async () => {
     purpose: 'Testing graph tools',
     conversationSystemPrompt: 'You are a test agent for graph tools testing.',
     classificationSystemPrompt: 'You classify information for testing.',
-    insightSynthesisSystemPrompt: 'You synthesize insights for testing.',
+    analysisGenerationSystemPrompt: 'You generate analyses for testing.',
     adviceGenerationSystemPrompt: 'You generate advice for testing.',
     graphConstructionSystemPrompt: 'You construct graphs for testing.',
     iterationIntervalMs: 300000,
@@ -98,7 +98,7 @@ beforeAll(async () => {
     },
     {
       agentId: testAgentId,
-      name: 'AgentInsight',
+      name: 'AgentAnalysis',
       description: 'Agent-derived observations and patterns from knowledge analysis',
       propertiesSchema: {
         type: 'object',
@@ -116,7 +116,7 @@ beforeAll(async () => {
     {
       agentId: testAgentId,
       name: 'AgentAdvice',
-      description: 'Actionable investment recommendation derived exclusively from AgentInsight analysis',
+      description: 'Actionable investment recommendation derived exclusively from AgentAnalysis analysis',
       propertiesSchema: {
         type: 'object',
         required: ['action', 'summary', 'content', 'generated_at'],
@@ -143,7 +143,7 @@ beforeAll(async () => {
     {
       agentId: testAgentId,
       name: 'derived_from',
-      description: 'An insight is derived from source data',
+      description: 'An analysis is derived from source data',
       createdBy: 'system',
     },
   ]);
@@ -704,18 +704,18 @@ describe('createEdgeType', () => {
 });
 
 // ============================================================================
-// addAgentInsightNode Tests
+// addAgentAnalysisNode Tests
 // ============================================================================
 
-describe('addAgentInsightNode', () => {
-  const createdInsightIds: string[] = [];
+describe('addAgentAnalysisNode', () => {
+  const createdAnalysisIds: string[] = [];
 
   afterAll(async () => {
-    await cleanupNodes(createdInsightIds);
+    await cleanupNodes(createdAnalysisIds);
   });
 
-  test('creates observation insight', async () => {
-    const result = await addAgentInsightNodeTool.handler(
+  test('creates observation analysis', async () => {
+    const result = await addAgentAnalysisNodeTool.handler(
       {
         name: 'Market Trend Observation',
         properties: {
@@ -737,15 +737,15 @@ The technology sector has experienced increased volatility [node:def456] followi
     expect(result.success).toBe(true);
     expect(result.data).toBeDefined();
     expect((result.data as { nodeId: string }).nodeId).toBeDefined();
-    expect((result.data as { message: string }).message).toContain('Created AgentInsight');
-    // AgentInsight does NOT create inbox items
+    expect((result.data as { message: string }).message).toContain('Created AgentAnalysis');
+    // AgentAnalysis does NOT create inbox items
     expect((result.data as Record<string, unknown>).inboxItemId).toBeUndefined();
 
-    createdInsightIds.push((result.data as { nodeId: string }).nodeId);
+    createdAnalysisIds.push((result.data as { nodeId: string }).nodeId);
   });
 
-  test('creates pattern insight', async () => {
-    const result = await addAgentInsightNodeTool.handler(
+  test('creates pattern analysis', async () => {
+    const result = await addAgentAnalysisNodeTool.handler(
       {
         name: 'Earnings Season Pattern',
         properties: {
@@ -765,16 +765,16 @@ Based on 50 earnings reports analyzed [edge:mno345], companies that beat earning
     );
 
     expect(result.success).toBe(true);
-    createdInsightIds.push((result.data as { nodeId: string }).nodeId);
+    createdAnalysisIds.push((result.data as { nodeId: string }).nodeId);
   });
 
-  test('rejects insight missing content field', async () => {
-    const result = await addAgentInsightNodeTool.handler(
+  test('rejects analysis missing content field', async () => {
+    const result = await addAgentAnalysisNodeTool.handler(
       {
-        name: 'Invalid Insight - No Content',
+        name: 'Invalid Analysis - No Content',
         properties: {
           type: 'observation',
-          summary: 'This insight is missing the content field.',
+          summary: 'This analysis is missing the content field.',
           generated_at: new Date().toISOString(),
         },
       },
@@ -785,13 +785,13 @@ Based on 50 earnings reports analyzed [edge:mno345], companies that beat earning
     expect(result.error).toContain('Invalid parameters');
   });
 
-  test('rejects insight missing summary field', async () => {
-    const result = await addAgentInsightNodeTool.handler(
+  test('rejects analysis missing summary field', async () => {
+    const result = await addAgentAnalysisNodeTool.handler(
       {
-        name: 'Invalid Insight - No Summary',
+        name: 'Invalid Analysis - No Summary',
         properties: {
           type: 'observation',
-          content: 'This insight is missing the summary field.',
+          content: 'This analysis is missing the summary field.',
           generated_at: new Date().toISOString(),
         },
       },
@@ -802,10 +802,10 @@ Based on 50 earnings reports analyzed [edge:mno345], companies that beat earning
     expect(result.error).toContain('Invalid parameters');
   });
 
-  test('rejects insight with invalid type', async () => {
-    const result = await addAgentInsightNodeTool.handler(
+  test('rejects analysis with invalid type', async () => {
+    const result = await addAgentAnalysisNodeTool.handler(
       {
-        name: 'Invalid Insight - Bad Type',
+        name: 'Invalid Analysis - Bad Type',
         properties: {
           type: 'signal',
           summary: 'Signal is no longer a valid type.',
@@ -820,13 +820,13 @@ Based on 50 earnings reports analyzed [edge:mno345], companies that beat earning
     expect(result.error).toContain('Invalid parameters');
   });
 
-  test('rejects insight missing generated_at', async () => {
-    const result = await addAgentInsightNodeTool.handler(
+  test('rejects analysis missing generated_at', async () => {
+    const result = await addAgentAnalysisNodeTool.handler(
       {
-        name: 'Invalid Insight - No Timestamp',
+        name: 'Invalid Analysis - No Timestamp',
         properties: {
           type: 'observation',
-          summary: 'This insight is missing generated_at.',
+          summary: 'This analysis is missing generated_at.',
           content: 'Detailed content here.',
         },
       },
@@ -837,13 +837,13 @@ Based on 50 earnings reports analyzed [edge:mno345], companies that beat earning
     expect(result.error).toContain('Invalid parameters');
   });
 
-  test('allows insight without optional confidence field', async () => {
-    const result = await addAgentInsightNodeTool.handler(
+  test('allows analysis without optional confidence field', async () => {
+    const result = await addAgentAnalysisNodeTool.handler(
       {
-        name: 'Insight Without Confidence',
+        name: 'Analysis Without Confidence',
         properties: {
           type: 'observation',
-          summary: 'This insight does not have a confidence score.',
+          summary: 'This analysis does not have a confidence score.',
           content: 'Detailed observation content without confidence.',
           generated_at: new Date().toISOString(),
         },
@@ -852,11 +852,11 @@ Based on 50 earnings reports analyzed [edge:mno345], companies that beat earning
     );
 
     expect(result.success).toBe(true);
-    createdInsightIds.push((result.data as { nodeId: string }).nodeId);
+    createdAnalysisIds.push((result.data as { nodeId: string }).nodeId);
   });
 
   test('rejects confidence outside valid range', async () => {
-    const resultTooHigh = await addAgentInsightNodeTool.handler(
+    const resultTooHigh = await addAgentAnalysisNodeTool.handler(
       {
         name: 'Invalid Confidence High',
         properties: {
@@ -873,7 +873,7 @@ Based on 50 earnings reports analyzed [edge:mno345], companies that beat earning
     expect(resultTooHigh.success).toBe(false);
     expect(resultTooHigh.error).toContain('Invalid parameters');
 
-    const resultTooLow = await addAgentInsightNodeTool.handler(
+    const resultTooLow = await addAgentAnalysisNodeTool.handler(
       {
         name: 'Invalid Confidence Low',
         properties: {
@@ -915,9 +915,9 @@ describe('addAgentAdviceNode', () => {
 
 Based on recent analysis, AAPL presents a compelling opportunity.
 
-### Supporting AgentInsights
-- [node:insight-123] Services revenue pattern
-- [node:insight-456] Institutional accumulation observation
+### Supporting AgentAnalyses
+- [node:analysis-123] Services revenue pattern
+- [node:analysis-456] Institutional accumulation observation
 
 ### Risk Factors
 - China revenue exposure`,
@@ -948,8 +948,8 @@ Based on recent analysis, AAPL presents a compelling opportunity.
 
 Analysis shows deteriorating fundamentals.
 
-### Supporting AgentInsights
-- [node:insight-789] Revenue decline pattern`,
+### Supporting AgentAnalyses
+- [node:analysis-789] Revenue decline pattern`,
           generated_at: new Date().toISOString(),
         },
       },
@@ -971,8 +971,8 @@ Analysis shows deteriorating fundamentals.
 
 Current data is insufficient to change position.
 
-### Supporting AgentInsights
-- [node:insight-101] Mixed signals observation`,
+### Supporting AgentAnalyses
+- [node:analysis-101] Mixed signals observation`,
           generated_at: new Date().toISOString(),
         },
       },
@@ -991,7 +991,7 @@ Current data is insufficient to change position.
         properties: {
           action: 'BUY',
           summary: 'This advice should create an inbox item.',
-          content: 'Detailed reasoning citing [node:insight-123].',
+          content: 'Detailed reasoning citing [node:analysis-123].',
           generated_at: new Date().toISOString(),
         },
       },
@@ -1052,13 +1052,13 @@ Current data is insufficient to change position.
 });
 
 // ============================================================================
-// AddAgentInsightNodeParamsSchema Validation Tests
+// AddAgentAnalysisNodeParamsSchema Validation Tests
 // ============================================================================
 
-describe('AddAgentInsightNodeParamsSchema', () => {
-  test('validates complete insight with all fields', () => {
-    const result = AddAgentInsightNodeParamsSchema.safeParse({
-      name: 'Complete Insight',
+describe('AddAgentAnalysisNodeParamsSchema', () => {
+  test('validates complete analysis with all fields', () => {
+    const result = AddAgentAnalysisNodeParamsSchema.safeParse({
+      name: 'Complete Analysis',
       properties: {
         type: 'observation',
         summary: 'Brief summary.',
@@ -1072,7 +1072,7 @@ describe('AddAgentInsightNodeParamsSchema', () => {
   });
 
   test('requires content field', () => {
-    const result = AddAgentInsightNodeParamsSchema.safeParse({
+    const result = AddAgentAnalysisNodeParamsSchema.safeParse({
       name: 'Missing Content',
       properties: {
         type: 'observation',
@@ -1091,7 +1091,7 @@ describe('AddAgentInsightNodeParamsSchema', () => {
   });
 
   test('requires summary field', () => {
-    const result = AddAgentInsightNodeParamsSchema.safeParse({
+    const result = AddAgentAnalysisNodeParamsSchema.safeParse({
       name: 'Missing Summary',
       properties: {
         type: 'observation',
@@ -1113,7 +1113,7 @@ describe('AddAgentInsightNodeParamsSchema', () => {
     const validTypes = ['observation', 'pattern'];
 
     for (const type of validTypes) {
-      const result = AddAgentInsightNodeParamsSchema.safeParse({
+      const result = AddAgentAnalysisNodeParamsSchema.safeParse({
         name: `Valid ${type}`,
         properties: {
           type,
@@ -1126,7 +1126,7 @@ describe('AddAgentInsightNodeParamsSchema', () => {
     }
 
     // Signal is no longer valid
-    const invalidResult = AddAgentInsightNodeParamsSchema.safeParse({
+    const invalidResult = AddAgentAnalysisNodeParamsSchema.safeParse({
       name: 'Invalid Type',
       properties: {
         type: 'signal',
@@ -1141,7 +1141,7 @@ describe('AddAgentInsightNodeParamsSchema', () => {
   test('confidence must be between 0 and 1', () => {
     const validValues = [0, 0.5, 1];
     for (const confidence of validValues) {
-      const result = AddAgentInsightNodeParamsSchema.safeParse({
+      const result = AddAgentAnalysisNodeParamsSchema.safeParse({
         name: 'Valid Confidence',
         properties: {
           type: 'observation',
@@ -1156,7 +1156,7 @@ describe('AddAgentInsightNodeParamsSchema', () => {
 
     const invalidValues = [-0.1, 1.1, 2];
     for (const confidence of invalidValues) {
-      const result = AddAgentInsightNodeParamsSchema.safeParse({
+      const result = AddAgentAnalysisNodeParamsSchema.safeParse({
         name: 'Invalid Confidence',
         properties: {
           type: 'observation',
@@ -1171,7 +1171,7 @@ describe('AddAgentInsightNodeParamsSchema', () => {
   });
 
   test('content cannot be empty string', () => {
-    const result = AddAgentInsightNodeParamsSchema.safeParse({
+    const result = AddAgentAnalysisNodeParamsSchema.safeParse({
       name: 'Empty Content',
       properties: {
         type: 'observation',
@@ -1185,7 +1185,7 @@ describe('AddAgentInsightNodeParamsSchema', () => {
   });
 
   test('summary cannot be empty string', () => {
-    const result = AddAgentInsightNodeParamsSchema.safeParse({
+    const result = AddAgentAnalysisNodeParamsSchema.safeParse({
       name: 'Empty Summary',
       properties: {
         type: 'observation',
@@ -1210,7 +1210,7 @@ describe('AddAgentAdviceNodeParamsSchema', () => {
       properties: {
         action: 'BUY',
         summary: 'Brief recommendation summary.',
-        content: 'Detailed reasoning citing [node:insight-123].',
+        content: 'Detailed reasoning citing [node:analysis-123].',
         confidence: 0.9,
         generated_at: '2026-02-05T10:00:00Z',
       },

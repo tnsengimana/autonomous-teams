@@ -1,5 +1,5 @@
 {
-  "id": "10a7c19d-14d6-4dde-ba02-4757b731c05c",
+  "id": "f726998a-5790-4039-adea-aba69fa16d64",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -146,8 +146,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "insight_synthesis_system_prompt": {
-          "name": "insight_synthesis_system_prompt",
+        "analysis_generation_system_prompt": {
+          "name": "analysis_generation_system_prompt",
           "type": "text",
           "primaryKey": false,
           "notNull": true

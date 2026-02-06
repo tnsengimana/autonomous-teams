@@ -29,7 +29,7 @@ export interface CreateLLMInteractionInput {
   workerIterationId?: string;
   systemPrompt: string;
   request: Record<string, unknown>;
-  phase?: string; // 'classification' | 'insight_synthesis' | 'graph_construction' | 'conversation'
+  phase?: string; // 'classification' | 'analysis_generation' | 'graph_construction' | 'conversation'
 }
 
 export interface UpdateLLMInteractionInput {

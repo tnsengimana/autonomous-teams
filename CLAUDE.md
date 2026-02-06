@@ -58,9 +58,9 @@ The system is built around agents that run autonomously:
 - `compaction.ts` - Conversation compaction via summary messages
 
 **Tools** (`src/lib/llm/tools/`)
-- `graph-tools.ts` - Knowledge graph manipulation (addGraphNode, addGraphEdge, queryGraph, addAgentInsightNode, addAgentAdviceNode, etc.)
+- `graph-tools.ts` - Knowledge graph manipulation (addGraphNode, addGraphEdge, queryGraph, addAgentAnalysisNode, addAgentAdviceNode, etc.)
 - `tavily-tools.ts` - Web search tools (tavilySearch, tavilyExtract, tavilyResearch)
-- `index.ts` - Tool registry, provides phase-specific tool sets (getInsightSynthesisTools, getAdviceGenerationTools, etc.)
+- `index.ts` - Tool registry, provides phase-specific tool sets (getAnalysisGenerationTools, getAdviceGenerationTools, etc.)
 
 **Database** (`src/lib/db/`)
 - PostgreSQL with Drizzle ORM
@@ -72,7 +72,7 @@ The system is built around agents that run autonomously:
 - Per-agent iteration loop based on `iterationIntervalMs`
 - Each iteration runs a multi-phase pipeline:
   1. **Classification**: Decides "synthesize" or "populate"
-  2. If synthesize: **Insight Synthesis** (creates AgentInsight nodes) → **Advice Generation** (may create AgentAdvice nodes)
+  2. If synthesize: **Analysis Generation** (creates AgentAnalysis nodes) → **Advice Generation** (may create AgentAdvice nodes)
   3. If populate: **Knowledge Acquisition** (web research) → **Graph Construction** (structure into graph)
 - AgentAdvice node creation triggers user notifications via inbox items
 
@@ -93,8 +93,8 @@ The system is built around agents that run autonomously:
 1. Worker picks up active agent based on its iteration interval
 2. **Classification phase**: Analyzes graph state, decides "synthesize" or "populate"
 3. If "synthesize":
-   - **Insight Synthesis**: Creates AgentInsight nodes (observations, patterns) from existing knowledge
-   - **Advice Generation**: Reviews AgentInsight nodes, may create AgentAdvice nodes (BUY/SELL/HOLD) which notify user
+   - **Analysis Generation**: Creates AgentAnalysis nodes (observations, patterns) from existing knowledge
+   - **Advice Generation**: Reviews AgentAnalysis nodes, may create AgentAdvice nodes (BUY/SELL/HOLD) which notify user
 4. If "populate":
    - **Knowledge Acquisition**: Uses Tavily tools to research knowledge gaps
    - **Graph Construction**: Structures acquired knowledge into typed graph nodes/edges

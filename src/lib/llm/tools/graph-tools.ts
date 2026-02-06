@@ -653,31 +653,31 @@ const createEdgeTypeTool: Tool = {
 };
 
 // ============================================================================
-// addAgentInsightNode Tool
+// addAgentAnalysisNode Tool
 // ============================================================================
 
-export const AddAgentInsightNodeParamsSchema = z.object({
-  name: z.string().min(1).describe('Name for the insight node (e.g., "Services Revenue Growth Pattern")'),
+export const AddAgentAnalysisNodeParamsSchema = z.object({
+  name: z.string().min(1).describe('Name for the analysis node (e.g., "Services Revenue Growth Pattern")'),
   properties: z.object({
     type: z.enum(['observation', 'pattern']).describe('observation=notable trend or development, pattern=recurring behavior or relationship'),
-    summary: z.string().min(1).describe('Brief 1-2 sentence summary of the insight'),
+    summary: z.string().min(1).describe('Brief 1-2 sentence summary of the analysis'),
     content: z.string().min(1).describe('Detailed analysis with [node:uuid] or [edge:uuid] citations'),
     confidence: z.number().min(0).max(1).optional().describe('Confidence level (0=low, 1=high)'),
-    generated_at: z.string().describe('When this insight was derived (ISO datetime)'),
+    generated_at: z.string().describe('When this analysis was derived (ISO datetime)'),
   }),
 });
 
-export type AddAgentInsightNodeParams = z.infer<typeof AddAgentInsightNodeParamsSchema>;
+export type AddAgentAnalysisNodeParams = z.infer<typeof AddAgentAnalysisNodeParamsSchema>;
 
-const addAgentInsightNodeTool: Tool = {
+const addAgentAnalysisNodeTool: Tool = {
   schema: {
-    name: 'addAgentInsightNode',
-    description: 'Create an AgentInsight node for observations or patterns. This does NOT notify users - it is for internal analysis only.',
+    name: 'addAgentAnalysisNode',
+    description: 'Create an AgentAnalysis node for observations or patterns. This does NOT notify users - it is for internal analysis only.',
     parameters: [
       {
         name: 'name',
         type: 'string',
-        description: 'Descriptive name for the insight',
+        description: 'Descriptive name for the analysis',
         required: true,
       },
       {
@@ -689,7 +689,7 @@ const addAgentInsightNodeTool: Tool = {
     ],
   },
   handler: async (params, context): Promise<ToolResult> => {
-    const parsed = AddAgentInsightNodeParamsSchema.safeParse(params);
+    const parsed = AddAgentAnalysisNodeParamsSchema.safeParse(params);
     if (!parsed.success) {
       return {
         success: false,
@@ -704,20 +704,20 @@ const addAgentInsightNodeTool: Tool = {
       const { createNode } = await import('@/lib/db/queries/graph-data');
       const { nodeTypeExists } = await import('@/lib/db/queries/graph-types');
 
-      // Validate AgentInsight type exists
-      if (!(await nodeTypeExists(ctx.agentId, 'AgentInsight'))) {
+      // Validate AgentAnalysis type exists
+      if (!(await nodeTypeExists(ctx.agentId, 'AgentAnalysis'))) {
         return {
           success: false,
-          error: 'AgentInsight node type does not exist. This should have been created during agent initialization.',
+          error: 'AgentAnalysis node type does not exist. This should have been created during agent initialization.',
         };
       }
 
-      // Create the AgentInsight node in the graph
-      // NO inbox item creation - AgentInsight nodes are internal analysis
+      // Create the AgentAnalysis node in the graph
+      // NO inbox item creation - AgentAnalysis nodes are internal analysis
       // NO conversation message - these don't notify users
       const node = await createNode({
         agentId: ctx.agentId,
-        type: 'AgentInsight',
+        type: 'AgentAnalysis',
         name,
         properties,
       });
@@ -726,13 +726,13 @@ const addAgentInsightNodeTool: Tool = {
         success: true,
         data: {
           nodeId: node.id,
-          message: `Created AgentInsight "${name}"`,
+          message: `Created AgentAnalysis "${name}"`,
         },
       };
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to add AgentInsight node',
+        error: error instanceof Error ? error.message : 'Failed to add AgentAnalysis node',
       };
     }
   },
@@ -747,7 +747,7 @@ export const AddAgentAdviceNodeParamsSchema = z.object({
   properties: z.object({
     action: z.enum(['BUY', 'SELL', 'HOLD']).describe('The recommended action'),
     summary: z.string().min(1).describe('Executive summary of the recommendation (1-2 sentences)'),
-    content: z.string().min(1).describe('Detailed reasoning citing ONLY AgentInsight nodes via [node:uuid] format'),
+    content: z.string().min(1).describe('Detailed reasoning citing ONLY AgentAnalysis nodes via [node:uuid] format'),
     confidence: z.number().min(0).max(1).optional().describe('Confidence level (0=low, 1=high)'),
     generated_at: z.string().describe('When this advice was generated (ISO datetime)'),
   }),
@@ -769,7 +769,7 @@ const addAgentAdviceNodeTool: Tool = {
       {
         name: 'properties',
         type: 'object',
-        description: 'Properties: action (BUY|SELL|HOLD), summary (1-2 sentence executive summary), content (detailed reasoning citing AgentInsight nodes via [node:uuid]), confidence (0-1, optional), generated_at (ISO datetime)',
+        description: 'Properties: action (BUY|SELL|HOLD), summary (1-2 sentence executive summary), content (detailed reasoning citing AgentAnalysis nodes via [node:uuid]), confidence (0-1, optional), generated_at (ISO datetime)',
         required: true,
       },
     ],
@@ -871,7 +871,7 @@ export function registerGraphTools(): void {
   registerTool(getGraphSummaryTool);
   registerTool(createNodeTypeTool);
   registerTool(createEdgeTypeTool);
-  registerTool(addAgentInsightNodeTool);
+  registerTool(addAgentAnalysisNodeTool);
   registerTool(addAgentAdviceNodeTool);
 }
 
@@ -886,7 +886,7 @@ export function getGraphToolNames(): string[] {
     'getGraphSummary',
     'createNodeType',
     'createEdgeType',
-    'addAgentInsightNode',
+    'addAgentAnalysisNode',
     'addAgentAdviceNode',
   ];
 }
@@ -899,6 +899,6 @@ export {
   getGraphSummaryTool,
   createNodeTypeTool,
   createEdgeTypeTool,
-  addAgentInsightNodeTool,
+  addAgentAnalysisNodeTool,
   addAgentAdviceNodeTool,
 };

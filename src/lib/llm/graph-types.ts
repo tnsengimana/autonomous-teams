@@ -18,8 +18,8 @@ import {
 // Hardcoded Seed Types
 // ============================================================================
 
-export const AGENT_INSIGHT_NODE_TYPE = {
-  name: "AgentInsight",
+export const AGENT_ANALYSIS_NODE_TYPE = {
+  name: "AgentAnalysis",
   description: "Agent-derived observations and patterns from knowledge analysis",
   propertiesSchema: {
     type: "object" as const,
@@ -33,7 +33,7 @@ export const AGENT_INSIGHT_NODE_TYPE = {
       },
       summary: {
         type: "string",
-        description: "Brief 1-2 sentence summary of the insight",
+        description: "Brief 1-2 sentence summary of the analysis",
       },
       content: {
         type: "string",
@@ -49,7 +49,7 @@ export const AGENT_INSIGHT_NODE_TYPE = {
       generated_at: {
         type: "string",
         format: "date-time",
-        description: "When this insight was derived",
+        description: "When this analysis was derived",
       },
     },
   },
@@ -75,7 +75,7 @@ This shift suggests Apple is successfully transitioning toward a higher-margin b
 
 export const AGENT_ADVICE_NODE_TYPE = {
   name: "AgentAdvice",
-  description: "Actionable investment recommendation derived exclusively from AgentInsight analysis",
+  description: "Actionable investment recommendation derived exclusively from AgentAnalysis analysis",
   propertiesSchema: {
     type: "object" as const,
     required: ["action", "summary", "content", "generated_at"],
@@ -92,7 +92,7 @@ export const AGENT_ADVICE_NODE_TYPE = {
       content: {
         type: "string",
         description:
-          "Detailed reasoning citing ONLY AgentInsight nodes using [node:uuid] format. Other node types are prohibited.",
+          "Detailed reasoning citing ONLY AgentAnalysis nodes using [node:uuid] format. Other node types are prohibited.",
       },
       confidence: {
         type: "number",
@@ -115,9 +115,9 @@ export const AGENT_ADVICE_NODE_TYPE = {
 
 Based on recent analysis, AAPL presents a compelling buying opportunity.
 
-### Supporting AgentInsights
-- [node:insight-123] Services revenue pattern shows accelerating growth trajectory
-- [node:insight-456] Institutional accumulation observation indicates smart money confidence
+### Supporting AgentAnalyses
+- [node:analysis-123] Services revenue pattern shows accelerating growth trajectory
+- [node:analysis-456] Institutional accumulation observation indicates smart money confidence
 
 ### Risk Factors
 - China revenue exposure remains elevated
@@ -222,27 +222,27 @@ Valid JSON Schema object with:
 /**
  * Create the standardized seed node types that all agents share.
  * Currently includes:
- * - AgentInsight: Derived observations and patterns from knowledge analysis
- * - AgentAdvice: Actionable recommendations derived from AgentInsight analysis
+ * - AgentAnalysis: Derived observations and patterns from knowledge analysis
+ * - AgentAdvice: Actionable recommendations derived from AgentAnalysis analysis
  *
  * This function is idempotent - it checks if types exist before creating them.
  */
 export async function createSeedNodeTypes(agentId: string): Promise<void> {
-  // Check if AgentInsight type already exists for this agent
-  const insightExists = await nodeTypeExists(agentId, AGENT_INSIGHT_NODE_TYPE.name);
+  // Check if AgentAnalysis type already exists for this agent
+  const analysisExists = await nodeTypeExists(agentId, AGENT_ANALYSIS_NODE_TYPE.name);
 
-  if (!insightExists) {
+  if (!analysisExists) {
     await createNodeType({
       agentId: agentId,
-      name: AGENT_INSIGHT_NODE_TYPE.name,
-      description: AGENT_INSIGHT_NODE_TYPE.description,
-      propertiesSchema: AGENT_INSIGHT_NODE_TYPE.propertiesSchema,
-      exampleProperties: AGENT_INSIGHT_NODE_TYPE.exampleProperties,
+      name: AGENT_ANALYSIS_NODE_TYPE.name,
+      description: AGENT_ANALYSIS_NODE_TYPE.description,
+      propertiesSchema: AGENT_ANALYSIS_NODE_TYPE.propertiesSchema,
+      exampleProperties: AGENT_ANALYSIS_NODE_TYPE.exampleProperties,
       createdBy: "system",
     });
 
     console.log(
-      `[GraphTypeInitializer] Created seed AgentInsight node type for agent ${agentId}`,
+      `[GraphTypeInitializer] Created seed AgentAnalysis node type for agent ${agentId}`,
     );
   }
 
@@ -317,13 +317,13 @@ export async function persistInitializedTypes(
   agentId: string,
   types: TypeInitializationResult,
 ): Promise<void> {
-  // First, create seed node types (AgentInsight, AgentAdvice)
+  // First, create seed node types (AgentAnalysis, AgentAdvice)
   await createSeedNodeTypes(agentId);
 
   // Then, create all LLM-generated node types
   for (const nodeType of types.nodeTypes) {
     // Skip if this is a seed type (already created)
-    if (nodeType.name === AGENT_INSIGHT_NODE_TYPE.name || nodeType.name === AGENT_ADVICE_NODE_TYPE.name) {
+    if (nodeType.name === AGENT_ANALYSIS_NODE_TYPE.name || nodeType.name === AGENT_ADVICE_NODE_TYPE.name) {
       console.log(
         `[GraphTypeInitializer] Skipping LLM-generated ${nodeType.name} type (using seed type instead)`,
       );

@@ -98,7 +98,7 @@ export const agents = pgTable(
     // Phase-specific system prompts (multi-phase architecture)
     conversationSystemPrompt: text("conversation_system_prompt").notNull(),
     classificationSystemPrompt: text("classification_system_prompt").notNull(),
-    insightSynthesisSystemPrompt: text("insight_synthesis_system_prompt").notNull(),
+    analysisGenerationSystemPrompt: text("analysis_generation_system_prompt").notNull(),
     adviceGenerationSystemPrompt: text("advice_generation_system_prompt").notNull(),
     knowledgeAcquisitionSystemPrompt: text("knowledge_acquisition_system_prompt"),
     graphConstructionSystemPrompt: text("graph_construction_system_prompt").notNull(),
@@ -201,7 +201,7 @@ export const llmInteractions = pgTable(
       { onDelete: "cascade" },
     ),
     systemPrompt: text("system_prompt").notNull(),
-    phase: text("phase"), // 'classification' | 'insight_synthesis' | 'advice_generation' | 'knowledge_acquisition' | 'graph_construction'
+    phase: text("phase"), // 'classification' | 'analysis_generation' | 'advice_generation' | 'knowledge_acquisition' | 'graph_construction'
     request: jsonb("request").notNull(),
     response: jsonb("response"),
     createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),

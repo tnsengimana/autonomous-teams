@@ -169,14 +169,14 @@ export function getClassificationTools(): Tool[] {
 }
 
 /**
- * Get tools for the Insight Synthesis phase (creating insights from existing knowledge)
- * Tools: queryGraph, addAgentInsightNode, addGraphEdge
+ * Get tools for the Analysis Generation phase (creating analyses from existing knowledge)
+ * Tools: queryGraph, addAgentAnalysisNode, addGraphEdge
  */
-export function getInsightSynthesisTools(): Tool[] {
+export function getAnalysisGenerationTools(): Tool[] {
   return getAllTools().filter((tool) =>
     [
       "queryGraph",
-      "addAgentInsightNode",
+      "addAgentAnalysisNode",
       "addGraphEdge",
     ].includes(tool.schema.name),
   );

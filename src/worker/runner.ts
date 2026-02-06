@@ -9,7 +9,7 @@
  *
  * This implements the KGoT-inspired INSERT/RETRIEVE loop:
  * - "populate" = INSERT branch: gather external knowledge via Tavily tools
- * - "synthesize" = RETRIEVE branch: create Insight nodes from existing knowledge
+ * - "synthesize" = RETRIEVE branch: create Analysis nodes from existing knowledge
  */
 
 import {
@@ -21,7 +21,7 @@ import {
   ensureGraphTypesInitialized,
 } from "@/lib/llm/knowledge-graph";
 import {
-  getInsightSynthesisTools,
+  getAnalysisGenerationTools,
   getAdviceGenerationTools,
   getKnowledgeAcquisitionTools,
   getGraphConstructionTools,
@@ -62,7 +62,7 @@ const ClassificationResultSchema = z.object({
   action: z
     .enum(["synthesize", "populate"])
     .describe(
-      "The action to take: 'synthesize' to create insights from existing knowledge, 'populate' to gather more external knowledge",
+      "The action to take: 'synthesize' to create analyses from existing knowledge, 'populate' to gather more external knowledge",
     ),
   reasoning: z
     .string()
@@ -156,7 +156,7 @@ async function runClassificationPhase(
 ${graphContext}
 
 Based on the graph state above, decide:
-- "synthesize" if you have enough knowledge to derive meaningful insights
+- "synthesize" if you have enough knowledge to derive meaningful analyses
 - "populate" if you need to gather more external knowledge
 
 If you choose "populate", you MUST also provide a "knowledge_gaps" array with specific research queries describing what information needs to be gathered.`,
@@ -201,26 +201,26 @@ If you choose "populate", you MUST also provide a "knowledge_gaps" array with sp
 // ============================================================================
 
 /**
- * Run the insight synthesis phase.
- * Uses existing graph knowledge to create Insight nodes.
+ * Run the analysis generation phase.
+ * Uses existing graph knowledge to create Analysis nodes.
  */
-async function runInsightSynthesisPhase(
+async function runAnalysisGenerationPhase(
   agent: Agent,
   classificationReasoning: string,
   graphContext: string,
   workerIterationId: string,
 ): Promise<void> {
-  log(`[InsightSynthesis] Starting for agent: ${agent.name}`);
+  log(`[AnalysisGeneration] Starting for agent: ${agent.name}`);
 
-  const systemPrompt = agent.insightSynthesisSystemPrompt;
+  const systemPrompt = agent.analysisGenerationSystemPrompt;
   if (!systemPrompt) {
-    throw new Error("Agent missing insightSynthesisSystemPrompt");
+    throw new Error("Agent missing analysisGenerationSystemPrompt");
   }
 
   const requestMessages = [
     {
       role: "user" as const,
-      content: `Execute insight synthesis based on the classification decision.
+      content: `Execute analysis generation based on the classification decision.
 
 ## Classification Decision
 ${classificationReasoning}
@@ -228,7 +228,7 @@ ${classificationReasoning}
 ## Current Knowledge Graph
 ${graphContext}
 
-Analyze the existing knowledge in your graph and create AgentInsight nodes that capture observations or patterns. Use the addAgentInsightNode tool to create insights and addGraphEdge to connect them to relevant nodes.`,
+Analyze the existing knowledge in your graph and create AgentAnalysis nodes that capture observations or patterns. Use the addAgentAnalysisNode tool to create analyses and addGraphEdge to connect them to relevant nodes.`,
     },
   ];
 
@@ -238,15 +238,15 @@ Analyze the existing knowledge in your graph and create AgentInsight nodes that 
     workerIterationId,
     systemPrompt: systemPrompt,
     request: { messages: requestMessages },
-    phase: "insight_synthesis",
+    phase: "analysis_generation",
   });
 
-  // Get insight synthesis tools
+  // Get analysis generation tools
   const toolContext: ToolContext = { agentId: agent.id };
-  const tools = getInsightSynthesisTools();
+  const tools = getAnalysisGenerationTools();
 
   log(
-    `[InsightSynthesis] Calling LLM with ${tools.length} tools for agent ${agent.name}`,
+    `[AnalysisGeneration] Calling LLM with ${tools.length} tools for agent ${agent.name}`,
   );
 
   const { fullResponse } = await streamLLMResponseWithTools(
@@ -262,7 +262,7 @@ Analyze the existing knowledge in your graph and create AgentInsight nodes that 
         await updateLLMInteraction(interaction.id, {
           response: { events },
         });
-        log(`[InsightSynthesis] Step saved. Events: ${events.length}`);
+        log(`[AnalysisGeneration] Step saved. Events: ${events.length}`);
       },
     },
   );
@@ -292,14 +292,14 @@ Analyze the existing knowledge in your graph and create AgentInsight nodes that 
   });
 
   log(
-    `[InsightSynthesis] Completed for agent ${agent.name}. ` +
+    `[AnalysisGeneration] Completed for agent ${agent.name}. ` +
       `Tool calls: ${toolCallCount}, Response length: ${textLength}`,
   );
 }
 
 /**
  * Run the advice generation phase.
- * Reviews AgentInsight nodes and may create AgentAdvice recommendations.
+ * Reviews AgentAnalysis nodes and may create AgentAdvice recommendations.
  * This phase is deliberately conservative - default is to create nothing.
  */
 async function runAdviceGenerationPhase(
@@ -317,12 +317,12 @@ async function runAdviceGenerationPhase(
   const requestMessages = [
     {
       role: "user" as const,
-      content: `Review recent AgentInsight nodes and determine if an actionable recommendation is warranted.
+      content: `Review recent AgentAnalysis nodes and determine if an actionable recommendation is warranted.
 
 ## Current Knowledge Graph
 ${graphContext}
 
-Review the AgentInsight nodes in your knowledge graph. Only create AgentAdvice if you have comprehensive AgentInsight coverage that addresses every aspect of the recommendation. The default action is to create NOTHING - only proceed if you have absolute conviction supported by thorough AgentInsight analysis.`,
+Review the AgentAnalysis nodes in your knowledge graph. Only create AgentAdvice if you have comprehensive AgentAnalysis coverage that addresses every aspect of the recommendation. The default action is to create NOTHING - only proceed if you have absolute conviction supported by thorough AgentAnalysis analysis.`,
     },
   ];
 
@@ -638,17 +638,17 @@ async function processAgentIteration(agent: Agent): Promise<void> {
 
     // Step 2: EXECUTE ACTION based on classification
     if (classification.action === "synthesize") {
-      await runInsightSynthesisPhase(
+      await runAnalysisGenerationPhase(
         agent,
         classification.reasoning,
         graphContext,
         workerIteration.id,
       );
 
-      // Rebuild graph context so advice generation sees new AgentInsight nodes
+      // Rebuild graph context so advice generation sees new AgentAnalysis nodes
       const updatedGraphContext = await buildGraphContextBlock(agent.id);
 
-      // Run advice generation after insight synthesis
+      // Run advice generation after analysis generation
       await runAdviceGenerationPhase(
         agent,
         updatedGraphContext,

@@ -57,6 +57,8 @@ The following uses of "insight" are unrelated to the AgentInsight node type and 
 
 3. **Tavily tool query** in `src/lib/llm/tools/tavily-tools.ts` (line 329) -- The string `"analysis and insights"` is a search query template. General English usage.
 
+4. **Script log message** in `scripts/test-interleaved-text.ts` (line 423) -- The string `"Key insight:"` is a general English log message in a test script. Not tied to the AgentInsight type.
+
 ## Changes Required
 
 ### Phase 1: Database Schema
@@ -192,12 +194,15 @@ No changes needed. The `Agent` type is inferred from the Drizzle schema, so it w
 
 4. Update `CONVERSATION_META_PROMPT`:
    - Section 4 heading: `"Insight Discussion"` -> `"Analysis Discussion"`
-   - Body text: `"insights"` -> `"analyses"` when referring to the node type
-   - Note: Keep generic English "insights" if the context is about general knowledge/discovery
+   - Body text: all `"insights"` / `"insight"` in section 4 -> `"analyses"` / `"analysis"` (these refer to the AgentInsight node type appearing in conversation, not general English)
 
-5. Update `getClassificationMetaPrompt()`:
-   - `"synthesize insights"` -> `"synthesize analyses"` or keep as-is if it's the general English meaning (contextual decision)
-   - `"insights"` in the description of "synthesize" action -> contextual rename
+5. Update `getClassificationMetaPrompt()` -- all "insight(s)" references here are about the synthesize action creating AgentInsight nodes, so ALL should be renamed:
+   - `"Enough knowledge exists to derive valuable insights"` -> `"...valuable analyses"`
+   - `"Patterns are emerging that haven't been formally captured as insights"` -> `"...as analyses"`
+   - `"Key knowledge areas have gaps that limit insight quality"` -> `"...analysis quality"`
+   - `"Don't just say 'synthesize' - specify WHAT insights to derive from WHICH knowledge"` -> `"...WHAT analyses to derive..."`
+   - `"Derive insights about tech sector response to monetary policy."` -> `"Derive analyses about..."`
+   - `"Don't endlessly populate without creating insights"` -> `"...creating analyses"`
    - Note: The classification action is still `"synthesize"` -- we are NOT renaming the action itself
 
 6. Update `getUnifiedMetaPrompt()`:
@@ -317,6 +322,7 @@ This is the most heavily affected test file:
 - Import: `addAgentInsightNodeTool` -> `addAgentAnalysisNodeTool` (line 30)
 - Import: `AddAgentInsightNodeParamsSchema` -> `AddAgentAnalysisNodeParamsSchema` (line 31)
 - Node type name: `'AgentInsight'` -> `'AgentAnalysis'` (lines 101, 119, 146, etc.)
+- Edge type description: `'An insight is derived from source data'` -> `'An analysis is derived from source data'` (line 146)
 - `'AgentInsight analysis'` -> `'AgentAnalysis analysis'` (line 119)
 - Describe block: `'addAgentInsightNode'` -> `'addAgentAnalysisNode'` (line 710)
 - Variable: `createdInsightIds` -> `createdAnalysisIds` (lines 711, 714, 744, 768, 855)
@@ -383,4 +389,7 @@ No data migration is needed -- the database is being nuked.
 9. **UI** (`src/app/(dashboard)/agents/[id]/worker-iterations/page.tsx`) -- update phase cases
 10. **Tests** (all test files) -- rename all field refs, tool refs, string literals
 11. **Migrations** -- nuke existing, regenerate fresh, apply
-12. **Verify** -- run `npm run build` and `npm run test` to confirm everything compiles and passes
+12. **Verify**:
+    - Run `npx tsc --noEmit` to confirm TypeScript compiles clean
+    - Run `npx vitest run` to confirm all tests pass
+    - Run a codebase-wide grep for `AgentInsight`, `insightSynthesis`, `INSIGHT_SYNTHESIS`, `addAgentInsightNode`, `insight_synthesis` to verify zero AgentInsight-related occurrences remain (exclusions should still contain their expected "insight" text)

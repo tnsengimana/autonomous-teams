@@ -156,7 +156,7 @@ export async function getWorkerIterationsWithInteractions(
       // Sort by phase order: classification first, then action
       const phaseOrder: Record<string, number> = {
         classification: 0,
-        insight_synthesis: 1,
+        analysis_generation: 1,
         graph_construction: 1,
       };
       const aOrder = a.phase ? phaseOrder[a.phase] ?? 2 : 2;

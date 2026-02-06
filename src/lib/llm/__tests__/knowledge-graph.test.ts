@@ -45,7 +45,7 @@ beforeAll(async () => {
       conversationSystemPrompt:
         "You are a test agent for knowledge graph testing.",
       classificationSystemPrompt: "You classify information for testing.",
-      insightSynthesisSystemPrompt: "You synthesize insights for testing.",
+      analysisGenerationSystemPrompt: "You generate analyses for testing.",
       adviceGenerationSystemPrompt: 'You generate advice for testing.',
       graphConstructionSystemPrompt: "You construct graphs for testing.",
       iterationIntervalMs: 300000,
@@ -121,7 +121,7 @@ describe("buildGraphContextBlock", () => {
         conversationSystemPrompt:
           "You are a test agent for empty graph testing.",
         classificationSystemPrompt: "You classify information for testing.",
-        insightSynthesisSystemPrompt: "You synthesize insights for testing.",
+        analysisGenerationSystemPrompt: "You generate analyses for testing.",
         adviceGenerationSystemPrompt: 'You generate advice for testing.',
         graphConstructionSystemPrompt: "You construct graphs for testing.",
         iterationIntervalMs: 300000,
@@ -169,7 +169,7 @@ describe("ensureGraphTypesInitialized", () => {
         conversationSystemPrompt:
           "You are a test agent for type initialization.",
         classificationSystemPrompt: "You classify information for testing.",
-        insightSynthesisSystemPrompt: "You synthesize insights for testing.",
+        analysisGenerationSystemPrompt: "You generate analyses for testing.",
         adviceGenerationSystemPrompt: 'You generate advice for testing.',
         graphConstructionSystemPrompt: "You construct graphs for testing.",
         iterationIntervalMs: 300000,
@@ -237,7 +237,7 @@ describe("ensureGraphTypesInitialized", () => {
         purpose: "Testing without userId",
         conversationSystemPrompt: "You are a test agent for userId testing.",
         classificationSystemPrompt: "You classify information for testing.",
-        insightSynthesisSystemPrompt: "You synthesize insights for testing.",
+        analysisGenerationSystemPrompt: "You generate analyses for testing.",
         adviceGenerationSystemPrompt: 'You generate advice for testing.',
         graphConstructionSystemPrompt: "You construct graphs for testing.",
         iterationIntervalMs: 300000,
@@ -288,7 +288,7 @@ describe("Integration", () => {
         conversationSystemPrompt:
           "You are a test agent for integration testing.",
         classificationSystemPrompt: "You classify information for testing.",
-        insightSynthesisSystemPrompt: "You synthesize insights for testing.",
+        analysisGenerationSystemPrompt: "You generate analyses for testing.",
         adviceGenerationSystemPrompt: 'You generate advice for testing.',
         graphConstructionSystemPrompt: "You construct graphs for testing.",
         iterationIntervalMs: 300000,
