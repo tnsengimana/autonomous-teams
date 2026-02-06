@@ -158,19 +158,19 @@ The important thing is that the investigation request is *specific*. It's not "I
 
 **Question:** A few things:
 
-1. I like a lot this flow: "The brain observes a pattern" → "synthesis analyzes it" → "advice recommends action." what if we immortalize these parts: the brain, the synthesizer and the adviser? Your flow can then use these nouns instead of verbs?
+1. I like a lot this flow: "The brain observes a pattern" → "synthesis analyzes it" → "advice recommends action." what if we immortalize these parts: the brain, the analyzer and the adviser? Your flow can then use these nouns instead of verbs?
 2. I like your take of using observation. But can't queries also count as observations? Ideally, the word should be applicable to what we have been calling "sparks" only. What do you think?
 3. Whether we use insight/observation/etc for "sparks", what do you think about renaming the current usage of insights in the codebase to just analysis. So we would have AgentAnalysis, analysisGenerationSystemPrompt, analysisGenerationTools, etc
 
 **Answer:**
 
-**1. The Brain, the Synthesizer, the Adviser.**
+**1. The Observer, the Researcher, the Analyzer, the Adviser.**
 
-I love this. Naming the actors instead of the actions gives the system a clearer mental model. The flow reads naturally:
+Naming the actors instead of the actions gives the system a clearer mental model. The "brain" remains as the conceptual metaphor for what this phase does, but in code we use **Observer** — it translates better into the codebase (`observerSystemPrompt`, `runObserverPhase`, `"observer"` phase literal). The flow reads naturally:
 
-> The **Brain** plans the work → the **Synthesizer** analyzes patterns → the **Adviser** recommends actions.
+> The **Observer** scans and notices → the **Researcher** investigates → the **Analyzer** analyzes → the **Adviser** recommends.
 
-And on the populate side, the Brain's queries get executed by... what? These phases (knowledge acquisition + graph construction) are more mechanical — they execute the Brain's research directives. Maybe the **Researcher**? So: the Brain delegates to the Researcher (populate) and the Synthesizer (analysis), and the Adviser follows the Synthesizer. Four actors with clear roles.
+The Observer delegates to the Researcher (populate) and the Analyzer (analysis), and the Adviser follows the Analyzer. Four actors with clear roles.
 
 **2. "Observation" applies to queries too — you're right.**
 
@@ -178,9 +178,9 @@ And on the populate side, the Brain's queries get executed by... what? These pha
 
 I actually think **insight** is the correct word here, and it does disambiguate. A query is recognizing what you *don't* know — "we have a gap here." An insight is recognizing something in what you *do* know — "these three nodes form a pattern." You don't call a knowledge gap an "insight." You call a moment of pattern recognition an insight.
 
-So the Brain produces **queries** (gaps to fill) and **insights** (patterns to analyze). Those are semantically distinct in a way that "observations" wouldn't be.
+So the Observer produces **queries** (gaps to fill) and **insights** (patterns to analyze). Those are semantically distinct in a way that "observations" wouldn't be.
 
-And since AgentInsight is getting renamed to AgentAnalysis (point 3), there's no terminology collision anymore. "Insight" cleanly belongs to the Brain's output, "Analysis" cleanly belongs to the Synthesizer's output.
+And since AgentInsight is getting renamed to AgentAnalysis (point 3), there's no terminology collision anymore. "Insight" cleanly belongs to the Observer's output, "Analysis" cleanly belongs to the Analyzer's output.
 
 **3. Renaming insight → analysis across the codebase.**
 
@@ -188,11 +188,11 @@ Yes, this is the right move. It completes the separation and creates a consisten
 
 | Actor | Output | System Prompt Field | Tools |
 |---|---|---|---|
-| Brain | queries + insights | `brainSystemPrompt` | (structured output, no tools) |
+| Observer | queries + insights | `observerSystemPrompt` | (structured output, no tools) |
 | Researcher | graph nodes/edges | `knowledgeAcquisitionSystemPrompt` + `graphConstructionSystemPrompt` | search + graph tools |
-| Synthesizer | AgentAnalysis nodes | `analysisGenerationSystemPrompt` | graph tools |
+| Analyzer | AgentAnalysis nodes | `analysisGenerationSystemPrompt` | graph tools |
 | Adviser | AgentAdvice nodes | `adviceGenerationSystemPrompt` | graph tools |
 
 The `analysisGeneration` naming parallels `adviceGeneration` nicely. And it follows a clean pattern: `{output}GenerationSystemPrompt`.
 
-One thing to note: the Brain replaces the current `classificationSystemPrompt`. So that field would become `brainSystemPrompt` — or do you prefer a different name for it?
+The Observer replaces the current `classificationSystemPrompt`, which becomes `observerSystemPrompt`.
