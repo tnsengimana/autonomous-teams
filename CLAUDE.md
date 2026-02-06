@@ -80,7 +80,7 @@ The system is built around agents that run autonomously:
 **Background Worker** (`src/worker/runner.ts`)
 - Per-agent iteration loop based on `iterationIntervalMs`
 - Each iteration runs the **Observer → Researcher → Analyzer → Adviser** pipeline (a variant of the OODA loop):
-  1. **Observer** (Observe): Scans graph, produces plan with queries (knowledge gaps) and insights (patterns)
+  1. **Observer** (Observe): Scans graph, produces output with queries (knowledge gaps) and insights (patterns)
   2. **Researcher** (Orient): For each query, runs Knowledge Acquisition (web research) + Graph Construction — actively gathers information rather than passively reorienting
   3. Rebuild graph context with enriched data
   4. **Analyzer** (Decide): For each insight, runs Analysis Generation (creates AgentAnalysis nodes)
@@ -123,7 +123,7 @@ The system is built around agents that run autonomously:
 
 **Autonomous Work (Background — OODA Loop)**:
 1. Worker picks up active agent based on its iteration interval
-2. **Observer** (Observe): Scans graph, produces plan with queries and insights
+2. **Observer** (Observe): Scans graph, produces output with queries and insights
 3. **Researcher** (Orient) for each query:
    - **Knowledge Acquisition**: Uses Tavily tools to research knowledge gap
    - **Graph Construction**: Structures acquired knowledge into typed graph nodes/edges

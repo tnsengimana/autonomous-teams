@@ -33,5 +33,8 @@
     - Tightened Observer meta-prompt guidance to require UUID-only `relevantNodeIds`.
     - Added post-validation normalization in worker Observer phase to resolve names/typed refs to UUIDs and drop unresolved refs before persistence.
   - Tests:
-    - `npm run test:run -- src/lib/db/queries/__tests__/graph-data.test.ts src/worker/__tests__/observer-plan-normalization.test.ts src/lib/llm/__tests__/agents.test.ts`
+    - `npm run test:run -- src/lib/db/queries/__tests__/graph-data.test.ts src/worker/__tests__/observer-output-normalization.test.ts src/lib/llm/__tests__/agents.test.ts`
     - `npm run test:run -- src/lib/llm/__tests__/knowledge-graph.test.ts`
+- 2026-02-06: Semantic cleanup requested by user:
+  - Replaced Observer "plan" semantics with explicit `queries`/`insights` and umbrella term `output`.
+  - Renamed worker iteration schema field from `observer_plan` to `observer_output`.

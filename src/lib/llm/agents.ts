@@ -31,7 +31,7 @@ const AgentConfigurationSchema = z.object({
   observerSystemPrompt: z
     .string()
     .describe(
-      "System prompt for the Observer phase that plans each iteration's work",
+      "System prompt for the Observer phase that defines each iteration's output",
     ),
   analysisGenerationSystemPrompt: z
     .string()
@@ -112,19 +112,19 @@ Generate a conversationSystemPrompt (3-5 paragraphs) that instructs the agent to
 
 /**
  * Meta-prompt for generating the OBSERVER system prompt.
- * The Observer is the agent's "brain" -- it scans the knowledge graph and produces a structured plan.
+ * The Observer is the agent's "brain" -- it scans the knowledge graph and produces structured output.
  */
 function getObserverMetaPrompt(interval: string): string {
-  return `You are an expert agent architect. Given a mission/purpose, generate an OBSERVER SYSTEM PROMPT for an AI agent that acts as the central planner directing all background work.
+  return `You are an expert agent architect. Given a mission/purpose, generate an OBSERVER SYSTEM PROMPT for an AI agent that acts as the central coordinator directing all background work.
 
 ## Context
 
-This agent runs autonomously every ${interval}. At the start of each iteration, the Observer phase scans the knowledge graph and produces a structured plan with two types of work items:
+This agent runs autonomously every ${interval}. At the start of each iteration, the Observer phase scans the knowledge graph and produces structured output with two types of work items:
 
 - **Queries**: Knowledge gaps to fill via web research. Each query has an objective, reasoning, and search hints.
 - **Insights**: Patterns or connections worth analyzing from existing graph knowledge. Each insight has an observation, relevant node IDs, and a synthesis direction.
 
-The Observer does NOT execute anything -- it only plans. It does not search the web, create graph nodes, or write analyses. It reads the graph context and decides what to investigate and what to think about. The downstream phases (Researcher, Analyzer, Adviser) handle execution.
+The Observer does NOT execute anything -- it only emits output. It does not search the web, create graph nodes, or write analyses. It reads the graph context and decides what to investigate and what to analyze. The downstream phases (Researcher, Analyzer, Adviser) handle execution.
 
 ## Output Requirements
 
@@ -166,9 +166,9 @@ IMPORTANT:
 - Never use node names, labels, or "Type:Name" values in relevantNodeIds
 - If no valid UUIDs are available for an insight, return an empty array
 
-### 4. Plan Balance
-- Prefer a focused plan (2-4 total items) over an exhaustive one
-- It is valid to produce an empty plan if the graph is in good shape and no action is needed
+### 4. Output Balance
+- Prefer focused output (2-4 total items) over an exhaustive list
+- It is valid to produce no output if the graph is in good shape and no action is needed
 - Balance queries and insights -- don't always do one without the other
 - Avoid re-querying for knowledge that already exists in the graph
 - Avoid generating insights that duplicate existing AgentAnalysis nodes
@@ -443,7 +443,7 @@ function getUnifiedMetaPrompt(interval: string): string {
 This agent operates with four named actors, each with its own system prompt:
 
 1. **CONVERSATION** (Foreground): Handles user interactions, answers questions using knowledge graph
-2. **OBSERVER** (Background): Scans the graph and plans each iteration's work -- produces queries (knowledge gaps) and insights (patterns to analyze)
+2. **OBSERVER** (Background): Scans the graph and produces each iteration's output -- queries (knowledge gaps) and insights (patterns to analyze)
 3. **RESEARCHER** (Background): Executes the Observer's queries via two sub-phases:
    - **KNOWLEDGE ACQUISITION**: Gathers raw information using web search
    - **GRAPH CONSTRUCTION**: Structures acquired knowledge into the graph
@@ -455,7 +455,7 @@ This agent operates with four named actors, each with its own system prompt:
 ## Iteration Pipeline
 
 Every iteration follows the same pipeline:
-1. Observer produces plan with queries and insights
+1. Observer produces output with queries and insights
 2. Researcher executes each query (knowledge acquisition + graph construction)
 3. Graph context is rebuilt with enriched data
 4. Analyzer processes each insight (analysis generation on enriched graph)
@@ -530,7 +530,7 @@ Generate the complete agent configuration with:
 2. All six system prompts tailored to this mission
 
 Each system prompt should be detailed and actionable, giving clear guidance for its specific phase of operation. The prompts should work together as a coherent system:
-- The Observer plans what to research and what to analyze
+- The Observer defines what to research (queries) and what to analyze (insights)
 - The Researcher gathers and structures knowledge
 - The Analyzer creates analyses from existing knowledge
 - The Adviser creates recommendations from analyses`;

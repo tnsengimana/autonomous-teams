@@ -4,7 +4,7 @@
  * Agent-based iteration with configurable intervals using an Observer -> Researcher -> Analyzer -> Adviser pipeline.
  *
  * For each active agent:
- * 1. Observer phase: scan graph, produce plan with queries (knowledge gaps) and insights (patterns)
+ * 1. Observer phase: scan graph, produce output with queries (knowledge gaps) and insights (patterns)
  * 2. Researcher phase: for each query, run knowledge acquisition + graph construction
  * 3. Rebuild graph context after all queries are processed
  * 4. Analyzer phase: for each insight, run analysis generation
@@ -38,7 +38,12 @@ import {
   updateWorkerIteration,
   getLastCompletedIteration,
 } from "@/lib/db/queries/worker-iterations";
-import { normalizeObserverPlanRelevantNodeIds } from "./observer-plan-normalization";
+import { normalizeObserverOutput } from "./normalization";
+import type {
+  ObserverOutput,
+  ObserverQuery,
+  ObserverInsight,
+} from "./types";
 import type { Agent } from "@/lib/types";
 
 // ============================================================================
@@ -95,7 +100,7 @@ const ObserverInsightSchema = z.object({
     ),
 });
 
-const ObserverPlanSchema = z.object({
+const ObserverOutputSchema = z.object({
   queries: z
     .array(ObserverQuerySchema)
     .describe(
@@ -107,10 +112,6 @@ const ObserverPlanSchema = z.object({
       "Patterns worth analyzing from existing graph knowledge. Each insight becomes an Analysis Generation call.",
     ),
 });
-
-type ObserverPlan = z.infer<typeof ObserverPlanSchema>;
-type ObserverQuery = z.infer<typeof ObserverQuerySchema>;
-type ObserverInsight = z.infer<typeof ObserverInsightSchema>;
 
 // ============================================================================
 // Utility Functions
@@ -166,14 +167,14 @@ async function isAgentDueForIteration(agent: Agent): Promise<boolean> {
 // ============================================================================
 
 /**
- * Run the observer phase to scan the graph and produce a structured plan.
+ * Run the observer phase to scan the graph and produce structured output.
  * Uses structured output (generateLLMObject) to get a JSON response.
  */
 async function runObserverPhase(
   agent: Agent,
   graphContext: string,
   workerIterationId: string,
-): Promise<ObserverPlan> {
+): Promise<ObserverOutput> {
   log(`[Observer] Starting for agent: ${agent.name}`);
 
   const systemPrompt = agent.observerSystemPrompt;
@@ -184,11 +185,11 @@ async function runObserverPhase(
   const requestMessages = [
     {
       role: "user" as const,
-      content: `Review your current knowledge graph and plan your next actions.
+      content: `Review your current knowledge graph and determine your next output.
 
 ${graphContext}
 
-Based on the graph state above, produce a plan with:
+Based on the graph state above, produce output with:
 - **queries**: Knowledge gaps to fill via web research. Each becomes a research cycle.
 - **insights**: Patterns worth analyzing from existing knowledge. Each becomes an analysis.
 
@@ -204,9 +205,9 @@ You may produce any combination: queries only, insights only, both, or neither (
     phase: "observer",
   });
 
-  const plan = await generateLLMObject(
+  const output = await generateLLMObject(
     requestMessages,
-    ObserverPlanSchema,
+    ObserverOutputSchema,
     systemPrompt,
     { agentId: agent.id },
   );
@@ -214,31 +215,21 @@ You may produce any combination: queries only, insights only, both, or neither (
   // Post-validate and normalize observer node references to strict UUIDs.
   // The model may still emit names despite prompt/schema guidance.
   const graphNodes = await getNodesByAgent(agent.id);
-  const normalization = normalizeObserverPlanRelevantNodeIds(
-    plan,
+  const normalizedOutput = normalizeObserverOutput(
+    output,
     graphNodes.map((node) => ({ id: node.id, type: node.type, name: node.name })),
   );
-  const normalizedPlan = normalization.normalizedPlan;
 
   await updateLLMInteraction(interaction.id, {
-    response: normalizedPlan,
+    response: normalizedOutput,
     completedAt: new Date(),
   });
 
-  if (normalization.droppedReferences.length > 0) {
-    log(
-      `[Observer] Normalized relevantNodeIds for agent ${agent.name}. ` +
-        `resolvedByUuid=${normalization.resolvedByUuid}, ` +
-        `resolvedByName=${normalization.resolvedByName}, ` +
-        `dropped=${normalization.droppedReferences.length}`,
-    );
-  }
-
   log(
-    `[Observer] Agent ${agent.name} planned: ${normalizedPlan.queries.length} queries, ${normalizedPlan.insights.length} insights`,
+    `[Observer] Agent ${agent.name} produced output: ${normalizedOutput.queries.length} queries, ${normalizedOutput.insights.length} insights`,
   );
 
-  return normalizedPlan;
+  return normalizedOutput;
 }
 
 // ============================================================================
@@ -663,7 +654,7 @@ Transform the research findings above into structured graph nodes and edges. Use
 /**
  * Process one agent's iteration using the Observer -> Researcher -> Analyzer -> Adviser pipeline.
  *
- * Step 1: Observer - scan graph and produce plan with queries and insights
+ * Step 1: Observer - scan graph and produce output with queries and insights
  * Step 2: Researcher - for each query, run knowledge acquisition + graph construction
  * Step 3: Rebuild graph context (now enriched)
  * Step 4: Analyzer - for each insight, run analysis generation
@@ -689,17 +680,21 @@ async function processAgentIteration(agent: Agent): Promise<void> {
     let graphContext = await buildGraphContextBlock(agent.id);
 
     // -- Step 1: OBSERVER --
-    const plan = await runObserverPhase(agent, graphContext, workerIteration.id);
+    const output = await runObserverPhase(
+      agent,
+      graphContext,
+      workerIteration.id,
+    );
 
-    // Store the observer plan on the worker iteration
+    // Store observer output on the worker iteration
     await updateWorkerIteration(workerIteration.id, {
-      observerPlan: plan,
+      observerOutput: output,
     });
 
     // -- Step 2: RESEARCHER (for each query) --
-    if (plan.queries.length > 0) {
-      log(`[Researcher] Processing ${plan.queries.length} queries`);
-      for (const query of plan.queries) {
+    if (output.queries.length > 0) {
+      log(`[Researcher] Processing ${output.queries.length} queries`);
+      for (const query of output.queries) {
         const markdown = await runKnowledgeAcquisitionPhase(
           agent,
           query,
@@ -720,9 +715,9 @@ async function processAgentIteration(agent: Agent): Promise<void> {
 
     // -- Step 4: ANALYZER (for each insight) --
     let analysesProduced = false;
-    if (plan.insights.length > 0) {
-      log(`[Analyzer] Processing ${plan.insights.length} insights`);
-      for (const insight of plan.insights) {
+    if (output.insights.length > 0) {
+      log(`[Analyzer] Processing ${output.insights.length} insights`);
+      for (const insight of output.insights) {
         const produced = await runAnalysisGenerationPhase(
           agent,
           insight,

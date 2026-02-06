@@ -16,7 +16,7 @@ export interface WorkerIteration {
   id: string;
   agentId: string;
   status: string;
-  observerPlan: Record<string, unknown> | null;
+  observerOutput: Record<string, unknown> | null;
   errorMessage: string | null;
   createdAt: Date;
   completedAt: Date | null;
@@ -40,7 +40,7 @@ export interface CreateWorkerIterationInput {
 
 export interface UpdateWorkerIterationInput {
   status?: string;
-  observerPlan?: Record<string, unknown>;
+  observerOutput?: Record<string, unknown>;
   errorMessage?: string;
   completedAt?: Date;
 }
@@ -67,7 +67,7 @@ export async function createWorkerIteration(
     id: iteration.id,
     agentId: iteration.agentId,
     status: iteration.status,
-    observerPlan: iteration.observerPlan as Record<string, unknown> | null,
+    observerOutput: iteration.observerOutput as Record<string, unknown> | null,
     errorMessage: iteration.errorMessage,
     createdAt: iteration.createdAt,
     completedAt: iteration.completedAt,
@@ -142,7 +142,7 @@ export async function getWorkerIterationsWithInteractions(
     id: iteration.id,
     agentId: iteration.agentId,
     status: iteration.status,
-    observerPlan: iteration.observerPlan as Record<string, unknown> | null,
+    observerOutput: iteration.observerOutput as Record<string, unknown> | null,
     errorMessage: iteration.errorMessage,
     createdAt: iteration.createdAt,
     completedAt: iteration.completedAt,
@@ -185,7 +185,7 @@ export async function getWorkerIterationById(
     id: row.id,
     agentId: row.agentId,
     status: row.status,
-    observerPlan: row.observerPlan as Record<string, unknown> | null,
+    observerOutput: row.observerOutput as Record<string, unknown> | null,
     errorMessage: row.errorMessage,
     createdAt: row.createdAt,
     completedAt: row.completedAt,
@@ -214,7 +214,7 @@ export async function getLastCompletedIteration(
     id: row.id,
     agentId: row.agentId,
     status: row.status,
-    observerPlan: row.observerPlan as Record<string, unknown> | null,
+    observerOutput: row.observerOutput as Record<string, unknown> | null,
     errorMessage: row.errorMessage,
     createdAt: row.createdAt,
     completedAt: row.completedAt,

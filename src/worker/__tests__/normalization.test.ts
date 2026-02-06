@@ -1,8 +1,10 @@
-import { describe, expect, test } from "vitest";
-import { normalizeObserverPlanRelevantNodeIds } from "../observer-plan-normalization";
+import { describe, expect, test, vi } from "vitest";
+import { normalizeObserverOutput } from "../normalization";
 
-describe("normalizeObserverPlanRelevantNodeIds", () => {
+describe("normalizeObserverOutput", () => {
   test("resolves UUIDs, typed names, and plain names to UUIDs", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
     const nodes = [
       {
         id: "11111111-1111-4111-8111-111111111111",
@@ -21,7 +23,7 @@ describe("normalizeObserverPlanRelevantNodeIds", () => {
       },
     ];
 
-    const plan = {
+    const output = {
       queries: [{ objective: "test", reasoning: "test", searchHints: [] }],
       insights: [
         {
@@ -38,19 +40,20 @@ describe("normalizeObserverPlanRelevantNodeIds", () => {
       ],
     };
 
-    const result = normalizeObserverPlanRelevantNodeIds(plan, nodes);
+    const result = normalizeObserverOutput(output, nodes);
 
-    expect(result.normalizedPlan.insights[0].relevantNodeIds).toEqual([
+    expect(result.insights[0].relevantNodeIds).toEqual([
       "11111111-1111-4111-8111-111111111111",
       "22222222-2222-4222-8222-222222222222",
       "33333333-3333-4333-8333-333333333333",
     ]);
-    expect(result.resolvedByName).toBe(3);
-    expect(result.resolvedByUuid).toBe(2);
-    expect(result.droppedReferences).toEqual([]);
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
   });
 
   test("drops unresolved and ambiguous references", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
     const nodes = [
       {
         id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
@@ -64,7 +67,7 @@ describe("normalizeObserverPlanRelevantNodeIds", () => {
       },
     ];
 
-    const plan = {
+    const output = {
       queries: [],
       insights: [
         {
@@ -80,18 +83,20 @@ describe("normalizeObserverPlanRelevantNodeIds", () => {
       ],
     };
 
-    const result = normalizeObserverPlanRelevantNodeIds(plan, nodes);
+    const result = normalizeObserverOutput(output, nodes);
 
-    expect(result.normalizedPlan.insights[0].relevantNodeIds).toEqual([]);
-    expect(result.droppedReferences).toEqual([
-      "Duplicate Name",
-      "Company: Missing Company",
-      "00000000-0000-4000-8000-000000000000",
-      "",
-    ]);
+    expect(result.insights[0].relevantNodeIds).toEqual([]);
+    expect(warnSpy).toHaveBeenCalledOnce();
+    expect(warnSpy.mock.calls[0]?.[0]).toContain("dropped 4 unresolved");
+    expect(warnSpy.mock.calls[0]?.[0]).toContain(
+      'droppedReferences=["Duplicate Name","Company: Missing Company","00000000-0000-4000-8000-000000000000",""]',
+    );
+    warnSpy.mockRestore();
   });
 
   test("extracts embedded UUIDs from descriptive references", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
     const nodes = [
       {
         id: "9f2a78a6-2bd2-4d6d-8a6e-5af2f8fbc617",
@@ -100,7 +105,7 @@ describe("normalizeObserverPlanRelevantNodeIds", () => {
       },
     ];
 
-    const plan = {
+    const output = {
       queries: [],
       insights: [
         {
@@ -113,12 +118,12 @@ describe("normalizeObserverPlanRelevantNodeIds", () => {
       ],
     };
 
-    const result = normalizeObserverPlanRelevantNodeIds(plan, nodes);
+    const result = normalizeObserverOutput(output, nodes);
 
-    expect(result.normalizedPlan.insights[0].relevantNodeIds).toEqual([
+    expect(result.insights[0].relevantNodeIds).toEqual([
       "9f2a78a6-2bd2-4d6d-8a6e-5af2f8fbc617",
     ]);
-    expect(result.resolvedByUuid).toBe(1);
-    expect(result.droppedReferences).toEqual([]);
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
   });
 });

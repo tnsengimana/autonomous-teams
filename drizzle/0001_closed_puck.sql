@@ -1,0 +1,1 @@
+ALTER TABLE "worker_iterations" RENAME COLUMN "observer_plan" TO "observer_observations";

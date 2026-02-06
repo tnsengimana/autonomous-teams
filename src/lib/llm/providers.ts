@@ -716,7 +716,7 @@ export async function generateLLMObject<T>(
       { memories: [] },
       // Briefing decision (no briefing)
       { shouldBrief: false, reason: "Mock mode - no briefing" },
-      // Observer plan (replaces classification)
+      // Observer output (replaces classification)
       {
         queries: [],
         insights: [],

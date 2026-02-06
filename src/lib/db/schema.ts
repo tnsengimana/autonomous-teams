@@ -173,7 +173,7 @@ export const workerIterations = pgTable(
       .notNull()
       .references(() => agents.id, { onDelete: "cascade" }),
     status: text("status").notNull().default("running"), // 'running' | 'completed' | 'failed'
-    observerPlan: jsonb("observer_plan"), // Stores { queries: ObserverQuery[], insights: ObserverInsight[] }
+    observerOutput: jsonb("observer_output"), // Stores { queries: ObserverQuery[], insights: ObserverInsight[] }
     errorMessage: text("error_message"),
     createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
     completedAt: timestamp("completed_at", { mode: "date" }),

@@ -1,4 +1,5 @@
 import type { GraphNode } from "@/lib/types";
+import type { ObserverOutput } from "./types";
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -6,22 +7,6 @@ const EMBEDDED_UUID_REGEX =
   /[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i;
 
 type GraphNodeRef = Pick<GraphNode, "id" | "type" | "name">;
-
-export interface ObserverPlanLike {
-  queries: unknown[];
-  insights: Array<{
-    observation: string;
-    relevantNodeIds: string[];
-    synthesisDirection: string;
-  }>;
-}
-
-export interface ObserverPlanNormalizationResult<T extends ObserverPlanLike> {
-  normalizedPlan: T;
-  resolvedByUuid: number;
-  resolvedByName: number;
-  droppedReferences: string[];
-}
 
 function normalizeKey(value: string): string {
   return value.trim().toLowerCase();
@@ -37,10 +22,15 @@ function findUuidFromReference(reference: string): string | null {
   return embeddedMatch ? embeddedMatch[0] : null;
 }
 
-export function normalizeObserverPlanRelevantNodeIds<T extends ObserverPlanLike>(
-  plan: T,
+/**
+ * Normalizes Observer output by converting `insights[].relevantNodeIds` references
+ * (UUIDs, embedded UUIDs, `Type: Name`, or plain names) into canonical graph UUIDs.
+ * Unknown or ambiguous references are dropped, and duplicate UUIDs are removed.
+ */
+export function normalizeObserverOutput(
+  output: ObserverOutput,
   graphNodes: GraphNodeRef[],
-): ObserverPlanNormalizationResult<T> {
+): ObserverOutput {
   const nodesById = new Set<string>();
   const nodesByTypeAndName = new Map<string, string>();
   const nodesByName = new Map<string, string[]>();
@@ -62,7 +52,7 @@ export function normalizeObserverPlanRelevantNodeIds<T extends ObserverPlanLike>
   let resolvedByName = 0;
   const droppedReferences: string[] = [];
 
-  const normalizedInsights = plan.insights.map((insight) => {
+  const normalizedInsights = output.insights.map((insight) => {
     const dedupedIds = new Set<string>();
     const normalizedIds: string[] = [];
 
@@ -119,13 +109,14 @@ export function normalizeObserverPlanRelevantNodeIds<T extends ObserverPlanLike>
     };
   });
 
+  if (droppedReferences.length > 0) {
+    console.warn(
+      `[Observer] normalizeObserverOutput dropped ${droppedReferences.length} unresolved relevantNodeIds (resolvedByUuid=${resolvedByUuid}, resolvedByName=${resolvedByName}). droppedReferences=${JSON.stringify(droppedReferences)}`,
+    );
+  }
+
   return {
-    normalizedPlan: {
-      ...plan,
-      insights: normalizedInsights,
-    },
-    resolvedByUuid,
-    resolvedByName,
-    droppedReferences,
+    ...output,
+    insights: normalizedInsights,
   };
 }

@@ -33,7 +33,7 @@ interface WorkerIteration {
   id: string;
   agentId: string;
   status: string;
-  observerPlan: { queries?: unknown[]; insights?: unknown[] } | null;
+  observerOutput: { queries?: unknown[]; insights?: unknown[] } | null;
   errorMessage: string | null;
   createdAt: string;
   completedAt: string | null;
@@ -170,8 +170,8 @@ function IterationItem({ iteration }: { iteration: WorkerIteration }) {
         ? "outline"
         : "outline";
 
-  const planSummary = iteration.observerPlan
-    ? `${iteration.observerPlan.queries?.length ?? 0} queries, ${iteration.observerPlan.insights?.length ?? 0} insights`
+  const outputSummary = iteration.observerOutput
+    ? `${iteration.observerOutput.queries?.length ?? 0} queries, ${iteration.observerOutput.insights?.length ?? 0} insights`
     : null;
 
   return (
@@ -194,9 +194,9 @@ function IterationItem({ iteration }: { iteration: WorkerIteration }) {
                     {iteration.status.charAt(0).toUpperCase() +
                       iteration.status.slice(1)}
                   </Badge>
-                  {planSummary && (
+                  {outputSummary && (
                     <Badge variant="outline">
-                      {planSummary}
+                      {outputSummary}
                     </Badge>
                   )}
                 </div>
