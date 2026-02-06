@@ -344,7 +344,7 @@ export async function serializeGraphForLLM(
   lines.push('Nodes:');
   for (const node of nodes) {
     const propsStr = JSON.stringify(node.properties);
-    lines.push(`- [${node.type}] ${node.name}: ${propsStr}`);
+    lines.push(`- [${node.type}] ${node.name} (id: ${node.id}): ${propsStr}`);
   }
 
   // Format relationships

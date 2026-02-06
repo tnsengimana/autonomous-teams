@@ -161,6 +161,11 @@ Each insight must include:
 - **relevantNodeIds**: UUIDs of nodes that inform this observation (the Observer has access to node IDs in the graph context)
 - **synthesisDirection**: Clear guidance on what angle to analyze
 
+IMPORTANT:
+- relevantNodeIds MUST contain only UUIDs from the graph context
+- Never use node names, labels, or "Type:Name" values in relevantNodeIds
+- If no valid UUIDs are available for an insight, return an empty array
+
 ### 4. Plan Balance
 - Prefer a focused plan (2-4 total items) over an exhaustive one
 - It is valid to produce an empty plan if the graph is in good shape and no action is needed

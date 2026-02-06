@@ -559,8 +559,8 @@ describe('serializeGraphForLLM', () => {
     const serialized = await serializeGraphForLLM(testAgentId);
 
     expect(serialized).toContain('Nodes:');
-    expect(serialized).toContain('[Company] Apple Inc.');
-    expect(serialized).toContain('[Asset] AAPL');
+    expect(serialized).toContain(`[Company] Apple Inc. (id: ${apple.id})`);
+    expect(serialized).toContain(`[Asset] AAPL (id: ${aapl.id})`);
     expect(serialized).toContain('Relationships:');
     expect(serialized).toContain('AAPL --issued_by--> Apple Inc.');
 

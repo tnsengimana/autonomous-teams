@@ -28,6 +28,7 @@ import {
 } from "@/lib/llm/tools";
 import { z } from "zod";
 import { getActiveAgents } from "@/lib/db/queries/agents";
+import { getNodesByAgent } from "@/lib/db/queries/graph-data";
 import {
   createLLMInteraction,
   updateLLMInteraction,
@@ -37,6 +38,7 @@ import {
   updateWorkerIteration,
   getLastCompletedIteration,
 } from "@/lib/db/queries/worker-iterations";
+import { normalizeObserverPlanRelevantNodeIds } from "./observer-plan-normalization";
 import type { Agent } from "@/lib/types";
 
 // ============================================================================
@@ -209,16 +211,34 @@ You may produce any combination: queries only, insights only, both, or neither (
     { agentId: agent.id },
   );
 
+  // Post-validate and normalize observer node references to strict UUIDs.
+  // The model may still emit names despite prompt/schema guidance.
+  const graphNodes = await getNodesByAgent(agent.id);
+  const normalization = normalizeObserverPlanRelevantNodeIds(
+    plan,
+    graphNodes.map((node) => ({ id: node.id, type: node.type, name: node.name })),
+  );
+  const normalizedPlan = normalization.normalizedPlan;
+
   await updateLLMInteraction(interaction.id, {
-    response: plan,
+    response: normalizedPlan,
     completedAt: new Date(),
   });
 
+  if (normalization.droppedReferences.length > 0) {
+    log(
+      `[Observer] Normalized relevantNodeIds for agent ${agent.name}. ` +
+        `resolvedByUuid=${normalization.resolvedByUuid}, ` +
+        `resolvedByName=${normalization.resolvedByName}, ` +
+        `dropped=${normalization.droppedReferences.length}`,
+    );
+  }
+
   log(
-    `[Observer] Agent ${agent.name} planned: ${plan.queries.length} queries, ${plan.insights.length} insights`,
+    `[Observer] Agent ${agent.name} planned: ${normalizedPlan.queries.length} queries, ${normalizedPlan.insights.length} insights`,
   );
 
-  return plan;
+  return normalizedPlan;
 }
 
 // ============================================================================
