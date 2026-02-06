@@ -22,7 +22,8 @@ export async function createAgent(data: {
   name: string;
   purpose?: string | null;
   conversationSystemPrompt: string;
-  observerSystemPrompt: string;
+  queryIdentificationSystemPrompt: string;
+  insightIdentificationSystemPrompt: string;
   analysisGenerationSystemPrompt: string;
   adviceGenerationSystemPrompt: string;
   knowledgeAcquisitionSystemPrompt: string;
@@ -37,7 +38,9 @@ export async function createAgent(data: {
       name: data.name,
       purpose: data.purpose ?? null,
       conversationSystemPrompt: data.conversationSystemPrompt,
-      observerSystemPrompt: data.observerSystemPrompt,
+      queryIdentificationSystemPrompt: data.queryIdentificationSystemPrompt,
+      insightIdentificationSystemPrompt:
+        data.insightIdentificationSystemPrompt,
       analysisGenerationSystemPrompt: data.analysisGenerationSystemPrompt,
       adviceGenerationSystemPrompt: data.adviceGenerationSystemPrompt,
       knowledgeAcquisitionSystemPrompt: data.knowledgeAcquisitionSystemPrompt,

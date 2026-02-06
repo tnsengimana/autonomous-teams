@@ -19,7 +19,8 @@ CREATE TABLE "agents" (
 	"name" text NOT NULL,
 	"purpose" text,
 	"conversation_system_prompt" text NOT NULL,
-	"observer_system_prompt" text NOT NULL,
+	"query_identification_system_prompt" text NOT NULL,
+	"insight_identification_system_prompt" text NOT NULL,
 	"analysis_generation_system_prompt" text NOT NULL,
 	"advice_generation_system_prompt" text NOT NULL,
 	"knowledge_acquisition_system_prompt" text NOT NULL,
@@ -158,7 +159,6 @@ CREATE TABLE "worker_iterations" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"agent_id" uuid NOT NULL,
 	"status" text DEFAULT 'running' NOT NULL,
-	"observer_output" jsonb,
 	"error_message" text,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"completed_at" timestamp

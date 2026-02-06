@@ -9,7 +9,8 @@ describe("generateAgentConfiguration", () => {
       .mockResolvedValueOnce({
         name: "Alpha Pulse",
         conversationSystemPrompt: "conversation prompt",
-        observerSystemPrompt: "observer prompt",
+        queryIdentificationSystemPrompt: "query identification prompt",
+        insightIdentificationSystemPrompt: "insight identification prompt",
         analysisGenerationSystemPrompt: "analysis prompt",
         adviceGenerationSystemPrompt: "advice prompt",
         knowledgeAcquisitionSystemPrompt: "knowledge acquisition prompt",

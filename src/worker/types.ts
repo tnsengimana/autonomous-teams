@@ -10,7 +10,10 @@ export interface ObserverInsight {
   synthesisDirection: string;
 }
 
-export interface ObserverOutput extends Record<string, unknown> {
+export interface QueryIdentificationOutput extends Record<string, unknown> {
   queries: ObserverQuery[];
+}
+
+export interface InsightIdentificationOutput extends Record<string, unknown> {
   insights: ObserverInsight[];
 }

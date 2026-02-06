@@ -10,7 +10,7 @@ Autonomous Agents is a TypeScript/Next.js application where users create agents 
 - **Agent**: The central unit with a name, purpose, system prompt, and knowledge graph
 - **Knowledge Graph (KGoT)**: Agent's accumulated knowledge stored as typed nodes and edges
 - **Background Worker**: Runs agents in configurable iteration loops (default 5 min), calling the LLM with tools
-- **OODA Loop**: The worker pipeline is a variant of the OODA (Observe → Orient → Decide → Act) loop — Observer observes, Researcher orients by actively gathering information, Analyzer decides by synthesizing insights, Adviser acts by producing recommendations
+- **OODA Loop**: The worker pipeline is a variant of the OODA (Observe → Orient → Decide → Act) loop — Query Identification identifies knowledge gaps, Researcher orients by actively gathering information, Insight Identification identifies patterns on the enriched graph, Analyzer decides by synthesizing insights, Adviser acts by producing recommendations
 - **LLM Interactions**: Trace of all background LLM calls stored for debugging/auditing
 
 ## Commands
@@ -79,12 +79,13 @@ The system is built around agents that run autonomously:
 
 **Background Worker** (`src/worker/runner.ts`)
 - Per-agent iteration loop based on `iterationIntervalMs`
-- Each iteration runs the **Observer → Researcher → Analyzer → Adviser** pipeline (a variant of the OODA loop):
-  1. **Observer** (Observe): Scans graph, produces output with queries (knowledge gaps) and insights (patterns)
+- Each iteration runs the **Query Identification → Researcher → Insight Identification → Analyzer → Adviser** pipeline (a variant of the OODA loop):
+  1. **Query Identification** (Observe): Scans graph, identifies knowledge gaps (queries)
   2. **Researcher** (Orient): For each query, runs Knowledge Acquisition (web research) + Graph Construction — actively gathers information rather than passively reorienting
   3. Rebuild graph context with enriched data
-  4. **Analyzer** (Decide): For each insight, runs Analysis Generation (creates AgentAnalysis nodes)
-  5. **Adviser** (Act): If analyses were produced, runs Advice Generation (may create AgentAdvice nodes)
+  4. **Insight Identification**: Scans enriched graph, identifies patterns (insights)
+  5. **Analyzer** (Decide): For each insight, runs Analysis Generation (creates AgentAnalysis nodes)
+  6. **Adviser** (Act): If analyses were produced, runs Advice Generation (may create AgentAdvice nodes)
 - AgentAdvice node creation triggers user notifications via inbox items
 
 **Authentication** (`src/lib/auth/config.ts`)
@@ -123,16 +124,17 @@ The system is built around agents that run autonomously:
 
 **Autonomous Work (Background — OODA Loop)**:
 1. Worker picks up active agent based on its iteration interval
-2. **Observer** (Observe): Scans graph, produces output with queries and insights
+2. **Query Identification** (Observe): Scans graph, identifies knowledge gaps (queries)
 3. **Researcher** (Orient) for each query:
    - **Knowledge Acquisition**: Uses Tavily tools to research knowledge gap
    - **Graph Construction**: Structures acquired knowledge into typed graph nodes/edges
 4. Rebuild graph context (now enriched with new data)
-5. **Analyzer** (Decide) for each insight:
+5. **Insight Identification**: Scans enriched graph, identifies patterns (insights)
+6. **Analyzer** (Decide) for each insight:
    - **Analysis Generation**: Creates AgentAnalysis nodes from existing knowledge
-6. **Adviser** (Act) if analyses were produced:
+7. **Adviser** (Act) if analyses were produced:
    - **Advice Generation**: Reviews AgentAnalysis nodes, may create AgentAdvice nodes which notify user
-7. All phases logged to `llm_interactions` with phase tracking
+8. All phases logged to `llm_interactions` with phase tracking
 
 ### Key Patterns
 

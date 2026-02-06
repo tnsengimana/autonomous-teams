@@ -33,7 +33,6 @@ interface WorkerIteration {
   id: string;
   agentId: string;
   status: string;
-  observerOutput: { queries?: unknown[]; insights?: unknown[] } | null;
   errorMessage: string | null;
   createdAt: string;
   completedAt: string | null;
@@ -42,8 +41,10 @@ interface WorkerIteration {
 
 function getPhaseLabel(phase: string | null): string {
   switch (phase) {
-    case "observer":
-      return "Observer";
+    case "query_identification":
+      return "Query Identification";
+    case "insight_identification":
+      return "Insight Identification";
     case "knowledge_acquisition":
       return "Knowledge Acquisition";
     case "analysis_generation":
@@ -57,11 +58,11 @@ function getPhaseLabel(phase: string | null): string {
   }
 }
 
-function getPhaseVariant(
-  phase: string | null,
-): "secondary" | "outline" {
+function getPhaseVariant(phase: string | null): "secondary" | "outline" {
   switch (phase) {
-    case "observer":
+    case "query_identification":
+      return "outline";
+    case "insight_identification":
       return "outline";
     case "knowledge_acquisition":
       return "secondary";
@@ -170,9 +171,25 @@ function IterationItem({ iteration }: { iteration: WorkerIteration }) {
         ? "outline"
         : "outline";
 
-  const outputSummary = iteration.observerOutput
-    ? `${iteration.observerOutput.queries?.length ?? 0} queries, ${iteration.observerOutput.insights?.length ?? 0} insights`
-    : null;
+  const queryInteraction = iteration.llmInteractions.find(
+    (i) => i.phase === "query_identification",
+  );
+  const insightInteraction = iteration.llmInteractions.find(
+    (i) => i.phase === "insight_identification",
+  );
+
+  let queryCount = 0;
+  let insightCount = 0;
+
+  if (queryInteraction || insightInteraction) {
+    queryCount = (queryInteraction?.response as any)?.queries?.length ?? 0;
+    insightCount = (insightInteraction?.response as any)?.insights?.length ?? 0;
+  }
+
+  const outputSummary =
+    queryCount > 0 || insightCount > 0
+      ? `${queryCount} queries, ${insightCount} insights`
+      : null;
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
@@ -195,9 +212,7 @@ function IterationItem({ iteration }: { iteration: WorkerIteration }) {
                       iteration.status.slice(1)}
                   </Badge>
                   {outputSummary && (
-                    <Badge variant="outline">
-                      {outputSummary}
-                    </Badge>
+                    <Badge variant="outline">{outputSummary}</Badge>
                   )}
                 </div>
                 <CardDescription className="text-xs">

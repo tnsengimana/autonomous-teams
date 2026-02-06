@@ -716,11 +716,6 @@ export async function generateLLMObject<T>(
       { memories: [] },
       // Briefing decision (no briefing)
       { shouldBrief: false, reason: "Mock mode - no briefing" },
-      // Observer output (replaces classification)
-      {
-        queries: [],
-        insights: [],
-      },
       // User intent classification (default to regular_chat for most messages)
       {
         intent: "regular_chat",

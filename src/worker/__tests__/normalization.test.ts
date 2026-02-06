@@ -1,7 +1,7 @@
 import { describe, expect, test, vi } from "vitest";
-import { normalizeObserverOutput } from "../normalization";
+import { normalizeInsightIdentificationOutput } from "../normalization";
 
-describe("normalizeObserverOutput", () => {
+describe("normalizeInsightIdentificationOutput", () => {
   test("resolves UUIDs, typed names, and plain names to UUIDs", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
@@ -24,7 +24,6 @@ describe("normalizeObserverOutput", () => {
     ];
 
     const output = {
-      queries: [{ objective: "test", reasoning: "test", searchHints: [] }],
       insights: [
         {
           observation: "test observation",
@@ -40,7 +39,7 @@ describe("normalizeObserverOutput", () => {
       ],
     };
 
-    const result = normalizeObserverOutput(output, nodes);
+    const result = normalizeInsightIdentificationOutput(output, nodes);
 
     expect(result.insights[0].relevantNodeIds).toEqual([
       "11111111-1111-4111-8111-111111111111",
@@ -68,7 +67,6 @@ describe("normalizeObserverOutput", () => {
     ];
 
     const output = {
-      queries: [],
       insights: [
         {
           observation: "ambiguous refs",
@@ -83,7 +81,7 @@ describe("normalizeObserverOutput", () => {
       ],
     };
 
-    const result = normalizeObserverOutput(output, nodes);
+    const result = normalizeInsightIdentificationOutput(output, nodes);
 
     expect(result.insights[0].relevantNodeIds).toEqual([]);
     expect(warnSpy).toHaveBeenCalledOnce();
@@ -106,7 +104,6 @@ describe("normalizeObserverOutput", () => {
     ];
 
     const output = {
-      queries: [],
       insights: [
         {
           observation: "embedded uuid",
@@ -118,7 +115,7 @@ describe("normalizeObserverOutput", () => {
       ],
     };
 
-    const result = normalizeObserverOutput(output, nodes);
+    const result = normalizeInsightIdentificationOutput(output, nodes);
 
     expect(result.insights[0].relevantNodeIds).toEqual([
       "9f2a78a6-2bd2-4d6d-8a6e-5af2f8fbc617",

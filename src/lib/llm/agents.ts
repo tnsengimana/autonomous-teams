@@ -19,7 +19,7 @@ function formatInterval(ms: number): string {
 }
 
 /**
- * Schema for the generated agent configuration with six distinct system prompts
+ * Schema for the generated agent configuration with seven distinct system prompts
  */
 const AgentConfigurationSchema = z.object({
   name: z
@@ -28,10 +28,15 @@ const AgentConfigurationSchema = z.object({
   conversationSystemPrompt: z
     .string()
     .describe("System prompt for user-facing conversations"),
-  observerSystemPrompt: z
+  queryIdentificationSystemPrompt: z
     .string()
     .describe(
-      "System prompt for the Observer phase that defines each iteration's output",
+      "System prompt for the Query Identification phase that identifies knowledge gaps",
+    ),
+  insightIdentificationSystemPrompt: z
+    .string()
+    .describe(
+      "System prompt for the Insight Identification phase that identifies patterns to analyze",
     ),
   analysisGenerationSystemPrompt: z
     .string()
@@ -111,31 +116,28 @@ Generate a conversationSystemPrompt (3-5 paragraphs) that instructs the agent to
 - Offer to investigate topics further in future iterations`;
 
 /**
- * Meta-prompt for generating the OBSERVER system prompt.
- * The Observer is the agent's "brain" -- it scans the knowledge graph and produces structured output.
+ * Meta-prompt for generating the QUERY IDENTIFICATION system prompt.
+ * Runs at the start of each iteration to identify knowledge gaps to research.
  */
-function getObserverMetaPrompt(interval: string): string {
-  return `You are an expert agent architect. Given a mission/purpose, generate an OBSERVER SYSTEM PROMPT for an AI agent that acts as the central coordinator directing all background work.
+function getQueryIdentificationMetaPrompt(interval: string): string {
+  return `You are an expert agent architect. Given a mission/purpose, generate a QUERY IDENTIFICATION SYSTEM PROMPT for an AI agent that identifies knowledge gaps to research.
 
 ## Context
 
-This agent runs autonomously every ${interval}. At the start of each iteration, the Observer phase scans the knowledge graph and produces structured output with two types of work items:
+This agent runs autonomously every ${interval}. At the start of each iteration, the Query Identification phase scans the knowledge graph and produces structured output with queries — knowledge gaps to fill via web research. Each query has an objective, reasoning, and search hints.
 
-- **Queries**: Knowledge gaps to fill via web research. Each query has an objective, reasoning, and search hints.
-- **Insights**: Patterns or connections worth analyzing from existing graph knowledge. Each insight has an observation, relevant node IDs, and a synthesis direction.
-
-The Observer does NOT execute anything -- it only emits output. It does not search the web, create graph nodes, or write analyses. It reads the graph context and decides what to investigate and what to analyze. The downstream phases (Researcher, Analyzer, Adviser) handle execution.
+The Query Identification phase does NOT execute anything -- it only emits queries. It does not search the web, create graph nodes, or write analyses. It reads the graph context and decides what to investigate. The downstream phases (Researcher, Analyzer, Adviser) handle execution.
 
 ## Output Requirements
 
-Generate an observerSystemPrompt (5-8 paragraphs) that instructs the agent to:
+Generate a queryIdentificationSystemPrompt (4-6 paragraphs) that instructs the agent to:
 
 ### 1. Graph State Analysis
 - Carefully review the full graph context provided
 - Identify what knowledge exists, its recency, and its completeness
 - Look for areas that are well-populated vs. sparse
 - Check temporal properties: what knowledge is stale or needs updating?
-- Notice cross-domain connections and emerging patterns
+- Notice areas where knowledge is missing or insufficient
 
 ### 2. Query Generation (Knowledge Gaps)
 Generate queries when:
@@ -149,7 +151,46 @@ Each query must include:
 - **reasoning**: Why this gap matters for the mission
 - **searchHints**: Concrete search queries to guide research
 
-### 3. Insight Generation (Patterns to Analyze)
+### 3. Output Balance
+- Prefer focused output (2-4 queries) over an exhaustive list
+- It is valid to produce no queries if the graph is in good shape and no research is needed
+- Avoid re-querying for knowledge that already exists in the graph
+
+### 4. Mission Alignment
+- Every query must tie back to the agent's core mission
+- Prioritize queries that advance the mission's goals
+- Don't drift into tangential topics just because they're interesting
+
+### 5. Quality Over Quantity
+- One well-defined query is better than five vague ones
+- The quality of queries determines the quality of the research that follows`;
+}
+
+/**
+ * Meta-prompt for generating the INSIGHT IDENTIFICATION system prompt.
+ * Runs after research to identify patterns worth analyzing from the enriched graph.
+ */
+function getInsightIdentificationMetaPrompt(interval: string): string {
+  return `You are an expert agent architect. Given a mission/purpose, generate an INSIGHT IDENTIFICATION SYSTEM PROMPT for an AI agent that identifies patterns and connections worth analyzing.
+
+## Context
+
+This agent runs autonomously every ${interval}. After the research phase enriches the knowledge graph, the Insight Identification phase scans the freshly updated graph and produces structured output with insights — patterns or connections worth analyzing from existing graph knowledge. Each insight has an observation, relevant node IDs, and a synthesis direction.
+
+The Insight Identification phase does NOT execute anything -- it only emits insights. It does not search the web, create graph nodes, or write analyses. It reads the enriched graph context and decides what to analyze. The downstream phases (Analyzer, Adviser) handle execution.
+
+## Output Requirements
+
+Generate an insightIdentificationSystemPrompt (4-6 paragraphs) that instructs the agent to:
+
+### 1. Graph State Analysis
+- Carefully review the full graph context provided
+- Identify what knowledge exists, its recency, and its completeness
+- Look for areas that are well-populated vs. sparse
+- Check temporal properties: what knowledge is stale or needs updating?
+- Notice cross-domain connections and emerging patterns
+
+### 2. Insight Generation (Patterns to Analyze)
 Generate insights when:
 - Multiple related pieces of information can be connected to derive new understanding
 - Patterns are emerging that haven't been formally captured as AgentAnalysis nodes
@@ -158,7 +199,7 @@ Generate insights when:
 
 Each insight must include:
 - **observation**: The specific pattern or connection noticed
-- **relevantNodeIds**: UUIDs of nodes that inform this observation (the Observer has access to node IDs in the graph context)
+- **relevantNodeIds**: UUIDs of nodes that inform this observation (the phase has access to node IDs in the graph context)
 - **synthesisDirection**: Clear guidance on what angle to analyze
 
 IMPORTANT:
@@ -166,22 +207,19 @@ IMPORTANT:
 - Never use node names, labels, or "Type:Name" values in relevantNodeIds
 - If no valid UUIDs are available for an insight, return an empty array
 
-### 4. Output Balance
-- Prefer focused output (2-4 total items) over an exhaustive list
-- It is valid to produce no output if the graph is in good shape and no action is needed
-- Balance queries and insights -- don't always do one without the other
-- Avoid re-querying for knowledge that already exists in the graph
+### 3. Output Balance
+- Prefer focused output (2-4 insights) over an exhaustive list
+- It is valid to produce no insights if no meaningful patterns are visible
 - Avoid generating insights that duplicate existing AgentAnalysis nodes
 
-### 5. Mission Alignment
-- Every query and insight must tie back to the agent's core mission
-- Prioritize work that advances the mission's goals
+### 4. Mission Alignment
+- Every insight must tie back to the agent's core mission
+- Prioritize insights that advance the mission's goals
 - Don't drift into tangential topics just because they're interesting
 
-### 6. Quality Over Quantity
-- One well-defined query is better than five vague ones
+### 5. Quality Over Quantity
 - One specific insight pointing at concrete nodes is better than a generic observation
-- The Observer's output quality determines the quality of the entire iteration`;
+- The quality of insights determines the quality of the analyses that follow`;
 }
 
 /**
@@ -454,36 +492,41 @@ For each piece of knowledge:
 - Track when information was added to the graph`;
 
 // ============================================================================
-// Unified Meta-Prompt for Generating All Six System Prompts
+// Unified Meta-Prompt for Generating All Seven System Prompts
 // ============================================================================
 
 function getUnifiedMetaPrompt(interval: string): string {
-  const observerMetaPrompt = getObserverMetaPrompt(interval);
+  const queryIdentificationMetaPrompt =
+    getQueryIdentificationMetaPrompt(interval);
+  const insightIdentificationMetaPrompt =
+    getInsightIdentificationMetaPrompt(interval);
 
-  return `You are an expert agent architect. Given a mission/purpose, generate SIX DISTINCT SYSTEM PROMPTS for an autonomous AI agent that runs continuously.
+  return `You are an expert agent architect. Given a mission/purpose, generate SEVEN DISTINCT SYSTEM PROMPTS for an autonomous AI agent that runs continuously.
 
 ## Agent Architecture Overview
 
-This agent operates with four named actors, each with its own system prompt:
+This agent operates with six named actors, each with its own system prompt:
 
 1. **CONVERSATION** (Foreground): Handles user interactions, answers questions using knowledge graph
-2. **OBSERVER** (Background): Scans the graph and produces each iteration's output -- queries (knowledge gaps) and insights (patterns to analyze)
-3. **RESEARCHER** (Background): Executes the Observer's queries via two sub-phases:
+2. **QUERY IDENTIFIER** (Background): Scans the graph and identifies knowledge gaps (queries) to research
+3. **RESEARCHER** (Background): Executes the Query Identifier's queries via two sub-phases:
    - **KNOWLEDGE ACQUISITION**: Gathers raw information using web search
    - **GRAPH CONSTRUCTION**: Structures acquired knowledge into the graph
-4. **ANALYZER** (Background): Processes the Observer's insights via **ANALYSIS GENERATION** -- creates AgentAnalysis nodes
-5. **ADVISER** (Background): Reviews AgentAnalysis nodes and may create AgentAdvice recommendations
+4. **INSIGHT IDENTIFIER** (Background): Scans the enriched graph (after research) and identifies patterns and connections (insights) to analyze
+5. **ANALYZER** (Background): Processes the Insight Identifier's insights via **ANALYSIS GENERATION** -- creates AgentAnalysis nodes
+6. **ADVISER** (Background): Reviews AgentAnalysis nodes and may create AgentAdvice recommendations
 
-> Note: There are 5 listed actors but 6 system prompts because the RESEARCHER (item 3) covers TWO separate system prompts: \`knowledgeAcquisitionSystemPrompt\` and \`graphConstructionSystemPrompt\`. This is why the output section below says "generate SIX DISTINCT SYSTEM PROMPTS" from 5 actors.
+> Note: There are 6 listed actors but 7 system prompts because the RESEARCHER (item 3) covers TWO separate system prompts: \`knowledgeAcquisitionSystemPrompt\` and \`graphConstructionSystemPrompt\`. This is why the output section below says "generate SEVEN DISTINCT SYSTEM PROMPTS" from 6 actors.
 
 ## Iteration Pipeline
 
 Every iteration follows the same pipeline:
-1. Observer produces output with queries and insights
+1. Query Identification scans graph and produces queries (knowledge gaps)
 2. Researcher executes each query (knowledge acquisition + graph construction)
 3. Graph context is rebuilt with enriched data
-4. Analyzer processes each insight (analysis generation on enriched graph)
-5. Adviser runs if analyses were produced (advice generation)
+4. Insight Identification scans enriched graph and produces insights (patterns to analyze)
+5. Analyzer processes each insight (analysis generation on enriched graph)
+6. Adviser runs if analyses were produced (advice generation)
 
 ## What This Agent Does
 
@@ -495,29 +538,32 @@ Every iteration follows the same pipeline:
 
 ## Output Requirements
 
-Generate all six system prompts tailored to the given mission:
+Generate all seven system prompts tailored to the given mission:
 
 ### 1. conversationSystemPrompt (3-5 paragraphs)
 ${CONVERSATION_META_PROMPT.split("## Output Requirements")[1]}
 
-### 2. observerSystemPrompt (5-8 paragraphs)
-${observerMetaPrompt.split("## Output Requirements")[1]}
+### 2. queryIdentificationSystemPrompt (4-6 paragraphs)
+${queryIdentificationMetaPrompt.split("## Output Requirements")[1]}
 
-### 3. analysisGenerationSystemPrompt (4-6 paragraphs)
+### 3. insightIdentificationSystemPrompt (4-6 paragraphs)
+${insightIdentificationMetaPrompt.split("## Output Requirements")[1]}
+
+### 4. analysisGenerationSystemPrompt (4-6 paragraphs)
 ${ANALYSIS_GENERATION_META_PROMPT.split("## Output Requirements")[1]}
 
-### 4. adviceGenerationSystemPrompt (4-6 paragraphs)
+### 5. adviceGenerationSystemPrompt (4-6 paragraphs)
 ${ADVICE_GENERATION_META_PROMPT.split("## Output Requirements")[1]}
 
-### 5. knowledgeAcquisitionSystemPrompt (3-5 paragraphs)
+### 6. knowledgeAcquisitionSystemPrompt (3-5 paragraphs)
 ${KNOWLEDGE_ACQUISITION_META_PROMPT.split("## Output Requirements")[1]}
 
-### 6. graphConstructionSystemPrompt (4-6 paragraphs)
+### 7. graphConstructionSystemPrompt (4-6 paragraphs)
 ${GRAPH_CONSTRUCTION_META_PROMPT.split("## Output Requirements")[1]}
 
 ## Cross-Prompt Consistency
 
-Ensure all six prompts:
+Ensure all seven prompts:
 - Use consistent terminology and domain language
 - Reference the same mission and goals
 - Have compatible approaches to the knowledge graph
@@ -537,7 +583,7 @@ For each prompt, incorporate:
 // ============================================================================
 
 /**
- * Generate agent configuration with six distinct system prompts from the mission/purpose.
+ * Generate agent configuration with seven distinct system prompts from the mission/purpose.
  * Uses LLM to create appropriate values based on the purpose.
  */
 export async function generateAgentConfiguration(
@@ -551,10 +597,11 @@ export async function generateAgentConfiguration(
 
 Generate the complete agent configuration with:
 1. A short, memorable name (2-4 words)
-2. All six system prompts tailored to this mission
+2. All seven system prompts tailored to this mission
 
 Each system prompt should be detailed and actionable, giving clear guidance for its specific phase of operation. The prompts should work together as a coherent system:
-- The Observer defines what to research (queries) and what to analyze (insights)
+- Query Identification identifies knowledge gaps to research
+- Insight Identification identifies patterns to analyze (after research enriches the graph)
 - The Researcher gathers and structures knowledge
 - The Analyzer creates analyses from existing knowledge
 - The Adviser creates recommendations from analyses`;

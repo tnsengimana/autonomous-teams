@@ -1,14 +1,16 @@
 /**
  * Worker Runner
  *
- * Agent-based iteration with configurable intervals using an Observer -> Researcher -> Analyzer -> Adviser pipeline.
+ * Agent-based iteration with configurable intervals using a
+ * Query Identification -> Researcher -> Insight Identification -> Analyzer -> Adviser pipeline.
  *
  * For each active agent:
- * 1. Observer phase: scan graph, produce output with queries (knowledge gaps) and insights (patterns)
+ * 1. Query Identification phase: scan graph, identify knowledge gaps (queries)
  * 2. Researcher phase: for each query, run knowledge acquisition + graph construction
- * 3. Rebuild graph context after all queries are processed
- * 4. Analyzer phase: for each insight, run analysis generation
- * 5. Adviser phase: if analyses were produced, run advice generation
+ * 3. Rebuild graph context after all queries are processed (now enriched)
+ * 4. Insight Identification phase: scan enriched graph, identify patterns (insights)
+ * 5. Analyzer phase: for each insight, run analysis generation
+ * 6. Adviser phase: if analyses were produced, run advice generation
  */
 
 import {
@@ -38,9 +40,14 @@ import {
   updateWorkerIteration,
   getLastCompletedIteration,
 } from "@/lib/db/queries/worker-iterations";
-import { normalizeObserverOutput } from "./normalization";
+import { normalizeInsightIdentificationOutput } from "./normalization";
 import { validateKnowledgeAcquisitionOutput } from "./validation";
-import type { ObserverOutput, ObserverQuery, ObserverInsight } from "./types";
+import type {
+  QueryIdentificationOutput,
+  InsightIdentificationOutput,
+  ObserverQuery,
+  ObserverInsight,
+} from "./types";
 import type { Agent } from "@/lib/types";
 
 // ============================================================================
@@ -91,12 +98,15 @@ const ObserverInsightSchema = z.object({
     .describe("Guidance for the Analyzer on what angle to analyze this from"),
 });
 
-const ObserverOutputSchema = z.object({
+const QueryIdentificationOutputSchema = z.object({
   queries: z
     .array(ObserverQuerySchema)
     .describe(
       "Knowledge gaps to fill via web research. Each query becomes a Knowledge Acquisition + Graph Construction cycle.",
     ),
+});
+
+const InsightIdentificationOutputSchema = z.object({
   insights: z
     .array(ObserverInsightSchema)
     .describe(
@@ -159,54 +169,110 @@ async function isAgentDueForIteration(agent: Agent): Promise<boolean> {
 }
 
 // ============================================================================
-// Observer Phase
+// Query Identification Phase
 // ============================================================================
 
 /**
- * Run the observer phase to scan the graph and produce structured output.
+ * Run the query identification phase to scan the graph and identify knowledge gaps.
  * Uses structured output (generateLLMObject) to get a JSON response.
  */
-async function runObserverPhase(
+async function runQueryIdentificationPhase(
   agent: Agent,
   graphContext: string,
   workerIterationId: string,
-): Promise<ObserverOutput> {
-  log(`[Observer] Starting for agent: ${agent.name}`);
+): Promise<QueryIdentificationOutput> {
+  log(`[QueryIdentification] Starting for agent: ${agent.name}`);
 
   const requestMessages = [
     {
       role: "user" as const,
-      content: `Review your current knowledge graph and determine your next output.
+      content: `Review your current knowledge graph and identify knowledge gaps that need to be filled via web research.
 
 ${graphContext}
 
 Based on the graph state above, produce output with:
-- **queries**: Knowledge gaps to fill via web research. Each becomes a research cycle.
-- **insights**: Patterns worth analyzing from existing knowledge. Each becomes an analysis.
+- **queries**: Knowledge gaps to fill via web research. Each becomes a Knowledge Acquisition + Graph Construction cycle.
 
-You may produce any combination: queries only, insights only, both, or neither (if there is nothing worth doing right now).`,
+Focus only on identifying what information is missing or outdated. Do not identify patterns or insights — that will happen in a later phase after research enriches the graph.`,
     },
   ];
 
   const interaction = await createLLMInteraction({
     agentId: agent.id,
     workerIterationId,
-    systemPrompt: agent.observerSystemPrompt,
+    systemPrompt: agent.queryIdentificationSystemPrompt,
     request: { messages: requestMessages },
-    phase: "observer",
+    phase: "query_identification",
   });
 
   const output = await generateLLMObject(
     requestMessages,
-    ObserverOutputSchema,
-    agent.observerSystemPrompt,
+    QueryIdentificationOutputSchema,
+    agent.queryIdentificationSystemPrompt,
     { agentId: agent.id },
   );
 
-  // Post-validate and normalize observer node references to strict UUIDs.
+  await updateLLMInteraction(interaction.id, {
+    response: output,
+    completedAt: new Date(),
+  });
+
+  log(
+    `[QueryIdentification] Agent ${agent.name} produced ${output.queries.length} queries`,
+  );
+
+  return output;
+}
+
+// ============================================================================
+// Insight Identification Phase
+// ============================================================================
+
+/**
+ * Run the insight identification phase to scan the (enriched) graph and identify patterns.
+ * Uses structured output (generateLLMObject) to get a JSON response.
+ * Normalizes relevantNodeIds to strict UUIDs since the model may emit names.
+ */
+async function runInsightIdentificationPhase(
+  agent: Agent,
+  graphContext: string,
+  workerIterationId: string,
+): Promise<InsightIdentificationOutput> {
+  log(`[InsightIdentification] Starting for agent: ${agent.name}`);
+
+  const requestMessages = [
+    {
+      role: "user" as const,
+      content: `Review your current knowledge graph and identify patterns, trends, or connections worth analyzing.
+
+${graphContext}
+
+Based on the graph state above, produce output with:
+- **insights**: Patterns worth analyzing from existing graph knowledge. Each becomes an Analysis Generation call.
+
+Focus only on identifying patterns and connections in the existing knowledge. Reference relevant graph nodes by their UUIDs in relevantNodeIds.`,
+    },
+  ];
+
+  const interaction = await createLLMInteraction({
+    agentId: agent.id,
+    workerIterationId,
+    systemPrompt: agent.insightIdentificationSystemPrompt,
+    request: { messages: requestMessages },
+    phase: "insight_identification",
+  });
+
+  const output = await generateLLMObject(
+    requestMessages,
+    InsightIdentificationOutputSchema,
+    agent.insightIdentificationSystemPrompt,
+    { agentId: agent.id },
+  );
+
+  // Post-validate and normalize insight node references to strict UUIDs.
   // The model may still emit names despite prompt/schema guidance.
   const graphNodes = await getNodesByAgent(agent.id);
-  const normalizedOutput = normalizeObserverOutput(
+  const normalizedOutput = normalizeInsightIdentificationOutput(
     output,
     graphNodes.map((node) => ({
       id: node.id,
@@ -221,7 +287,7 @@ You may produce any combination: queries only, insights only, both, or neither (
   });
 
   log(
-    `[Observer] Agent ${agent.name} produced output: ${normalizedOutput.queries.length} queries, ${normalizedOutput.insights.length} insights`,
+    `[InsightIdentification] Agent ${agent.name} produced ${normalizedOutput.insights.length} insights`,
   );
 
   return normalizedOutput;
@@ -754,13 +820,15 @@ Modeling guardrails:
 // ============================================================================
 
 /**
- * Process one agent's iteration using the Observer -> Researcher -> Analyzer -> Adviser pipeline.
+ * Process one agent's iteration using the
+ * Query Identification -> Researcher -> Insight Identification -> Analyzer -> Adviser pipeline.
  *
- * Step 1: Observer - scan graph and produce output with queries and insights
+ * Step 1: Query Identification - scan graph and identify knowledge gaps (queries)
  * Step 2: Researcher - for each query, run knowledge acquisition + graph construction
  * Step 3: Rebuild graph context (now enriched)
- * Step 4: Analyzer - for each insight, run analysis generation
- * Step 5: Adviser - if analyses were produced, run advice generation
+ * Step 4: Insight Identification - scan enriched graph and identify patterns (insights)
+ * Step 5: Analyzer - for each insight, run analysis generation
+ * Step 6: Adviser - if analyses were produced, run advice generation
  */
 async function processAgentIteration(agent: Agent): Promise<void> {
   log(`Processing iteration for agent: ${agent.name} (${agent.id})`);
@@ -781,22 +849,17 @@ async function processAgentIteration(agent: Agent): Promise<void> {
     // Build initial graph context
     let graphContext = await buildGraphContextBlock(agent.id);
 
-    // -- Step 1: OBSERVER --
-    const output = await runObserverPhase(
+    // -- Step 1: QUERY IDENTIFICATION --
+    const queryOutput = await runQueryIdentificationPhase(
       agent,
       graphContext,
       workerIteration.id,
     );
 
-    // Store observer output on the worker iteration
-    await updateWorkerIteration(workerIteration.id, {
-      observerOutput: output,
-    });
-
     // -- Step 2: RESEARCHER (for each query) --
-    if (output.queries.length > 0) {
-      log(`[Researcher] Processing ${output.queries.length} queries`);
-      for (const query of output.queries) {
+    if (queryOutput.queries.length > 0) {
+      log(`[Researcher] Processing ${queryOutput.queries.length} queries`);
+      for (const query of queryOutput.queries) {
         const markdown = await runKnowledgeAcquisitionPhase(
           agent,
           query,
@@ -815,11 +878,18 @@ async function processAgentIteration(agent: Agent): Promise<void> {
       graphContext = await buildGraphContextBlock(agent.id);
     }
 
-    // -- Step 4: ANALYZER (for each insight) --
+    // -- Step 4: INSIGHT IDENTIFICATION (on enriched graph) --
+    const insightOutput = await runInsightIdentificationPhase(
+      agent,
+      graphContext,
+      workerIteration.id,
+    );
+
+    // -- Step 5: ANALYZER (for each insight) --
     let analysesProduced = false;
-    if (output.insights.length > 0) {
-      log(`[Analyzer] Processing ${output.insights.length} insights`);
-      for (const insight of output.insights) {
+    if (insightOutput.insights.length > 0) {
+      log(`[Analyzer] Processing ${insightOutput.insights.length} insights`);
+      for (const insight of insightOutput.insights) {
         const produced = await runAnalysisGenerationPhase(
           agent,
           insight,
@@ -832,7 +902,7 @@ async function processAgentIteration(agent: Agent): Promise<void> {
       }
     }
 
-    // -- Step 5: ADVISER (if analyses were produced) --
+    // -- Step 6: ADVISER (if analyses were produced) --
     if (analysesProduced) {
       // Rebuild graph context so adviser sees new AgentAnalysis nodes
       const adviserGraphContext = await buildGraphContextBlock(agent.id);
@@ -874,7 +944,7 @@ async function processAgentIteration(agent: Agent): Promise<void> {
  */
 export async function startRunner(): Promise<void> {
   log(
-    "Worker runner started (Observer -> Researcher -> Analyzer -> Adviser pipeline, per-agent intervals)",
+    "Worker runner started (Query Identification -> Researcher -> Insight Identification -> Analyzer -> Adviser pipeline, per-agent intervals)",
   );
 
   // Register all tools before starting

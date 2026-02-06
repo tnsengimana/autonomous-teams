@@ -1,5 +1,5 @@
 {
-  "id": "45756c5d-4137-4715-a8ef-6ff67f8d18aa",
+  "id": "02823bd2-6978-4cbe-9188-8be440f637df",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -140,8 +140,14 @@
           "primaryKey": false,
           "notNull": true
         },
-        "observer_system_prompt": {
-          "name": "observer_system_prompt",
+        "query_identification_system_prompt": {
+          "name": "query_identification_system_prompt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "insight_identification_system_prompt": {
+          "name": "insight_identification_system_prompt",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -1395,12 +1401,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'running'"
-        },
-        "observer_output": {
-          "name": "observer_output",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
         },
         "error_message": {
           "name": "error_message",

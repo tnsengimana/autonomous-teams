@@ -16,7 +16,6 @@ export interface WorkerIteration {
   id: string;
   agentId: string;
   status: string;
-  observerOutput: Record<string, unknown> | null;
   errorMessage: string | null;
   createdAt: Date;
   completedAt: Date | null;
@@ -40,7 +39,6 @@ export interface CreateWorkerIterationInput {
 
 export interface UpdateWorkerIterationInput {
   status?: string;
-  observerOutput?: Record<string, unknown>;
   errorMessage?: string;
   completedAt?: Date;
 }
@@ -53,7 +51,7 @@ export interface UpdateWorkerIterationInput {
  * Create a new worker iteration record
  */
 export async function createWorkerIteration(
-  data: CreateWorkerIterationInput
+  data: CreateWorkerIterationInput,
 ): Promise<WorkerIteration> {
   const result = await db
     .insert(workerIterations)
@@ -67,7 +65,6 @@ export async function createWorkerIteration(
     id: iteration.id,
     agentId: iteration.agentId,
     status: iteration.status,
-    observerOutput: iteration.observerOutput as Record<string, unknown> | null,
     errorMessage: iteration.errorMessage,
     createdAt: iteration.createdAt,
     completedAt: iteration.completedAt,
@@ -79,7 +76,7 @@ export async function createWorkerIteration(
  */
 export async function updateWorkerIteration(
   id: string,
-  data: UpdateWorkerIterationInput
+  data: UpdateWorkerIterationInput,
 ): Promise<void> {
   await db
     .update(workerIterations)
@@ -92,7 +89,7 @@ export async function updateWorkerIteration(
  */
 export async function getWorkerIterationsWithInteractions(
   agentId: string,
-  limit: number = 50
+  limit: number = 50,
 ): Promise<WorkerIterationWithInteractions[]> {
   // Get iterations
   const iterations = await db
@@ -123,7 +120,8 @@ export async function getWorkerIterationsWithInteractions(
 
   for (const interaction of interactions) {
     if (interaction.workerIterationId) {
-      const list = interactionsByIteration.get(interaction.workerIterationId) || [];
+      const list =
+        interactionsByIteration.get(interaction.workerIterationId) || [];
       list.push({
         id: interaction.id,
         phase: interaction.phase,
@@ -142,25 +140,25 @@ export async function getWorkerIterationsWithInteractions(
     id: iteration.id,
     agentId: iteration.agentId,
     status: iteration.status,
-    observerOutput: iteration.observerOutput as Record<string, unknown> | null,
     errorMessage: iteration.errorMessage,
     createdAt: iteration.createdAt,
     completedAt: iteration.completedAt,
-    llmInteractions: (
-      interactionsByIteration.get(iteration.id) || []
-    ).sort((a, b) => {
-      // Sort by phase order: observer first, then research, then analysis/advice
-      const phaseOrder: Record<string, number> = {
-        observer: 0,
-        knowledge_acquisition: 1,
-        graph_construction: 2,
-        analysis_generation: 3,
-        advice_generation: 4,
-      };
-      const aOrder = a.phase ? phaseOrder[a.phase] ?? 2 : 2;
-      const bOrder = b.phase ? phaseOrder[b.phase] ?? 2 : 2;
-      return aOrder - bOrder;
-    }),
+    llmInteractions: (interactionsByIteration.get(iteration.id) || []).sort(
+      (a, b) => {
+        // Sort by phase order: query identification first, then research, then analysis/advice
+        const phaseOrder: Record<string, number> = {
+          query_identification: 0,
+          knowledge_acquisition: 1,
+          graph_construction: 2,
+          insight_identification: 3,
+          analysis_generation: 4,
+          advice_generation: 5,
+        };
+        const aOrder = a.phase ? (phaseOrder[a.phase] ?? 2) : 2;
+        const bOrder = b.phase ? (phaseOrder[b.phase] ?? 2) : 2;
+        return aOrder - bOrder;
+      },
+    ),
   }));
 }
 
@@ -168,7 +166,7 @@ export async function getWorkerIterationsWithInteractions(
  * Get a single worker iteration by ID
  */
 export async function getWorkerIterationById(
-  id: string
+  id: string,
 ): Promise<WorkerIteration | null> {
   const results = await db
     .select()
@@ -185,7 +183,6 @@ export async function getWorkerIterationById(
     id: row.id,
     agentId: row.agentId,
     status: row.status,
-    observerOutput: row.observerOutput as Record<string, unknown> | null,
     errorMessage: row.errorMessage,
     createdAt: row.createdAt,
     completedAt: row.completedAt,
@@ -196,7 +193,7 @@ export async function getWorkerIterationById(
  * Get the last completed worker iteration for an agent
  */
 export async function getLastCompletedIteration(
-  agentId: string
+  agentId: string,
 ): Promise<WorkerIteration | null> {
   const results = await db
     .select()
@@ -214,7 +211,6 @@ export async function getLastCompletedIteration(
     id: row.id,
     agentId: row.agentId,
     status: row.status,
-    observerOutput: row.observerOutput as Record<string, unknown> | null,
     errorMessage: row.errorMessage,
     createdAt: row.createdAt,
     completedAt: row.completedAt,

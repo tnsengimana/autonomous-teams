@@ -1,5 +1,5 @@
 import type { GraphNode } from "@/lib/types";
-import type { ObserverOutput } from "./types";
+import type { InsightIdentificationOutput } from "./types";
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -23,14 +23,14 @@ function findUuidFromReference(reference: string): string | null {
 }
 
 /**
- * Normalizes Observer output by converting `insights[].relevantNodeIds` references
- * (UUIDs, embedded UUIDs, `Type: Name`, or plain names) into canonical graph UUIDs.
- * Unknown or ambiguous references are dropped, and duplicate UUIDs are removed.
+ * Normalizes Insight Identification output by converting `insights[].relevantNodeIds`
+ * references (UUIDs, embedded UUIDs, `Type: Name`, or plain names) into canonical graph
+ * UUIDs. Unknown or ambiguous references are dropped, and duplicate UUIDs are removed.
  */
-export function normalizeObserverOutput(
-  output: ObserverOutput,
+export function normalizeInsightIdentificationOutput(
+  output: InsightIdentificationOutput,
   graphNodes: GraphNodeRef[],
-): ObserverOutput {
+): InsightIdentificationOutput {
   const nodesById = new Set<string>();
   const nodesByTypeAndName = new Map<string, string>();
   const nodesByName = new Map<string, string[]>();
@@ -111,7 +111,7 @@ export function normalizeObserverOutput(
 
   if (droppedReferences.length > 0) {
     console.warn(
-      `[Observer] normalizeObserverOutput dropped ${droppedReferences.length} unresolved relevantNodeIds (resolvedByUuid=${resolvedByUuid}, resolvedByName=${resolvedByName}). droppedReferences=${JSON.stringify(droppedReferences)}`,
+      `[InsightIdentification] normalizeInsightIdentificationOutput dropped ${droppedReferences.length} unresolved relevantNodeIds (resolvedByUuid=${resolvedByUuid}, resolvedByName=${resolvedByName}). droppedReferences=${JSON.stringify(droppedReferences)}`,
     );
   }
 

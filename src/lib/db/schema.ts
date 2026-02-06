@@ -97,7 +97,8 @@ export const agents = pgTable(
     purpose: text("purpose"),
     // Phase-specific system prompts (multi-phase architecture)
     conversationSystemPrompt: text("conversation_system_prompt").notNull(),
-    observerSystemPrompt: text("observer_system_prompt").notNull(),
+    queryIdentificationSystemPrompt: text("query_identification_system_prompt").notNull(),
+    insightIdentificationSystemPrompt: text("insight_identification_system_prompt").notNull(),
     analysisGenerationSystemPrompt: text(
       "analysis_generation_system_prompt",
     ).notNull(),
@@ -181,7 +182,6 @@ export const workerIterations = pgTable(
       .notNull()
       .references(() => agents.id, { onDelete: "cascade" }),
     status: text("status").notNull().default("running"), // 'running' | 'completed' | 'failed'
-    observerOutput: jsonb("observer_output"), // Stores { queries: ObserverQuery[], insights: ObserverInsight[] }
     errorMessage: text("error_message"),
     createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
     completedAt: timestamp("completed_at", { mode: "date" }),
@@ -208,7 +208,7 @@ export const llmInteractions = pgTable(
       { onDelete: "cascade" },
     ),
     systemPrompt: text("system_prompt").notNull(),
-    phase: text("phase"), // 'observer' | 'knowledge_acquisition' | 'graph_construction' | 'analysis_generation' | 'advice_generation' | 'conversation'
+    phase: text("phase"), // 'query_identification' | 'insight_identification' | 'knowledge_acquisition' | 'graph_construction' | 'analysis_generation' | 'advice_generation' | 'conversation'
     request: jsonb("request").notNull(),
     response: jsonb("response"),
     createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
