@@ -10,7 +10,6 @@ import { generateLLMObject, type StreamOptions } from "./providers";
 import {
   createNodeType,
   createEdgeType,
-  getNodeTypeByName,
   nodeTypeExists,
   edgeTypeExists,
 } from "@/lib/db/queries/graph-types";
@@ -136,44 +135,32 @@ export const SEED_EDGE_TYPES = [
   {
     name: "derived_from",
     description:
-      "Indicates an AgentAnalysis was derived from supporting graph knowledge.",
-    sourceNodeTypeNames: ["AgentAnalysis"],
-    targetNodeTypeNames: [],
+      "Indicates the source node was derived from the target node or its underlying information.",
   },
   {
     name: "about",
     description:
-      "Indicates what entity, event, or concept an AgentAnalysis focuses on.",
-    sourceNodeTypeNames: ["AgentAnalysis"],
-    targetNodeTypeNames: [],
+      "Indicates the source node is about, concerns, or focuses on the target node.",
   },
   {
     name: "supports",
     description:
-      "Indicates one AgentAnalysis supports another AgentAnalysis finding.",
-    sourceNodeTypeNames: ["AgentAnalysis"],
-    targetNodeTypeNames: ["AgentAnalysis"],
+      "Indicates the source node provides supporting evidence or rationale for the target node.",
   },
   {
     name: "contradicts",
     description:
-      "Indicates one AgentAnalysis contradicts another AgentAnalysis finding.",
-    sourceNodeTypeNames: ["AgentAnalysis"],
-    targetNodeTypeNames: ["AgentAnalysis"],
+      "Indicates the source node conflicts with or challenges the target node.",
   },
   {
     name: "correlates_with",
     description:
-      "Indicates one AgentAnalysis observes correlation with another AgentAnalysis finding.",
-    sourceNodeTypeNames: ["AgentAnalysis"],
-    targetNodeTypeNames: ["AgentAnalysis"],
+      "Indicates the source node has a meaningful correlation or association with the target node.",
   },
   {
-    name: "based_on_analysis",
+    name: "based_on",
     description:
-      "Indicates an AgentAdvice recommendation is based on specific AgentAnalysis nodes.",
-    sourceNodeTypeNames: ["AgentAdvice"],
-    targetNodeTypeNames: ["AgentAnalysis"],
+      "Indicates the source node is based on information, evidence, or analysis represented by the target node.",
   },
 ] as const;
 
@@ -195,12 +182,6 @@ const NodeTypeDefinitionSchema = z.object({
 const EdgeTypeDefinitionSchema = z.object({
   name: z.string().describe("snake_case edge type name"),
   description: z.string().describe("What this relationship represents"),
-  sourceNodeTypeNames: z
-    .array(z.string())
-    .describe("Names of node types allowed as source"),
-  targetNodeTypeNames: z
-    .array(z.string())
-    .describe("Names of node types allowed as target"),
   propertiesSchema: z
     .object({
       type: z.literal("object"),
@@ -237,7 +218,7 @@ The agent runs autonomously on behalf of a single user, researching and learning
 ## Schema Requirements
 - Design 5-10 node types and 5-10 edge types covering key domain concepts
 - Each node type needs: name, description, propertiesSchema (JSON Schema), exampleProperties
-- Each edge type needs: name, description, sourceNodeTypeNames, targetNodeTypeNames, and optionally propertiesSchema/exampleProperties
+- Each edge type needs: name, description, and optionally propertiesSchema/exampleProperties
 
 ## Property Guidelines
 - Include a "source_url" property on types where provenance matters (articles, data points, claims)
@@ -334,8 +315,6 @@ export async function createSeedEdgeTypes(agentId: string): Promise<void> {
       agentId,
       name: edgeType.name,
       description: edgeType.description,
-      sourceNodeTypeNames: [...edgeType.sourceNodeTypeNames],
-      targetNodeTypeNames: [...edgeType.targetNodeTypeNames],
       createdBy: "system",
     });
 
@@ -391,7 +370,7 @@ Create node types and edge types that capture the external knowledge this agent 
 
 /**
  * Persist initialized types to the database.
- * Creates seed types first, then LLM-generated node types, then edge types with their constraints.
+ * Creates seed types first, then LLM-generated node types, then edge types.
  */
 export async function persistInitializedTypes(
   agentId: string,
@@ -433,37 +412,10 @@ export async function persistInitializedTypes(
       continue;
     }
 
-    // Validate that all referenced node types exist
-    const validSourceNames: string[] = [];
-    for (const sourceName of edgeType.sourceNodeTypeNames) {
-      const nodeType = await getNodeTypeByName(agentId, sourceName);
-      if (nodeType) {
-        validSourceNames.push(sourceName);
-      } else {
-        console.warn(
-          `[GraphTypeInitializer] Source node type "${sourceName}" not found for edge type "${edgeType.name}"`,
-        );
-      }
-    }
-
-    const validTargetNames: string[] = [];
-    for (const targetName of edgeType.targetNodeTypeNames) {
-      const nodeType = await getNodeTypeByName(agentId, targetName);
-      if (nodeType) {
-        validTargetNames.push(targetName);
-      } else {
-        console.warn(
-          `[GraphTypeInitializer] Target node type "${targetName}" not found for edge type "${edgeType.name}"`,
-        );
-      }
-    }
-
     await createEdgeType({
       agentId: agentId,
       name: edgeType.name,
       description: edgeType.description,
-      sourceNodeTypeNames: validSourceNames,
-      targetNodeTypeNames: validTargetNames,
       propertiesSchema: edgeType.propertiesSchema,
       exampleProperties: edgeType.exampleProperties,
       createdBy: "system",

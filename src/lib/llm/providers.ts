@@ -757,8 +757,6 @@ export async function generateLLMObject<T>(
           {
             name: "related_to",
             description: "A general relationship between concepts",
-            sourceNodeTypeNames: ["Concept"],
-            targetNodeTypeNames: ["Concept"],
           },
         ],
       },

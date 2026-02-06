@@ -55,8 +55,6 @@ export {
   getAllTools,
   getGraphTools,
   getTavilyTools,
-  getBackgroundTools,
-  getForegroundTools,
   getToolSchemas,
   executeTool,
   toolSchemasToOpenAIFunctions,
@@ -80,4 +78,3 @@ export {
   getGraphToolNames,
   type GraphToolContext,
 } from "./tools/graph-tools";
-

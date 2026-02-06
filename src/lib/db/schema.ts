@@ -251,41 +251,6 @@ export const graphEdgeTypes = pgTable(
   (table) => [index("graph_edge_types_agent_id_idx").on(table.agentId)],
 );
 
-// Junction tables for edge type -> node type constraints (many-to-many)
-export const graphEdgeTypeSourceTypes = pgTable(
-  "graph_edge_type_source_types",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    edgeTypeId: uuid("edge_type_id")
-      .notNull()
-      .references(() => graphEdgeTypes.id, { onDelete: "cascade" }),
-    nodeTypeId: uuid("node_type_id")
-      .notNull()
-      .references(() => graphNodeTypes.id, { onDelete: "cascade" }),
-  },
-  (table) => [
-    index("graph_edge_type_source_types_edge_idx").on(table.edgeTypeId),
-    index("graph_edge_type_source_types_node_idx").on(table.nodeTypeId),
-  ],
-);
-
-export const graphEdgeTypeTargetTypes = pgTable(
-  "graph_edge_type_target_types",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    edgeTypeId: uuid("edge_type_id")
-      .notNull()
-      .references(() => graphEdgeTypes.id, { onDelete: "cascade" }),
-    nodeTypeId: uuid("node_type_id")
-      .notNull()
-      .references(() => graphNodeTypes.id, { onDelete: "cascade" }),
-  },
-  (table) => [
-    index("graph_edge_type_target_types_edge_idx").on(table.edgeTypeId),
-    index("graph_edge_type_target_types_node_idx").on(table.nodeTypeId),
-  ],
-);
-
 // ============================================================================
 // Knowledge Graph Data
 // ============================================================================
@@ -470,40 +435,10 @@ export const graphNodeTypesRelations = relations(graphNodeTypes, ({ one }) => ({
 
 export const graphEdgeTypesRelations = relations(
   graphEdgeTypes,
-  ({ one, many }) => ({
+  ({ one }) => ({
     agent: one(agents, {
       fields: [graphEdgeTypes.agentId],
       references: [agents.id],
-    }),
-    sourceTypes: many(graphEdgeTypeSourceTypes),
-    targetTypes: many(graphEdgeTypeTargetTypes),
-  }),
-);
-
-export const graphEdgeTypeSourceTypesRelations = relations(
-  graphEdgeTypeSourceTypes,
-  ({ one }) => ({
-    edgeType: one(graphEdgeTypes, {
-      fields: [graphEdgeTypeSourceTypes.edgeTypeId],
-      references: [graphEdgeTypes.id],
-    }),
-    nodeType: one(graphNodeTypes, {
-      fields: [graphEdgeTypeSourceTypes.nodeTypeId],
-      references: [graphNodeTypes.id],
-    }),
-  }),
-);
-
-export const graphEdgeTypeTargetTypesRelations = relations(
-  graphEdgeTypeTargetTypes,
-  ({ one }) => ({
-    edgeType: one(graphEdgeTypes, {
-      fields: [graphEdgeTypeTargetTypes.edgeTypeId],
-      references: [graphEdgeTypes.id],
-    }),
-    nodeType: one(graphNodeTypes, {
-      fields: [graphEdgeTypeTargetTypes.nodeTypeId],
-      references: [graphNodeTypes.id],
     }),
   }),
 );

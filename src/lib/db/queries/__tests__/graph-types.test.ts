@@ -12,8 +12,6 @@ import {
   agents,
   graphNodeTypes,
   graphEdgeTypes,
-  graphEdgeTypeSourceTypes,
-  graphEdgeTypeTargetTypes,
 } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 
@@ -87,7 +85,6 @@ async function cleanupNodeTypes(nodeTypeIds: string[]) {
 // Helper to cleanup edge types created during tests
 async function cleanupEdgeTypes(edgeTypeIds: string[]) {
   for (const id of edgeTypeIds) {
-    // Junction tables cascade delete
     await db.delete(graphEdgeTypes).where(eq(graphEdgeTypes.id, id));
   }
 }
@@ -304,50 +301,18 @@ describe('createEdgeType', () => {
     await cleanupEdgeTypes([edgeType.id]);
   });
 
-  test('creates an edge type with source/target constraints', async () => {
-    // First create the node types
-    const assetType = await createNodeType({
-      agentId: testAgentId,
-      name: 'AssetForEdge',
-      description: 'Asset type',
-      propertiesSchema: {},
-    });
-
-    const companyType = await createNodeType({
-      agentId: testAgentId,
-      name: 'CompanyForEdge',
-      description: 'Company type',
-      propertiesSchema: {},
-    });
-
+  test('creates an edge type without constraints', async () => {
     const edgeType = await createEdgeType({
       agentId: testAgentId,
       name: 'issued_by',
       description: 'Asset issued by a company',
-      sourceNodeTypeNames: ['AssetForEdge'],
-      targetNodeTypeNames: ['CompanyForEdge'],
     });
 
-    // Verify the edge type was created
     expect(edgeType.id).toBeDefined();
-
-    // Check the junction tables
-    const sourceLinks = await db
-      .select()
-      .from(graphEdgeTypeSourceTypes)
-      .where(eq(graphEdgeTypeSourceTypes.edgeTypeId, edgeType.id));
-    expect(sourceLinks.length).toBe(1);
-    expect(sourceLinks[0].nodeTypeId).toBe(assetType.id);
-
-    const targetLinks = await db
-      .select()
-      .from(graphEdgeTypeTargetTypes)
-      .where(eq(graphEdgeTypeTargetTypes.edgeTypeId, edgeType.id));
-    expect(targetLinks.length).toBe(1);
-    expect(targetLinks[0].nodeTypeId).toBe(companyType.id);
+    expect(edgeType.name).toBe('issued_by');
+    expect(edgeType.description).toBe('Asset issued by a company');
 
     await cleanupEdgeTypes([edgeType.id]);
-    await cleanupNodeTypes([assetType.id, companyType.id]);
   });
 
   test('creates edge type with properties schema', async () => {
@@ -377,42 +342,20 @@ describe('createEdgeType', () => {
 // ============================================================================
 
 describe('getEdgeTypesByAgent', () => {
-  test('returns edge types with populated constraints', async () => {
-    // Create node types
-    const sourceType = await createNodeType({
-      agentId: testAgentId,
-      name: 'SourceNodeType',
-      description: 'Source',
-      propertiesSchema: {},
-    });
-
-    const targetType = await createNodeType({
-      agentId: testAgentId,
-      name: 'TargetNodeType',
-      description: 'Target',
-      propertiesSchema: {},
-    });
-
-    // Create edge type with constraints
+  test('returns edge types for agent', async () => {
     const edgeType = await createEdgeType({
       agentId: testAgentId,
       name: 'connects_to',
       description: 'Connection',
-      sourceNodeTypeNames: ['SourceNodeType'],
-      targetNodeTypeNames: ['TargetNodeType'],
     });
 
     const edgeTypes = await getEdgeTypesByAgent(testAgentId);
     const found = edgeTypes.find(et => et.id === edgeType.id);
 
     expect(found).toBeDefined();
-    expect(found!.sourceNodeTypes.length).toBe(1);
-    expect(found!.sourceNodeTypes[0].name).toBe('SourceNodeType');
-    expect(found!.targetNodeTypes.length).toBe(1);
-    expect(found!.targetNodeTypes[0].name).toBe('TargetNodeType');
+    expect(found!.name).toBe('connects_to');
 
     await cleanupEdgeTypes([edgeType.id]);
-    await cleanupNodeTypes([sourceType.id, targetType.id]);
   });
 
   test('returns global edge types', async () => {
@@ -495,8 +438,6 @@ describe('formatTypesForLLMContext', () => {
       agentId: testAgentId,
       name: 'llm_issued_by',
       description: 'Asset issued by a company',
-      sourceNodeTypeNames: ['LLMAsset'],
-      targetNodeTypeNames: ['LLMCompany'],
     });
 
     const formatted = await formatTypesForLLMContext(testAgentId);
@@ -513,8 +454,6 @@ describe('formatTypesForLLMContext', () => {
 
     // Check edge type formatting
     expect(formatted).toContain('**llm_issued_by**');
-    expect(formatted).toContain('LLMAsset');
-    expect(formatted).toContain('LLMCompany');
 
     await cleanupEdgeTypes([edgeType.id]);
     await cleanupNodeTypes([assetType.id, companyType.id]);

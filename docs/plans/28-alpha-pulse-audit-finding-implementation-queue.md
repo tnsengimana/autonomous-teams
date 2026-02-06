@@ -49,11 +49,11 @@
 - 2026-02-06: Completed `F2`.
   - Implemented:
     - Added `createSeedEdgeTypes` in `src/lib/llm/graph-types.ts` with baseline edge types:
-      - `derived_from`, `about`, `supports`, `contradicts`, `correlates_with`, `based_on_analysis`.
+      - `derived_from`, `about`, `supports`, `contradicts`, `correlates_with`, `based_on`.
     - Seeded baseline edge types during type persistence (`persistInitializedTypes`) for every agent.
     - Added duplicate safeguard to skip LLM-generated edge types when an edge name already exists.
     - Enforced edge source/target type constraints at runtime in `addGraphEdge` tool.
-    - Enabled Advice phase to use `addGraphEdge` and updated advice prompting to link `AgentAdvice` to `AgentAnalysis` via `based_on_analysis`.
+    - Enabled Advice phase to use `addGraphEdge` and updated advice prompting to link `AgentAdvice` to `AgentAnalysis` via `based_on`.
   - Tests:
     - `npm run test:run -- src/lib/llm/__tests__/graph-configuration.test.ts src/lib/llm/tools/__tests__/graph-tools.test.ts src/lib/llm/__tests__/agents.test.ts`
     - `npm run build`

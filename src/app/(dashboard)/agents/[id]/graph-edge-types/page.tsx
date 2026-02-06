@@ -12,11 +12,6 @@ import {
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { AutoRefresh } from "@/components/auto-refresh";
 
-interface NodeTypeRef {
-  id: string;
-  name: string;
-}
-
 interface EdgeType {
   id: string;
   agentId: string | null;
@@ -26,8 +21,6 @@ interface EdgeType {
   exampleProperties: unknown;
   createdBy: string;
   createdAt: string;
-  sourceNodeTypes: NodeTypeRef[];
-  targetNodeTypes: NodeTypeRef[];
 }
 
 function EdgeTypeCard({ edgeType }: { edgeType: EdgeType }) {
@@ -59,21 +52,6 @@ function EdgeTypeCard({ edgeType }: { edgeType: EdgeType }) {
                 {edgeType.description}
               </p>
             )}
-
-            <div className="flex gap-6 text-sm text-muted-foreground">
-              <span>
-                <span className="font-medium">Source:</span>{" "}
-                {edgeType.sourceNodeTypes.length > 0
-                  ? edgeType.sourceNodeTypes.map((t) => t.name).join(", ")
-                  : "Any"}
-              </span>
-              <span>
-                <span className="font-medium">Target:</span>{" "}
-                {edgeType.targetNodeTypes.length > 0
-                  ? edgeType.targetNodeTypes.map((t) => t.name).join(", ")
-                  : "Any"}
-              </span>
-            </div>
 
             {edgeType.propertiesSchema != null && (
               <div>

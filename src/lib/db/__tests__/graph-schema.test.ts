@@ -6,8 +6,6 @@ import {
   conversations,
   graphNodeTypes,
   graphEdgeTypes,
-  graphEdgeTypeSourceTypes,
-  graphEdgeTypeTargetTypes,
   graphNodes,
   graphEdges,
 } from '@/lib/db/schema';
@@ -232,181 +230,6 @@ describe('graphEdgeTypes schema', () => {
     // Edge type should be gone
     const remaining = await db.select().from(graphEdgeTypes).where(eq(graphEdgeTypes.id, edgeType.id));
     expect(remaining).toHaveLength(0);
-  });
-});
-
-describe('graphEdgeTypeSourceTypes junction table', () => {
-  test('creates junction between edge type and source node type', async () => {
-    // Create node type
-    const [nodeType] = await db.insert(graphNodeTypes).values({
-      agentId: testAgentId,
-      name: 'SourceNodeType',
-      description: 'A source node type',
-      propertiesSchema: { type: 'object', properties: {} },
-    }).returning();
-
-    // Create edge type
-    const [edgeType] = await db.insert(graphEdgeTypes).values({
-      agentId: testAgentId,
-      name: 'junction_test_edge',
-      description: 'Testing junction table',
-    }).returning();
-
-    // Create junction
-    const [junction] = await db.insert(graphEdgeTypeSourceTypes).values({
-      edgeTypeId: edgeType.id,
-      nodeTypeId: nodeType.id,
-    }).returning();
-
-    expect(junction.id).toBeDefined();
-    expect(junction.edgeTypeId).toBe(edgeType.id);
-    expect(junction.nodeTypeId).toBe(nodeType.id);
-
-    // Cleanup
-    await db.delete(graphEdgeTypes).where(eq(graphEdgeTypes.id, edgeType.id));
-    await db.delete(graphNodeTypes).where(eq(graphNodeTypes.id, nodeType.id));
-  });
-
-  test('cascades delete when edge type deleted', async () => {
-    // Create node type
-    const [nodeType] = await db.insert(graphNodeTypes).values({
-      agentId: testAgentId,
-      name: 'SourceForCascade',
-      description: 'Testing cascade delete',
-      propertiesSchema: { type: 'object', properties: {} },
-    }).returning();
-
-    // Create edge type
-    const [edgeType] = await db.insert(graphEdgeTypes).values({
-      agentId: testAgentId,
-      name: 'cascade_edge_type',
-      description: 'Will be deleted',
-    }).returning();
-
-    // Create junction
-    const [junction] = await db.insert(graphEdgeTypeSourceTypes).values({
-      edgeTypeId: edgeType.id,
-      nodeTypeId: nodeType.id,
-    }).returning();
-
-    // Delete edge type
-    await db.delete(graphEdgeTypes).where(eq(graphEdgeTypes.id, edgeType.id));
-
-    // Junction should be gone
-    const remaining = await db.select().from(graphEdgeTypeSourceTypes).where(eq(graphEdgeTypeSourceTypes.id, junction.id));
-    expect(remaining).toHaveLength(0);
-
-    // Cleanup
-    await db.delete(graphNodeTypes).where(eq(graphNodeTypes.id, nodeType.id));
-  });
-
-  test('cascades delete when node type deleted', async () => {
-    // Create node type
-    const [nodeType] = await db.insert(graphNodeTypes).values({
-      agentId: testAgentId,
-      name: 'NodeToDelete',
-      description: 'Will be deleted',
-      propertiesSchema: { type: 'object', properties: {} },
-    }).returning();
-
-    // Create edge type
-    const [edgeType] = await db.insert(graphEdgeTypes).values({
-      agentId: testAgentId,
-      name: 'edge_for_node_cascade',
-      description: 'Stays after node deleted',
-    }).returning();
-
-    // Create junction
-    const [junction] = await db.insert(graphEdgeTypeSourceTypes).values({
-      edgeTypeId: edgeType.id,
-      nodeTypeId: nodeType.id,
-    }).returning();
-
-    // Delete node type
-    await db.delete(graphNodeTypes).where(eq(graphNodeTypes.id, nodeType.id));
-
-    // Junction should be gone
-    const remainingJunction = await db.select().from(graphEdgeTypeSourceTypes).where(eq(graphEdgeTypeSourceTypes.id, junction.id));
-    expect(remainingJunction).toHaveLength(0);
-
-    // Edge type should still exist
-    const remainingEdge = await db.select().from(graphEdgeTypes).where(eq(graphEdgeTypes.id, edgeType.id));
-    expect(remainingEdge).toHaveLength(1);
-
-    // Cleanup
-    await db.delete(graphEdgeTypes).where(eq(graphEdgeTypes.id, edgeType.id));
-  });
-});
-
-describe('graphEdgeTypeTargetTypes junction table', () => {
-  test('creates junction between edge type and target node type', async () => {
-    // Create node type
-    const [nodeType] = await db.insert(graphNodeTypes).values({
-      agentId: testAgentId,
-      name: 'TargetNodeType',
-      description: 'A target node type',
-      propertiesSchema: { type: 'object', properties: {} },
-    }).returning();
-
-    // Create edge type
-    const [edgeType] = await db.insert(graphEdgeTypes).values({
-      agentId: testAgentId,
-      name: 'target_junction_test',
-      description: 'Testing target junction table',
-    }).returning();
-
-    // Create junction
-    const [junction] = await db.insert(graphEdgeTypeTargetTypes).values({
-      edgeTypeId: edgeType.id,
-      nodeTypeId: nodeType.id,
-    }).returning();
-
-    expect(junction.id).toBeDefined();
-    expect(junction.edgeTypeId).toBe(edgeType.id);
-    expect(junction.nodeTypeId).toBe(nodeType.id);
-
-    // Cleanup
-    await db.delete(graphEdgeTypes).where(eq(graphEdgeTypes.id, edgeType.id));
-    await db.delete(graphNodeTypes).where(eq(graphNodeTypes.id, nodeType.id));
-  });
-
-  test('supports multiple target types for one edge type', async () => {
-    // Create two node types
-    const [nodeType1] = await db.insert(graphNodeTypes).values({
-      agentId: testAgentId,
-      name: 'Target1',
-      description: 'First target type',
-      propertiesSchema: { type: 'object', properties: {} },
-    }).returning();
-
-    const [nodeType2] = await db.insert(graphNodeTypes).values({
-      agentId: testAgentId,
-      name: 'Target2',
-      description: 'Second target type',
-      propertiesSchema: { type: 'object', properties: {} },
-    }).returning();
-
-    // Create edge type
-    const [edgeType] = await db.insert(graphEdgeTypes).values({
-      agentId: testAgentId,
-      name: 'multi_target_edge',
-      description: 'Edge with multiple target types',
-    }).returning();
-
-    // Create both junctions
-    await db.insert(graphEdgeTypeTargetTypes).values([
-      { edgeTypeId: edgeType.id, nodeTypeId: nodeType1.id },
-      { edgeTypeId: edgeType.id, nodeTypeId: nodeType2.id },
-    ]);
-
-    // Query junctions
-    const junctions = await db.select().from(graphEdgeTypeTargetTypes).where(eq(graphEdgeTypeTargetTypes.edgeTypeId, edgeType.id));
-    expect(junctions).toHaveLength(2);
-
-    // Cleanup
-    await db.delete(graphEdgeTypes).where(eq(graphEdgeTypes.id, edgeType.id));
-    await db.delete(graphNodeTypes).where(eq(graphNodeTypes.id, nodeType1.id));
-    await db.delete(graphNodeTypes).where(eq(graphNodeTypes.id, nodeType2.id));
   });
 });
 
@@ -747,7 +570,7 @@ describe('complete graph workflow', () => {
       exampleProperties: { name: 'Apple Inc.', country: 'USA' },
     }).returning();
 
-    // Step 2: Create edge type with constraints
+    // Step 2: Create edge type
     const [edgeType] = await db.insert(graphEdgeTypes).values({
       agentId: testAgentId,
       name: 'issued_by_corp',
@@ -760,18 +583,7 @@ describe('complete graph workflow', () => {
       },
     }).returning();
 
-    // Step 3: Create junction table entries for edge type constraints
-    await db.insert(graphEdgeTypeSourceTypes).values({
-      edgeTypeId: edgeType.id,
-      nodeTypeId: assetType.id,
-    });
-
-    await db.insert(graphEdgeTypeTargetTypes).values({
-      edgeTypeId: edgeType.id,
-      nodeTypeId: companyType.id,
-    });
-
-    // Step 4: Create actual graph nodes
+    // Step 3: Create actual graph nodes
     const [stockNode] = await db.insert(graphNodes).values({
       agentId: testAgentId,
       type: 'Stock',
@@ -786,7 +598,7 @@ describe('complete graph workflow', () => {
       properties: { name: 'Apple Inc.', country: 'USA' },
     }).returning();
 
-    // Step 5: Create edge between nodes
+    // Step 4: Create edge between nodes
     const [edge] = await db.insert(graphEdges).values({
       agentId: testAgentId,
       type: 'issued_by_corp',
@@ -801,20 +613,6 @@ describe('complete graph workflow', () => {
     expect(edge.type).toBe('issued_by_corp');
     expect(edge.sourceId).toBe(stockNode.id);
     expect(edge.targetId).toBe(companyNode.id);
-
-    // Query source types for edge type
-    const sourceTypes = await db.select()
-      .from(graphEdgeTypeSourceTypes)
-      .where(eq(graphEdgeTypeSourceTypes.edgeTypeId, edgeType.id));
-    expect(sourceTypes).toHaveLength(1);
-    expect(sourceTypes[0].nodeTypeId).toBe(assetType.id);
-
-    // Query target types for edge type
-    const targetTypes = await db.select()
-      .from(graphEdgeTypeTargetTypes)
-      .where(eq(graphEdgeTypeTargetTypes.edgeTypeId, edgeType.id));
-    expect(targetTypes).toHaveLength(1);
-    expect(targetTypes[0].nodeTypeId).toBe(companyType.id);
 
     // Cleanup - order matters due to FK constraints
     await db.delete(graphEdges).where(eq(graphEdges.id, edge.id));

@@ -39,11 +39,7 @@ import {
   getLastCompletedIteration,
 } from "@/lib/db/queries/worker-iterations";
 import { normalizeObserverOutput } from "./normalization";
-import type {
-  ObserverOutput,
-  ObserverQuery,
-  ObserverInsight,
-} from "./types";
+import type { ObserverOutput, ObserverQuery, ObserverInsight } from "./types";
 import type { Agent } from "@/lib/types";
 
 // ============================================================================
@@ -77,9 +73,7 @@ const ObserverQuerySchema = z.object({
     ),
   searchHints: z
     .array(z.string())
-    .describe(
-      "Suggested search queries or keywords to guide the research",
-    ),
+    .describe("Suggested search queries or keywords to guide the research"),
 });
 
 const ObserverInsightSchema = z.object({
@@ -90,14 +84,10 @@ const ObserverInsightSchema = z.object({
     ),
   relevantNodeIds: z
     .array(z.string())
-    .describe(
-      "UUIDs of graph nodes that are relevant to this observation",
-    ),
+    .describe("UUIDs of graph nodes that are relevant to this observation"),
   synthesisDirection: z
     .string()
-    .describe(
-      "Guidance for the Analyzer on what angle to analyze this from",
-    ),
+    .describe("Guidance for the Analyzer on what angle to analyze this from"),
 });
 
 const ObserverOutputSchema = z.object({
@@ -217,7 +207,11 @@ You may produce any combination: queries only, insights only, both, or neither (
   const graphNodes = await getNodesByAgent(agent.id);
   const normalizedOutput = normalizeObserverOutput(
     output,
-    graphNodes.map((node) => ({ id: node.id, type: node.type, name: node.name })),
+    graphNodes.map((node) => ({
+      id: node.id,
+      type: node.type,
+      name: node.name,
+    })),
   );
 
   await updateLLMInteraction(interaction.id, {
@@ -247,7 +241,9 @@ async function runAnalysisGenerationPhase(
   graphContext: string,
   workerIterationId: string,
 ): Promise<boolean> {
-  log(`[Analyzer] Analysis generation for: "${insight.observation.length > 50 ? insight.observation.substring(0, 50) + "..." : insight.observation}"`);
+  log(
+    `[Analyzer] Analysis generation for: "${insight.observation.length > 50 ? insight.observation.substring(0, 50) + "..." : insight.observation}"`,
+  );
 
   const systemPrompt = agent.analysisGenerationSystemPrompt;
   if (!systemPrompt) {
@@ -257,7 +253,7 @@ async function runAnalysisGenerationPhase(
   const requestMessages = [
     {
       role: "user" as const,
-      content: `Analyze the following pattern observed in the knowledge graph.
+      content: `Analyze the following observation in the knowledge graph.
 
 ## Observation
 ${insight.observation}
@@ -271,7 +267,7 @@ ${insight.synthesisDirection}
 ## Current Knowledge Graph
 ${graphContext}
 
-Analyze this pattern using the graph data. Create AgentAnalysis nodes that capture your findings. Use the addAgentAnalysisNode tool to create analyses and addGraphEdge to connect them to relevant nodes.
+Analyze the observation using the graph data. Create AgentAnalysis nodes that capture your findings. Use the addAgentAnalysisNode tool to create analyses and addGraphEdge to connect them to relevant nodes.
 
 If you find that the available knowledge is insufficient to properly analyze this pattern, explain what additional data would be needed. Do NOT create a low-quality analysis just to produce output.`,
     },
@@ -343,8 +339,16 @@ If you find that the available knowledge is insufficient to properly analyze thi
 
   // Check if any AgentAnalysis nodes were created
   const analysesProduced = result.events
-    .filter((e): e is { toolCalls: Array<{ toolName: string; args: Record<string, unknown> }> } => "toolCalls" in e)
-    .some((e) => e.toolCalls.some((tc) => tc.toolName === "addAgentAnalysisNode"));
+    .filter(
+      (
+        e,
+      ): e is {
+        toolCalls: Array<{ toolName: string; args: Record<string, unknown> }>;
+      } => "toolCalls" in e,
+    )
+    .some((e) =>
+      e.toolCalls.some((tc) => tc.toolName === "addAgentAnalysisNode"),
+    );
 
   return analysesProduced;
 }
@@ -376,7 +380,7 @@ ${graphContext}
 
 Review the AgentAnalysis nodes in your knowledge graph. Only create AgentAdvice if you have comprehensive AgentAnalysis coverage that addresses every aspect of the recommendation. The default action is to create NOTHING - only proceed if you have absolute conviction supported by thorough AgentAnalysis analysis.
 
-If you create AgentAdvice, also create "based_on_analysis" edges from that AgentAdvice node to each supporting AgentAnalysis node you cite.`,
+If you create AgentAdvice, also create "based_on" edges from that AgentAdvice node to each supporting AgentAnalysis node you cite.`,
     },
   ];
 
@@ -456,7 +460,9 @@ async function runKnowledgeAcquisitionPhase(
   graphContext: string,
   workerIterationId: string,
 ): Promise<string> {
-  log(`[Researcher] Knowledge acquisition for: "${query.objective.length > 50 ? query.objective.substring(0, 50) + "..." : query.objective}"`);
+  log(
+    `[Researcher] Knowledge acquisition for: "${query.objective.length > 50 ? query.objective.substring(0, 50) + "..." : query.objective}"`,
+  );
 
   const systemPrompt = agent.knowledgeAcquisitionSystemPrompt;
   if (!systemPrompt) {

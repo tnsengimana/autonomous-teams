@@ -390,73 +390,6 @@ describe('addGraphEdge', () => {
     expect(result.error).toContain('does not exist');
   });
 
-  test('enforces source type constraints when edge type defines them', async () => {
-    const constrainedTypeName = 'strict_source_test';
-    await cleanupEdgeTypes([constrainedTypeName]);
-
-    const createTypeResult = await createEdgeTypeTool.handler(
-      {
-        name: constrainedTypeName,
-        description: 'Strict source test edge type',
-        sourceNodeTypeNames: ['Company'],
-        targetNodeTypeNames: ['Company'],
-        justification: 'Constraint validation test',
-      },
-      testContext
-    );
-    expect(createTypeResult.success).toBe(true);
-
-    const result = await addGraphEdgeTool.handler(
-      {
-        type: constrainedTypeName,
-        sourceName: 'Edge Test Person',
-        sourceType: 'Person',
-        targetName: 'Edge Test Company',
-        targetType: 'Company',
-      },
-      testContext
-    );
-
-    expect(result.success).toBe(false);
-    expect(result.error).toContain('does not allow source type "Person"');
-    expect(result.error).toContain('Allowed source types: Company');
-
-    await cleanupEdgeTypes([constrainedTypeName]);
-  });
-
-  test('enforces target type constraints when edge type defines them', async () => {
-    const constrainedTypeName = 'strict_target_test';
-    await cleanupEdgeTypes([constrainedTypeName]);
-
-    const createTypeResult = await createEdgeTypeTool.handler(
-      {
-        name: constrainedTypeName,
-        description: 'Strict target test edge type',
-        sourceNodeTypeNames: ['Person'],
-        targetNodeTypeNames: ['Person'],
-        justification: 'Constraint validation test',
-      },
-      testContext
-    );
-    expect(createTypeResult.success).toBe(true);
-
-    const result = await addGraphEdgeTool.handler(
-      {
-        type: constrainedTypeName,
-        sourceName: 'Edge Test Person',
-        sourceType: 'Person',
-        targetName: 'Edge Test Company',
-        targetType: 'Company',
-      },
-      testContext
-    );
-
-    expect(result.success).toBe(false);
-    expect(result.error).toContain('does not allow target type "Company"');
-    expect(result.error).toContain('Allowed target types: Person');
-
-    await cleanupEdgeTypes([constrainedTypeName]);
-  });
 });
 
 // ============================================================================
@@ -655,8 +588,6 @@ describe('createEdgeType', () => {
       {
         name: 'regulates',
         description: 'A regulatory relationship',
-        sourceNodeTypeNames: ['Company'],
-        targetNodeTypeNames: ['Company'],
         justification: 'Need to track regulatory relationships',
       },
       testContext
@@ -672,8 +603,6 @@ describe('createEdgeType', () => {
       {
         name: 'RegulatesCompany',
         description: 'Bad name',
-        sourceNodeTypeNames: ['Company'],
-        targetNodeTypeNames: ['Company'],
         justification: 'Testing',
       },
       testContext
@@ -689,8 +618,6 @@ describe('createEdgeType', () => {
       {
         name: 'duplicate_edge',
         description: 'First edge type',
-        sourceNodeTypeNames: ['Company'],
-        targetNodeTypeNames: ['Person'],
         justification: 'Testing',
       },
       testContext
@@ -702,8 +629,6 @@ describe('createEdgeType', () => {
       {
         name: 'duplicate_edge',
         description: 'Duplicate',
-        sourceNodeTypeNames: ['Company'],
-        targetNodeTypeNames: ['Person'],
         justification: 'Testing',
       },
       testContext
@@ -713,47 +638,11 @@ describe('createEdgeType', () => {
     expect(result.error).toContain('already exists');
   });
 
-  test('rejects edge type with non-existent source node type', async () => {
-    const result = await createEdgeTypeTool.handler(
-      {
-        name: 'invalid_source_edge',
-        description: 'Edge with invalid source',
-        sourceNodeTypeNames: ['NonExistentType'],
-        targetNodeTypeNames: ['Company'],
-        justification: 'Testing',
-      },
-      testContext
-    );
-
-    expect(result.success).toBe(false);
-    expect(result.error).toContain('Source node type');
-    expect(result.error).toContain('does not exist');
-  });
-
-  test('rejects edge type with non-existent target node type', async () => {
-    const result = await createEdgeTypeTool.handler(
-      {
-        name: 'invalid_target_edge',
-        description: 'Edge with invalid target',
-        sourceNodeTypeNames: ['Company'],
-        targetNodeTypeNames: ['NonExistentType'],
-        justification: 'Testing',
-      },
-      testContext
-    );
-
-    expect(result.success).toBe(false);
-    expect(result.error).toContain('Target node type');
-    expect(result.error).toContain('does not exist');
-  });
-
   test('creates edge type with optional properties schema', async () => {
     const result = await createEdgeTypeTool.handler(
       {
         name: 'with_props',
         description: 'Edge with properties',
-        sourceNodeTypeNames: ['Person'],
-        targetNodeTypeNames: ['Company'],
         propertiesSchema: {
           type: 'object',
           properties: {

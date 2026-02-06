@@ -313,9 +313,9 @@ AgentAdvice content MUST cite ONLY AgentAnalysis nodes. This is a HARD REQUIREME
 The rationale: AgentAnalysis nodes represent the agent's analyzed understanding. Advice must be grounded in analyzed analyses, not raw data.
 
 ### 5. Graph Linkage Requirements
-- After creating an AgentAdvice node, create "based_on_analysis" edges to the specific AgentAnalysis nodes that support it
+- After creating an AgentAdvice node, create "based_on" edges to the specific AgentAnalysis nodes that support it
 - The source must be the AgentAdvice node and targets must be AgentAnalysis nodes
-- Every AgentAnalysis node cited in content should have a corresponding "based_on_analysis" edge
+- Every AgentAnalysis node cited in content should have a corresponding "based_on" edge
 
 ### 6. AgentAdvice Structure
 - action: BUY, SELL, or HOLD

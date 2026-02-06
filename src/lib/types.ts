@@ -11,8 +11,6 @@ import type {
   agents,
   graphEdges,
   graphEdgeTypes,
-  graphEdgeTypeSourceTypes,
-  graphEdgeTypeTargetTypes,
   graphNodes,
   graphNodeTypes,
   memories,
@@ -35,12 +33,6 @@ export type LLMInteraction = InferSelectModel<typeof llmInteractions>;
 // Knowledge Graph Types
 export type GraphNodeType = InferSelectModel<typeof graphNodeTypes>;
 export type GraphEdgeType = InferSelectModel<typeof graphEdgeTypes>;
-export type GraphEdgeTypeSourceType = InferSelectModel<
-  typeof graphEdgeTypeSourceTypes
->;
-export type GraphEdgeTypeTargetType = InferSelectModel<
-  typeof graphEdgeTypeTargetTypes
->;
 export type GraphNode = InferSelectModel<typeof graphNodes>;
 export type GraphEdge = InferSelectModel<typeof graphEdges>;
 
@@ -150,12 +142,6 @@ export interface InboxItem {
 // ============================================================================
 
 export type GraphTypeCreator = "system" | "agent" | "user";
-
-// Convenience type with resolved relations for edge types
-export interface GraphEdgeTypeWithConstraints extends GraphEdgeType {
-  sourceNodeTypes: GraphNodeType[];
-  targetNodeTypes: GraphNodeType[];
-}
 
 // Helper types for graph traversal
 export interface GraphNeighbors {

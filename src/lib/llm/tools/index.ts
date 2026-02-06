@@ -74,37 +74,6 @@ export function getAllTools(): Tool[] {
 }
 
 /**
- * Get tools available during user conversations (foreground)
- * These include graph tools and tavily tools for answering questions
- */
-export function getForegroundTools(): Tool[] {
-  return getAllTools().filter((tool) =>
-    [
-      // Graph tools
-      "addGraphNode",
-      "addGraphEdge",
-      "queryGraph",
-      "getGraphSummary",
-      "createNodeType",
-      "createEdgeType",
-      // Tavily tools
-      "tavilySearch",
-      "tavilyExtract",
-      "tavilyResearch",
-    ].includes(tool.schema.name),
-  );
-}
-
-/**
- * Get tools available during background work sessions
- * Returns graph tools, tavily tools, and inbox tools for knowledge graph manipulation
- * and user communication
- */
-export function getBackgroundTools(): Tool[] {
-  return [...getGraphTools(), ...getTavilyTools(), ...getInboxTools()];
-}
-
-/**
  * Get Tavily web search tools
  */
 export function getTavilyTools(): Tool[] {
@@ -128,15 +97,6 @@ export function getGraphTools(): Tool[] {
       "createNodeType",
       "createEdgeType",
     ].includes(tool.schema.name),
-  );
-}
-
-/**
- * Get inbox tools for user communication (available in background work sessions)
- */
-export function getInboxTools(): Tool[] {
-  return getAllTools().filter((tool) =>
-    ["requestUserInput"].includes(tool.schema.name),
   );
 }
 

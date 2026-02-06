@@ -95,8 +95,6 @@ const mockTypeInitializationResult: TypeInitializationResult = {
     {
       name: "affects",
       description: "Indicates that one agent affects another",
-      sourceNodeTypeNames: ["MarketEvent"],
-      targetNodeTypeNames: ["Company"],
       propertiesSchema: {
         type: "object",
         properties: {
@@ -110,14 +108,10 @@ const mockTypeInitializationResult: TypeInitializationResult = {
     {
       name: "covers",
       description: "Indicates that an analyst covers a company",
-      sourceNodeTypeNames: ["Analyst"],
-      targetNodeTypeNames: ["Company"],
     },
     {
       name: "competes_with",
       description: "Indicates competition between companies",
-      sourceNodeTypeNames: ["Company"],
-      targetNodeTypeNames: ["Company"],
     },
   ],
 };
@@ -225,37 +219,6 @@ describe("initializeTypesForAgent", () => {
     for (const edgeType of result.edgeTypes) {
       // snake_case: lowercase, may contain underscores
       expect(edgeType.name).toBe(edgeType.name.toLowerCase());
-    }
-
-    mockGenerateLLMObject.mockRestore();
-  });
-
-  test("generated edge types have valid source and target constraints", async () => {
-    const mockGenerateLLMObject = vi
-      .spyOn(llm, "generateLLMObject")
-      .mockResolvedValueOnce(mockTypeInitializationResult);
-
-    const result = await initializeTypesForAgent({
-      name: "Test Team",
-      purpose: "Financial research",
-    });
-
-    // Collect all node type names
-    const nodeTypeNames = new Set(result.nodeTypes.map((nt) => nt.name));
-
-    for (const edgeType of result.edgeTypes) {
-      expect(edgeType.sourceNodeTypeNames).toBeInstanceOf(Array);
-      expect(edgeType.targetNodeTypeNames).toBeInstanceOf(Array);
-
-      // All source node types should reference valid node types
-      for (const sourceName of edgeType.sourceNodeTypeNames) {
-        expect(nodeTypeNames.has(sourceName)).toBe(true);
-      }
-
-      // All target node types should reference valid node types
-      for (const targetName of edgeType.targetNodeTypeNames) {
-        expect(nodeTypeNames.has(targetName)).toBe(true);
-      }
     }
 
     mockGenerateLLMObject.mockRestore();
@@ -409,51 +372,6 @@ describe("persistInitializedTypes", () => {
     }
   });
 
-  test("persists edge type source/target constraints", async () => {
-    // Create a new agent for this test
-    const [testAgent] = await db
-      .insert(agents)
-      .values({
-        userId: testUserId,
-        name: "Constraint Persist Test Agent",
-        purpose: "Testing constraint persistence",
-        conversationSystemPrompt:
-          "You are a test agent for constraint persistence testing.",
-        observerSystemPrompt: "You observe and classify information for testing.",
-        analysisGenerationSystemPrompt: "You generate analyses for testing.",
-        adviceGenerationSystemPrompt: 'You generate advice for testing.',
-        graphConstructionSystemPrompt: "You construct graphs for testing.",
-        iterationIntervalMs: 300000,
-        isActive: true,
-      })
-      .returning();
-
-    try {
-      await persistInitializedTypes(testAgent.id, mockTypeInitializationResult);
-
-      const edgeTypes = await getEdgeTypesByAgent(testAgent.id);
-
-      // Find the 'affects' edge type
-      const affectsEdge = edgeTypes.find((et) => et.name === "affects");
-      expect(affectsEdge).toBeDefined();
-
-      // Should have source and target constraints populated
-      expect(affectsEdge!.sourceNodeTypes).toBeInstanceOf(Array);
-      expect(affectsEdge!.targetNodeTypes).toBeInstanceOf(Array);
-      expect(affectsEdge!.sourceNodeTypes.length).toBeGreaterThan(0);
-      expect(affectsEdge!.targetNodeTypes.length).toBeGreaterThan(0);
-
-      // Verify specific constraints
-      const sourceNames = affectsEdge!.sourceNodeTypes.map((nt) => nt.name);
-      const targetNames = affectsEdge!.targetNodeTypes.map((nt) => nt.name);
-      expect(sourceNames).toContain("MarketEvent");
-      expect(targetNames).toContain("Company");
-    } finally {
-      // Cleanup
-      await db.delete(agents).where(eq(agents.id, testAgent.id));
-    }
-  });
-
   test("handles empty types gracefully", async () => {
     // Create a new agent for this test
     const [testAgent] = await db
@@ -522,8 +440,6 @@ describe("persistInitializedTypes", () => {
           {
             name: "derived_from",
             description: "Duplicate of seeded edge",
-            sourceNodeTypeNames: ["AgentAnalysis"],
-            targetNodeTypeNames: ["AgentAnalysis"],
           },
         ],
       };
@@ -540,59 +456,6 @@ describe("persistInitializedTypes", () => {
     }
   });
 
-  test("logs warning for invalid node type references in edge types", async () => {
-    // Create a new agent for this test
-    const [testAgent] = await db
-      .insert(agents)
-      .values({
-        userId: testUserId,
-        name: "Invalid Ref Test Agent",
-        purpose: "Testing invalid references",
-        conversationSystemPrompt:
-          "You are a test agent for invalid reference testing.",
-        observerSystemPrompt: "You observe and classify information for testing.",
-        analysisGenerationSystemPrompt: "You generate analyses for testing.",
-        adviceGenerationSystemPrompt: 'You generate advice for testing.',
-        graphConstructionSystemPrompt: "You construct graphs for testing.",
-        iterationIntervalMs: 300000,
-        isActive: true,
-      })
-      .returning();
-
-    const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-
-    try {
-      const typesWithInvalidRefs: TypeInitializationResult = {
-        nodeTypes: [
-          {
-            name: "ValidNode",
-            description: "A valid node type",
-            propertiesSchema: { type: "object", properties: {} },
-            exampleProperties: {},
-          },
-        ],
-        edgeTypes: [
-          {
-            name: "invalid_edge",
-            description: "Edge with invalid references",
-            sourceNodeTypeNames: ["NonExistentNode"],
-            targetNodeTypeNames: ["ValidNode"],
-          },
-        ],
-      };
-
-      await persistInitializedTypes(testAgent.id, typesWithInvalidRefs);
-
-      // Should have logged a warning about the invalid reference
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Source node type "NonExistentNode" not found'),
-      );
-    } finally {
-      consoleSpy.mockRestore();
-      // Cleanup
-      await db.delete(agents).where(eq(agents.id, testAgent.id));
-    }
-  });
 });
 
 // ============================================================================
@@ -651,10 +514,10 @@ describe("Integration", () => {
         mockTypeInitializationResult.nodeTypes[0].propertiesSchema,
       );
 
-      // Verify edge types have constraints
+      // Verify edge types exist
       const affectsEdge = edgeTypes.find((et) => et.name === "affects");
       expect(affectsEdge).toBeDefined();
-      expect(affectsEdge!.sourceNodeTypes.length).toBeGreaterThan(0);
+      expect(affectsEdge!.description).toBe("Indicates that one agent affects another");
     } finally {
       mockGenerateLLMObject.mockRestore();
       // Cleanup

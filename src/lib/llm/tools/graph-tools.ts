@@ -60,8 +60,6 @@ export const CreateNodeTypeParamsSchema = z.object({
 export const CreateEdgeTypeParamsSchema = z.object({
   name: z.string().min(1).describe('snake_case name for the relationship (e.g., "regulates", "competes_with")'),
   description: z.string().min(1).describe('Clear explanation of what this relationship represents'),
-  sourceNodeTypeNames: z.array(z.string()).describe('Names of node types allowed as source'),
-  targetNodeTypeNames: z.array(z.string()).describe('Names of node types allowed as target'),
   propertiesSchema: z.record(z.string(), z.unknown()).optional().describe('Optional JSON Schema for edge properties'),
   exampleProperties: z.record(z.string(), z.unknown()).optional().describe('Example property values'),
   justification: z.string().min(1).describe('Why existing edge types are insufficient'),
@@ -239,46 +237,13 @@ const addGraphEdgeTool: Tool = {
 
     try {
       const { findNodeByTypeAndName, createEdge, findEdge } = await import('@/lib/db/queries/graph-data');
-      const { getEdgeTypesByAgent } = await import('@/lib/db/queries/graph-types');
-
-      const matchingEdgeTypes = (await getEdgeTypesByAgent(ctx.agentId))
-        .filter((edgeType) => edgeType.name === type);
+      const { edgeTypeExists } = await import('@/lib/db/queries/graph-types');
 
       // Validate edge type exists
-      if (matchingEdgeTypes.length === 0) {
+      if (!(await edgeTypeExists(ctx.agentId, type))) {
         return {
           success: false,
           error: `Edge type "${type}" does not exist.`,
-        };
-      }
-
-      const edgeType =
-        matchingEdgeTypes.find((candidate) => candidate.agentId === ctx.agentId) ??
-        matchingEdgeTypes[0];
-
-      const allowedSourceTypes = edgeType.sourceNodeTypes.map((nodeType) => nodeType.name);
-      if (
-        allowedSourceTypes.length > 0 &&
-        !allowedSourceTypes.includes(sourceType)
-      ) {
-        return {
-          success: false,
-          error:
-            `Edge type "${type}" does not allow source type "${sourceType}". ` +
-            `Allowed source types: ${allowedSourceTypes.join(", ")}.`,
-        };
-      }
-
-      const allowedTargetTypes = edgeType.targetNodeTypes.map((nodeType) => nodeType.name);
-      if (
-        allowedTargetTypes.length > 0 &&
-        !allowedTargetTypes.includes(targetType)
-      ) {
-        return {
-          success: false,
-          error:
-            `Edge type "${type}" does not allow target type "${targetType}". ` +
-            `Allowed target types: ${allowedTargetTypes.join(", ")}.`,
         };
       }
 
@@ -574,18 +539,6 @@ const createEdgeTypeTool: Tool = {
         required: true,
       },
       {
-        name: 'sourceNodeTypeNames',
-        type: 'array',
-        description: 'Names of node types allowed as source',
-        required: true,
-      },
-      {
-        name: 'targetNodeTypeNames',
-        type: 'array',
-        description: 'Names of node types allowed as target',
-        required: true,
-      },
-      {
         name: 'propertiesSchema',
         type: 'object',
         description: 'Optional JSON Schema for edge properties',
@@ -614,7 +567,7 @@ const createEdgeTypeTool: Tool = {
       };
     }
 
-    const { name, description, sourceNodeTypeNames, targetNodeTypeNames, propertiesSchema, exampleProperties, justification } = parsed.data;
+    const { name, description, propertiesSchema, exampleProperties, justification } = parsed.data;
     const ctx = context as GraphToolContext;
 
     // Validate snake_case naming
@@ -626,7 +579,7 @@ const createEdgeTypeTool: Tool = {
     }
 
     try {
-      const { edgeTypeExists, createEdgeType, nodeTypeExists } = await import('@/lib/db/queries/graph-types');
+      const { edgeTypeExists, createEdgeType } = await import('@/lib/db/queries/graph-types');
 
       // Check if type already exists
       if (await edgeTypeExists(ctx.agentId, name)) {
@@ -636,33 +589,11 @@ const createEdgeTypeTool: Tool = {
         };
       }
 
-      // Validate that all source node types exist
-      for (const nodeTypeName of sourceNodeTypeNames) {
-        if (!(await nodeTypeExists(ctx.agentId, nodeTypeName))) {
-          return {
-            success: false,
-            error: `Source node type "${nodeTypeName}" does not exist.`,
-          };
-        }
-      }
-
-      // Validate that all target node types exist
-      for (const nodeTypeName of targetNodeTypeNames) {
-        if (!(await nodeTypeExists(ctx.agentId, nodeTypeName))) {
-          return {
-            success: false,
-            error: `Target node type "${nodeTypeName}" does not exist.`,
-          };
-        }
-      }
-
       // Create the edge type
       const edgeType = await createEdgeType({
         agentId: ctx.agentId,
         name,
         description,
-        sourceNodeTypeNames,
-        targetNodeTypeNames,
         propertiesSchema,
         exampleProperties,
         createdBy: 'agent',

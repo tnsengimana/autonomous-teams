@@ -5,28 +5,17 @@
  * Types can be global (agentId=null) or agent-specific.
  */
 
-import { eq, and, or, isNull, inArray } from "drizzle-orm";
+import { eq, and, or, isNull } from "drizzle-orm";
 import { db } from "../client";
-import {
-  graphNodeTypes,
-  graphEdgeTypes,
-  graphEdgeTypeSourceTypes,
-  graphEdgeTypeTargetTypes,
-} from "../schema";
+import { graphNodeTypes, graphEdgeTypes } from "../schema";
 import type {
   GraphNodeType,
   GraphEdgeType,
-  GraphEdgeTypeWithConstraints,
   GraphTypeCreator as GraphTypeCreator,
 } from "@/lib/types";
 
 // Re-export types for convenience
-export type {
-  GraphNodeType,
-  GraphEdgeType,
-  GraphEdgeTypeWithConstraints,
-  GraphTypeCreator,
-};
+export type { GraphNodeType, GraphEdgeType, GraphTypeCreator };
 
 // ============================================================================
 // Node Type Operations
@@ -121,25 +110,20 @@ export async function nodeTypeExists(
 // ============================================================================
 
 /**
- * Create a new edge type definition with optional source/target node type constraints
+ * Create a new edge type definition
  */
 export async function createEdgeType(data: {
   agentId?: string | null;
   name: string;
   description: string;
-  sourceNodeTypeNames?: string[];
-  targetNodeTypeNames?: string[];
   propertiesSchema?: object;
   exampleProperties?: object;
   createdBy?: GraphTypeCreator;
 }): Promise<GraphEdgeType> {
-  const agentId = data.agentId ?? null;
-
-  // Create the edge type
   const [edgeType] = await db
     .insert(graphEdgeTypes)
     .values({
-      agentId,
+      agentId: data.agentId ?? null,
       name: data.name,
       description: data.description,
       propertiesSchema: data.propertiesSchema ?? null,
@@ -148,56 +132,16 @@ export async function createEdgeType(data: {
     })
     .returning();
 
-  // Add source node type constraints
-  if (data.sourceNodeTypeNames && data.sourceNodeTypeNames.length > 0) {
-    for (const nodeTypeName of data.sourceNodeTypeNames) {
-      const nodeType = agentId
-        ? await getNodeTypeByName(agentId, nodeTypeName)
-        : await getGlobalNodeTypeByName(nodeTypeName);
-      if (nodeType) {
-        await addSourceNodeTypeToEdgeType(edgeType.id, nodeType.id);
-      }
-    }
-  }
-
-  // Add target node type constraints
-  if (data.targetNodeTypeNames && data.targetNodeTypeNames.length > 0) {
-    for (const nodeTypeName of data.targetNodeTypeNames) {
-      const nodeType = agentId
-        ? await getNodeTypeByName(agentId, nodeTypeName)
-        : await getGlobalNodeTypeByName(nodeTypeName);
-      if (nodeType) {
-        await addTargetNodeTypeToEdgeType(edgeType.id, nodeType.id);
-      }
-    }
-  }
-
   return edgeType;
 }
 
 /**
- * Helper to get a global node type by name
- */
-async function getGlobalNodeTypeByName(
-  name: string,
-): Promise<GraphNodeType | null> {
-  const result = await db
-    .select()
-    .from(graphNodeTypes)
-    .where(and(isNull(graphNodeTypes.agentId), eq(graphNodeTypes.name, name)))
-    .limit(1);
-
-  return result[0] ?? null;
-}
-
-/**
- * Get all edge types available to an agent with their source/target constraints populated
+ * Get all edge types available to an agent (agent-specific + global types)
  */
 export async function getEdgeTypesByAgent(
   agentId: string,
-): Promise<GraphEdgeTypeWithConstraints[]> {
-  // Get edge types (agent-specific + global)
-  const edgeTypes = await db
+): Promise<GraphEdgeType[]> {
+  return db
     .select()
     .from(graphEdgeTypes)
     .where(
@@ -206,77 +150,6 @@ export async function getEdgeTypesByAgent(
         isNull(graphEdgeTypes.agentId),
       ),
     );
-
-  // For each edge type, populate source and target node types
-  const result: GraphEdgeTypeWithConstraints[] = [];
-
-  for (const edgeType of edgeTypes) {
-    // Get source node types
-    const sourceTypeLinks = await db
-      .select()
-      .from(graphEdgeTypeSourceTypes)
-      .where(eq(graphEdgeTypeSourceTypes.edgeTypeId, edgeType.id));
-
-    const sourceNodeTypes: GraphNodeType[] = [];
-    if (sourceTypeLinks.length > 0) {
-      const sourceNodeTypeIds = sourceTypeLinks.map((link) => link.nodeTypeId);
-      const sourceTypes = await db
-        .select()
-        .from(graphNodeTypes)
-        .where(inArray(graphNodeTypes.id, sourceNodeTypeIds));
-      sourceNodeTypes.push(...sourceTypes);
-    }
-
-    // Get target node types
-    const targetTypeLinks = await db
-      .select()
-      .from(graphEdgeTypeTargetTypes)
-      .where(eq(graphEdgeTypeTargetTypes.edgeTypeId, edgeType.id));
-
-    const targetNodeTypes: GraphNodeType[] = [];
-    if (targetTypeLinks.length > 0) {
-      const targetNodeTypeIds = targetTypeLinks.map((link) => link.nodeTypeId);
-      const targetTypes = await db
-        .select()
-        .from(graphNodeTypes)
-        .where(inArray(graphNodeTypes.id, targetNodeTypeIds));
-      targetNodeTypes.push(...targetTypes);
-    }
-
-    result.push({
-      ...edgeType,
-      sourceNodeTypes,
-      targetNodeTypes,
-    });
-  }
-
-  return result;
-}
-
-/**
- * Add a source node type constraint to an edge type
- */
-export async function addSourceNodeTypeToEdgeType(
-  edgeTypeId: string,
-  nodeTypeId: string,
-): Promise<void> {
-  await db.insert(graphEdgeTypeSourceTypes).values({
-    edgeTypeId,
-    nodeTypeId,
-  });
-}
-
-/**
- * Add a target node type constraint to an edge type
- */
-export async function addTargetNodeTypeToEdgeType(
-  edgeTypeId: string,
-  nodeTypeId: string,
-): Promise<void> {
-  await db.insert(graphEdgeTypeTargetTypes).values({
-    edgeTypeId,
-    nodeTypeId,
-  });
 }
 
 /**
@@ -382,19 +255,7 @@ export async function formatTypesForLLMContext(
     lines.push("No edge types defined.");
   } else {
     for (const edgeType of edgeTypes) {
-      // Build constraint description
-      const sourceNames = edgeType.sourceNodeTypes.map((t) => t.name);
-      const targetNames = edgeType.targetNodeTypes.map((t) => t.name);
-
-      let constraintDesc = "";
-      if (sourceNames.length > 0 || targetNames.length > 0) {
-        const sourceStr = sourceNames.length > 0 ? sourceNames.join("|") : "*";
-        const targetStr = targetNames.length > 0 ? targetNames.join("|") : "*";
-        constraintDesc = `: ${sourceStr} -> ${targetStr}`;
-      }
-
-      lines.push(`- **${edgeType.name}**${constraintDesc}`);
-      lines.push(`  Description: ${edgeType.description}`);
+      lines.push(`- **${edgeType.name}**: ${edgeType.description}`);
     }
   }
 
