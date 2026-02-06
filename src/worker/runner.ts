@@ -39,6 +39,7 @@ import {
   getLastCompletedIteration,
 } from "@/lib/db/queries/worker-iterations";
 import { normalizeObserverOutput } from "./normalization";
+import { validateKnowledgeAcquisitionOutput } from "./validation";
 import type { ObserverOutput, ObserverQuery, ObserverInsight } from "./types";
 import type { Agent } from "@/lib/types";
 
@@ -556,7 +557,26 @@ ${query.searchHints.map((h) => `- ${h}`).join("\n")}
 ## Current Knowledge Graph (for context)
 ${graphContext}
 
-Use the available web search tools to gather comprehensive information. Return a well-organized markdown document with all findings, including source URLs and publication dates.`,
+Use a shortlist-first workflow:
+1. Start with 1-2 focused webSearch calls.
+2. Build a shortlist of the best 2-4 URLs.
+3. Use webExtract only on the highest-value shortlisted URLs.
+4. If extraction fails or returns no content for a URL, continue with other URLs and avoid retries on the same URL.
+
+Output requirements (MANDATORY):
+1. Return markdown with exactly two top-level sections, in this order:
+   - ## Findings
+   - ## Source Ledger
+2. In Findings, every factual claim must include inline source citations like [S1], [S2].
+3. In Source Ledger, each source must be its own subsection in this format:
+   ### [S1]
+   url: <source url>
+   title: <source title>
+   published_at: <ISO date or unknown>
+4. Every [S#] used in Findings must exist in Source Ledger.
+5. Every source listed in Source Ledger must be cited at least once in Findings.
+
+Return a focused markdown document with high-value findings and strict source traceability.`,
     },
   ];
 
@@ -569,7 +589,7 @@ Use the available web search tools to gather comprehensive information. Return a
     phase: "knowledge_acquisition",
   });
 
-  // Get knowledge acquisition tools (tavily tools only)
+  // Get knowledge acquisition tools (web search and extraction only)
   const toolContext: ToolContext = { agentId: agent.id };
   const tools = getKnowledgeAcquisitionTools();
 
@@ -614,9 +634,30 @@ Use the available web search tools to gather comprehensive information. Return a
     .map((e) => e.llmOutput)
     .join("");
 
+  const validation = validateKnowledgeAcquisitionOutput(markdownOutput);
+
+  if (!validation.isValid) {
+    logWarning("[Researcher] Citation validation failed", {
+      agentId: agent.id,
+      workerIterationId,
+      errors: validation.errors,
+      citedSourceIds: validation.citedSourceIds,
+      ledgerSourceIds: validation.ledgerSourceIds,
+    });
+
+    await updateLLMInteraction(interaction.id, {
+      response: { events: result.events, validation },
+      completedAt: new Date(),
+    });
+
+    throw new Error(
+      `Knowledge acquisition output failed citation validation: ${validation.errors.join(" | ")}`,
+    );
+  }
+
   // Final save with completedAt timestamp
   await updateLLMInteraction(interaction.id, {
-    response: { events: result.events },
+    response: { events: result.events, validation },
     completedAt: new Date(),
   });
 
@@ -672,7 +713,7 @@ If no existing type fits, you may use createNodeType/createEdgeType, but only af
     phase: "graph_construction",
   });
 
-  // Get graph construction tools (graph tools only, no tavily)
+  // Get graph construction tools (graph tools only, no web research tools)
   const toolContext: ToolContext = { agentId: agent.id };
   const tools = getGraphConstructionTools();
 
@@ -857,14 +898,14 @@ export async function startRunner(): Promise<void> {
   );
 
   // Register all tools before starting
-  const { registerTavilyTools } = await import("@/lib/llm/tools/tavily-tools");
+  const { registerWebTools } = await import("@/lib/llm/tools/web-tools");
   const { registerGraphTools } = await import("@/lib/llm/tools/graph-tools");
   const { registerInboxTools } = await import("@/lib/llm/tools/inbox-tools");
 
-  registerTavilyTools();
+  registerWebTools();
   registerGraphTools();
   registerInboxTools();
-  log("Tools registered: Tavily, Graph, and Inbox tools");
+  log("Tools registered: Web, Graph, and Inbox tools");
 
   while (!isShuttingDown) {
     try {
@@ -905,11 +946,11 @@ export async function runSingleCycle(): Promise<void> {
   log("Running single cycle");
 
   // Register tools if not already registered
-  const { registerTavilyTools } = await import("@/lib/llm/tools/tavily-tools");
+  const { registerWebTools } = await import("@/lib/llm/tools/web-tools");
   const { registerGraphTools } = await import("@/lib/llm/tools/graph-tools");
   const { registerInboxTools } = await import("@/lib/llm/tools/inbox-tools");
 
-  registerTavilyTools();
+  registerWebTools();
   registerGraphTools();
   registerInboxTools();
 

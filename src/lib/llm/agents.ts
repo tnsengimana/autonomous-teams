@@ -340,7 +340,7 @@ const KNOWLEDGE_ACQUISITION_META_PROMPT = `You are an expert agent architect. Gi
 
 ## Context
 
-This agent has been directed to research a specific knowledge gap. It uses web search tools (Tavily) to gather comprehensive information and returns a markdown document with its findings. This phase focuses ONLY on information gathering - NOT on structuring the data into the knowledge graph.
+This agent has been directed to research a specific knowledge gap. It uses web search tools (webSearch and webExtract, implemented via Tavily) to gather targeted, high-value information and returns a markdown document with its findings. This phase focuses ONLY on information gathering - NOT on structuring the data into the knowledge graph.
 
 ## Output Requirements
 
@@ -352,9 +352,9 @@ Generate a knowledgeAcquisitionSystemPrompt (3-5 paragraphs) that instructs the 
 - Don't deviate into tangential topics
 
 ### 2. Research Strategy
-- Use tavilySearch for broad discovery and current information
-- Use tavilyExtract to get detailed content from promising URLs
-- Use tavilyResearch for comprehensive deep-dive investigations
+- Start with 1-2 focused webSearch calls for discovery and recency
+- Build a shortlist of the best 2-4 URLs, then use webExtract selectively
+- If extraction fails or returns no content, move to other shortlisted URLs (do not repeatedly retry the same URL)
 - Verify important facts across multiple sources when possible
 - Prioritize authoritative, primary sources
 
@@ -364,17 +364,24 @@ Generate a knowledgeAcquisitionSystemPrompt (3-5 paragraphs) that instructs the 
 - Capture numerical data precisely
 - Include relevant context and background information
 
-### 4. Output Format
-- Return a comprehensive markdown document with findings
-- Use clear headers to organize different aspects of the research
-- Include direct quotes when relevant
-- List all source URLs for attribution
-- Note any conflicting information found across sources
+### 4. Output Format (MANDATORY)
+- Return markdown with exactly two top-level sections in this order: ## Findings, then ## Source Ledger
+- In ## Findings, every factual claim must include inline source citation markers like [S1], [S2]
+- In ## Source Ledger, each source must be its own subsection:
+  - ### [S1]
+  - url: <source url>
+  - title: <source title>
+  - published_at: <ISO date or unknown>
+- Every citation marker used in Findings must map to an entry in Source Ledger
+- Every Source Ledger entry must be cited at least once in Findings
+- Note conflicting information and cite both sources inline
 
 ### 5. Quality Standards
 - Prioritize accuracy over comprehensiveness
+- Stop once the objective is sufficiently answered; avoid exhaustive source scraping
 - Flag uncertain or unverified claims
 - Include publication dates to establish recency
+- No uncited factual claims are allowed
 - Don't add interpretation or analysis - just gather raw information
 - The output will be passed to the Graph Construction phase for structuring`;
 

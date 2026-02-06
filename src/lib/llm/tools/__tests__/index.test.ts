@@ -1,10 +1,12 @@
 import { beforeAll, describe, expect, test } from 'vitest';
 
 import { registerGraphTools } from '../graph-tools';
+import { registerWebTools } from '../web-tools';
 import {
   getAnalysisGenerationTools,
   getAdviceGenerationTools,
   getGraphConstructionTools,
+  getKnowledgeAcquisitionTools,
 } from '../index';
 
 describe('getGraphConstructionTools', () => {
@@ -52,5 +54,18 @@ describe('getAdviceGenerationTools', () => {
     expect(toolNames).toContain('listEdgeTypes');
     expect(toolNames).toContain('addAgentAdviceNode');
     expect(toolNames).toContain('addGraphEdge');
+  });
+});
+
+describe('getKnowledgeAcquisitionTools', () => {
+  beforeAll(() => {
+    registerWebTools();
+  });
+
+  test('includes search and extract tools only', () => {
+    const toolNames = getKnowledgeAcquisitionTools().map((tool) => tool.schema.name);
+
+    expect(toolNames).toContain('webSearch');
+    expect(toolNames).toContain('webExtract');
   });
 });

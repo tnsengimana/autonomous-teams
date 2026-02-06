@@ -19,7 +19,7 @@
 - [x] `F3` Graph Construction prompt/tool mismatch on type creation.
 - [x] `F4` Analyzer loops on impossible edge creation and malformed tool names.
 - [ ] `F5` Failed iterations leave orphaned open `llm_interactions`.
-- [ ] `F6` Knowledge Acquisition instability (`UND_ERR_BODY_TIMEOUT`, extract failures).
+- [x] `F6` Knowledge Acquisition instability (`UND_ERR_BODY_TIMEOUT`, extract failures).
 - [ ] `F7` Analysis citations do not follow required `[node:uuid]`/`[edge:uuid]` format.
 - [ ] `F8` Data model overload in `Company` nodes and stringified numeric metrics.
 - [ ] `F9` Advice generation criteria are over-constrained for practical output.
@@ -90,3 +90,28 @@
   - Tests:
     - `npm run test:run -- src/lib/llm/tools/__tests__/index.test.ts src/lib/llm/tools/__tests__/graph-tools.test.ts`
     - `npm run build`
+- 2026-02-06: Completed `F6`.
+  - Implemented:
+    - Removed the deep-research tool and kept acquisition focused on search + extract only.
+    - Renamed the acquisition tool interface from `tavily*` to `web*`:
+      - `tavilySearch` -> `webSearch`
+      - `tavilyExtract` -> `webExtract`
+      - `src/lib/llm/tools/tavily-tools.ts` -> `src/lib/llm/tools/web-tools.ts`
+    - Made `webExtract` failures non-fatal and traceable:
+      - Empty extraction now returns a recoverable structured payload (`extractionStatus: "no_content"`).
+      - Timeout/extraction errors now return a recoverable structured payload (`extractionStatus: "failed"`) with explicit error code/message.
+    - Added shortlist-first acquisition guardrails and strict citation requirements:
+      - Updated Knowledge Acquisition meta-prompt in `src/lib/llm/agents.ts` to enforce search shortlist + selective extraction and avoid repeated retries.
+      - Updated knowledge acquisition runtime instruction in `src/worker/runner.ts` with explicit bounded workflow (1-2 searches, 2-4 URL shortlist, selective extraction).
+      - Enforced output contract:
+        - `## Findings` with inline `[S#]` citations on factual claims
+        - `## Source Ledger` with per-source subsections (`### [S#]`) and `url`, `title`, `published_at`
+    - Added runtime validation for citation/ledger integrity in `src/worker/knowledge-acquisition-output-validation.ts` and fail-fast behavior when invalid.
+    - Updated acquisition toolset documentation in `src/lib/llm/tools/index.ts` to reflect `webSearch` + `webExtract` only.
+  - Tests:
+    - Added/updated `src/lib/llm/tools/__tests__/web-tools.test.ts` for recoverable `webExtract` behaviors.
+    - Updated `src/lib/llm/tools/__tests__/index.test.ts` to assert knowledge acquisition tools expose `webSearch` and `webExtract`.
+    - Added `src/worker/__tests__/knowledge-acquisition-output-validation.test.ts` for strict citation + source-ledger validation.
+    - Revalidated:
+      - `npm run test:run -- src/lib/llm/tools/__tests__/index.test.ts src/lib/llm/tools/__tests__/web-tools.test.ts src/worker/__tests__/knowledge-acquisition-output-validation.test.ts`
+      - `npm run build`

@@ -1,7 +1,7 @@
 /**
- * Tavily Tools
+ * Web Tools
  *
- * Web search and research tools powered by Tavily API.
+ * Web search and extraction tools powered by Tavily API.
  * These tools require a Tavily API key to be configured for the user.
  */
 
@@ -13,34 +13,22 @@ import {
 } from './index';
 
 // ============================================================================
-// Zod Schemas for Tavily Tool Parameters
+// Zod Schemas for Web Tool Parameters
 // ============================================================================
 
-export const TavilySearchParamsSchema = z.object({
+export const WebSearchParamsSchema = z.object({
   query: z.string().min(1).describe('The search query'),
   maxResults: z.number().min(1).max(20).optional().default(5).describe('Maximum number of results to return'),
   searchDepth: z.enum(['basic', 'advanced']).optional().default('basic').describe('Search depth: basic for quick searches, advanced for more comprehensive results'),
   includeAnswer: z.boolean().optional().default(true).describe('Whether to include an AI-generated answer summary'),
 });
 
-export const TavilyExtractParamsSchema = z.object({
+export const WebExtractParamsSchema = z.object({
   url: z.string().url().describe('The URL to extract content from'),
 });
 
-export const TavilyCrawlParamsSchema = z.object({
-  url: z.string().url().describe('The starting URL to crawl'),
-  maxPages: z.number().min(1).max(50).optional().default(10).describe('Maximum number of pages to crawl'),
-});
-
-export const TavilyResearchParamsSchema = z.object({
-  topic: z.string().min(1).describe('The research topic'),
-  depth: z.enum(['shallow', 'medium', 'deep']).optional().default('medium').describe('Research depth'),
-});
-
-export type TavilySearchParams = z.infer<typeof TavilySearchParamsSchema>;
-export type TavilyExtractParams = z.infer<typeof TavilyExtractParamsSchema>;
-export type TavilyCrawlParams = z.infer<typeof TavilyCrawlParamsSchema>;
-export type TavilyResearchParams = z.infer<typeof TavilyResearchParamsSchema>;
+export type WebSearchParams = z.infer<typeof WebSearchParamsSchema>;
+export type WebExtractParams = z.infer<typeof WebExtractParamsSchema>;
 
 // ============================================================================
 // Helper Functions
@@ -83,17 +71,26 @@ async function getTavilyApiKeyFromContext(context: ToolContext): Promise<string 
   return null;
 }
 
-interface TavilySearchResult {
+interface WebSearchResult {
   title: string;
   url: string;
   content: string;
   score: number;
 }
 
-interface TavilySearchResponse {
+interface WebSearchResponse {
   answer?: string;
-  results: TavilySearchResult[];
+  results: WebSearchResult[];
 }
+
+type WebExtractResult = {
+  url: string;
+  raw_content?: string | null;
+};
+
+type WebExtractResponse = {
+  results?: WebExtractResult[];
+};
 
 async function callTavilyAPI(
   endpoint: string,
@@ -127,8 +124,8 @@ async function callTavilyAPI(
 
 const searchTool: Tool = {
   schema: {
-    name: 'tavilySearch',
-    description: 'Search the web using Tavily. Returns relevant web results and optionally an AI-generated answer.',
+    name: 'webSearch',
+    description: 'Search the web. Returns relevant results and optionally an AI-generated answer summary.',
     parameters: [
       {
         name: 'query',
@@ -158,7 +155,7 @@ const searchTool: Tool = {
     ],
   },
   handler: async (params, context): Promise<ToolResult> => {
-    const parsed = TavilySearchParamsSchema.safeParse(params);
+    const parsed = WebSearchParamsSchema.safeParse(params);
     if (!parsed.success) {
       return {
         success: false,
@@ -182,7 +179,7 @@ const searchTool: Tool = {
         max_results: maxResults,
         search_depth: searchDepth,
         include_answer: includeAnswer,
-      }) as TavilySearchResponse;
+      }) as WebSearchResponse;
 
       return {
         success: true,
@@ -211,8 +208,8 @@ const searchTool: Tool = {
 
 const extractTool: Tool = {
   schema: {
-    name: 'tavilyExtract',
-    description: 'Extract clean content from a webpage URL using Tavily.',
+    name: 'webExtract',
+    description: 'Extract clean content from a webpage URL.',
     parameters: [
       {
         name: 'url',
@@ -223,7 +220,7 @@ const extractTool: Tool = {
     ],
   },
   handler: async (params, context): Promise<ToolResult> => {
-    const parsed = TavilyExtractParamsSchema.safeParse(params);
+    const parsed = WebExtractParamsSchema.safeParse(params);
     if (!parsed.success) {
       return {
         success: false,
@@ -245,13 +242,27 @@ const extractTool: Tool = {
       // Tavily's extract endpoint
       const response = await callTavilyAPI('extract', apiKey, {
         urls: [url],
-      }) as { results: Array<{ url: string; raw_content: string }> };
+      }) as WebExtractResponse;
 
       const result = response.results?.[0];
-      if (!result) {
+      const extractedContent = result?.raw_content?.trim() ?? '';
+
+      if (!result || extractedContent.length === 0) {
+        console.warn('[Web][WARN][extract] No extractable content returned', {
+          url,
+        });
         return {
-          success: false,
-          error: 'No content extracted from URL',
+          success: true,
+          data: {
+            url,
+            content: null,
+            extractionStatus: 'no_content',
+            recoverable: true,
+            error: {
+              code: 'EXTRACTION_EMPTY',
+              message: 'No content extracted from URL',
+            },
+          },
         };
       }
 
@@ -260,120 +271,34 @@ const extractTool: Tool = {
         data: {
           url: result.url,
           content: result.raw_content,
+          extractionStatus: 'ok',
         },
       };
     } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Extraction failed',
-      };
-    }
-  },
-};
+      const { url } = parsed.data;
+      const message = error instanceof Error ? error.message : 'Extraction failed';
+      const isTimeout =
+        /UND_ERR_BODY_TIMEOUT/i.test(message) || /timeout/i.test(message);
+      const code = isTimeout ? 'EXTRACTION_TIMEOUT' : 'EXTRACTION_FAILED';
 
-// ============================================================================
-// research Tool (combines multiple searches)
-// ============================================================================
-
-const researchTool: Tool = {
-  schema: {
-    name: 'tavilyResearch',
-    description: 'Conduct in-depth research on a topic by performing multiple targeted searches.',
-    parameters: [
-      {
-        name: 'topic',
-        type: 'string',
-        description: 'The research topic',
-        required: true,
-      },
-      {
-        name: 'depth',
-        type: 'string',
-        description: 'Research depth: "shallow", "medium", or "deep"',
-        required: false,
-        enum: ['shallow', 'medium', 'deep'],
-      },
-    ],
-  },
-  handler: async (params, context): Promise<ToolResult> => {
-    const parsed = TavilyResearchParamsSchema.safeParse(params);
-    if (!parsed.success) {
-      return {
-        success: false,
-        error: `Invalid parameters: ${parsed.error.message}`,
-      };
-    }
-
-    const apiKey = await getTavilyApiKeyFromContext(context);
-    if (!apiKey) {
-      return {
-        success: false,
-        error: 'Tavily API key not configured. Please add your Tavily API key in settings.',
-      };
-    }
-
-    try {
-      const { topic, depth } = parsed.data;
-
-      // Determine search configuration based on depth
-      const searchConfig = {
-        shallow: { queries: 1, maxResults: 5, searchDepth: 'basic' as const },
-        medium: { queries: 2, maxResults: 8, searchDepth: 'advanced' as const },
-        deep: { queries: 3, maxResults: 10, searchDepth: 'advanced' as const },
-      }[depth];
-
-      // Generate related queries based on topic
-      const queries = [
-        topic,
-        `${topic} latest news and updates`,
-        `${topic} analysis and insights`,
-      ].slice(0, searchConfig.queries);
-
-      // Execute searches in parallel
-      const searchPromises = queries.map(async (query) => {
-        const response = await callTavilyAPI('search', apiKey, {
-          query,
-          max_results: searchConfig.maxResults,
-          search_depth: searchConfig.searchDepth,
-          include_answer: true,
-        }) as TavilySearchResponse;
-        return { query, response };
+      console.warn('[Web][WARN][extract] Recoverable extraction failure', {
+        url,
+        code,
+        message,
       });
-
-      const searchResults = await Promise.all(searchPromises);
-
-      // Compile research summary
-      const allResults: Array<{ title: string; url: string; snippet: string; query: string }> = [];
-      const answers: string[] = [];
-
-      for (const { query, response } of searchResults) {
-        if (response.answer) {
-          answers.push(`[${query}]: ${response.answer}`);
-        }
-        for (const result of response.results) {
-          allResults.push({
-            title: result.title,
-            url: result.url,
-            snippet: result.content.substring(0, 300),
-            query,
-          });
-        }
-      }
 
       return {
         success: true,
         data: {
-          topic,
-          depth,
-          summaries: answers,
-          sources: allResults,
-          totalSources: allResults.length,
+          url,
+          content: null,
+          extractionStatus: 'failed',
+          recoverable: true,
+          error: {
+            code,
+            message,
+          },
         },
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Research failed',
       };
     }
   },
@@ -384,13 +309,12 @@ const researchTool: Tool = {
 // ============================================================================
 
 /**
- * Register all Tavily tools
+ * Register all web tools.
  */
-export function registerTavilyTools(): void {
+export function registerWebTools(): void {
   registerTool(searchTool);
   registerTool(extractTool);
-  registerTool(researchTool);
 }
 
 // Export individual tools for testing
-export { searchTool, extractTool, researchTool };
+export { searchTool, extractTool };

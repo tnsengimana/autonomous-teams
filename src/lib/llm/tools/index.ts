@@ -123,18 +123,18 @@ export function getAdviceGenerationTools(): Tool[] {
 
 /**
  * Get tools for the Knowledge Acquisition phase (gathering raw information)
- * Tools: tavilySearch, tavilyExtract, tavilyResearch
+ * Tools: webSearch, webExtract
  */
 export function getKnowledgeAcquisitionTools(): Tool[] {
   return getAllTools().filter((tool) =>
-    ["tavilySearch", "tavilyExtract"].includes(tool.schema.name),
+    ["webSearch", "webExtract"].includes(tool.schema.name),
   );
 }
 
 /**
  * Get tools for the Graph Construction phase (structuring acquired knowledge into the graph)
  * Tools: queryGraph, addGraphNode, addGraphEdge, listNodeTypes, listEdgeTypes, createNodeType, createEdgeType
- * Note: Tavily tools are now in the separate Knowledge Acquisition phase
+ * Note: Web research tools are now in the separate Knowledge Acquisition phase
  */
 export function getGraphConstructionTools(): Tool[] {
   return getAllTools().filter((tool) =>
