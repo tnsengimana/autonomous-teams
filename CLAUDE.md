@@ -4,12 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Autonomous Agents is a TypeScript/Next.js application where users create agents that run continuously to fulfill a mission. Each agent has a system prompt, a knowledge graph, and runs in a 5-minute iteration loop where it autonomously researches and learns using web search and graph tools.
+Autonomous Agents is a TypeScript/Next.js application where users create agents that run continuously to fulfill a mission. Each agent has a system prompt, a knowledge graph, and runs in an autonomous iteration loop where it researches and learns using web search and graph tools.
 
 **Key Concepts**:
 - **Agent**: The central unit with a name, purpose, system prompt, and knowledge graph
 - **Knowledge Graph (KGoT)**: Agent's accumulated knowledge stored as typed nodes and edges
-- **Background Worker**: Runs agents in 5-minute iteration loops, calling the LLM with tools
+- **Background Worker**: Runs agents in configurable iteration loops (default 5 min), calling the LLM with tools
+- **OODA Loop**: The worker pipeline is a variant of the OODA (Observe → Orient → Decide → Act) loop — Observer observes, Researcher orients by actively gathering information, Analyzer decides by synthesizing insights, Adviser acts by producing recommendations
 - **LLM Interactions**: Trace of all background LLM calls stored for debugging/auditing
 
 ## Commands
@@ -45,7 +46,7 @@ The system is built around agents that run autonomously:
 
 - **One Conversation Per Agent**: Each agent has a single conversation for user interaction
 - **Knowledge Graph**: Each agent has a KGoT (Knowledge Graph of Thoughts) that stores learned knowledge
-- **Background Iterations**: The worker calls the LLM every 5 minutes to let the agent work autonomously
+- **Background Iterations**: The worker runs each agent on its configured interval to work autonomously
 
 ### Core Components
 
@@ -68,20 +69,49 @@ The system is built around agents that run autonomously:
 - Knowledge Graph tables: graphNodeTypes, graphEdgeTypes, graphNodes, graphEdges
 - `drizzle.config.ts` points to `src/lib/db/schema.ts`
 
+**API Routes** (`src/app/api/agents/[id]/`)
+- `route.ts` - Agent CRUD (GET, PATCH, DELETE)
+- `worker-iterations/route.ts` - Worker iteration history (GET)
+- `knowledge-graph/route.ts` - Knowledge graph visualization data (GET)
+- `graph-node-types/route.ts` - Graph node type definitions (GET)
+- `graph-edge-types/route.ts` - Graph edge type definitions (GET)
+- All routes follow the same pattern: auth check → agent ownership check → query → JSON response
+
 **Background Worker** (`src/worker/runner.ts`)
 - Per-agent iteration loop based on `iterationIntervalMs`
-- Each iteration runs the Observer → Researcher → Analyzer → Adviser pipeline:
-  1. **Observer**: Scans graph, produces plan with queries (knowledge gaps) and insights (patterns)
-  2. **Researcher**: For each query, runs Knowledge Acquisition (web research) + Graph Construction
+- Each iteration runs the **Observer → Researcher → Analyzer → Adviser** pipeline (a variant of the OODA loop):
+  1. **Observer** (Observe): Scans graph, produces plan with queries (knowledge gaps) and insights (patterns)
+  2. **Researcher** (Orient): For each query, runs Knowledge Acquisition (web research) + Graph Construction — actively gathers information rather than passively reorienting
   3. Rebuild graph context with enriched data
-  4. **Analyzer**: For each insight, runs Analysis Generation (creates AgentAnalysis nodes)
-  5. **Adviser**: If analyses were produced, runs Advice Generation (may create AgentAdvice nodes)
+  4. **Analyzer** (Decide): For each insight, runs Analysis Generation (creates AgentAnalysis nodes)
+  5. **Adviser** (Act): If analyses were produced, runs Advice Generation (may create AgentAdvice nodes)
 - AgentAdvice node creation triggers user notifications via inbox items
 
 **Authentication** (`src/lib/auth/config.ts`)
 - NextAuth.js with passwordless magic links
 - DrizzleAdapter for session persistence
 - In dev, magic links log to console
+
+### UI Architecture
+
+**Agent Detail Layout** (`src/app/(dashboard)/agents/[id]/layout.tsx`)
+- Server component handling auth + agent ownership
+- Two-column layout: sidebar (back link + nav) | content (title + actions header + page content)
+- `AgentHeaderActionsProvider` context allows subpages to inject page-specific actions into the content header
+
+**Agent Detail Subpages** — all client-rendered, fetch data via API routes:
+- Details (`page.tsx`) — mission, stats; header actions: Edit/Pause/Delete
+- Chat (`chat/page.tsx`) — conversation UI; header actions: View System Prompt
+- Worker Iterations (`worker-iterations/page.tsx`) — iteration history with collapsible LLM interaction details
+- Knowledge Graph (`knowledge-graph/page.tsx`) — 3D graph visualization via reagraph
+- Graph Node Types (`graph-node-types/page.tsx`) — collapsible cards showing type definitions
+- Graph Edge Types (`graph-edge-types/page.tsx`) — collapsible cards with source/target constraints
+
+**Key UI Components**:
+- `AgentHeaderActions` / `AgentHeaderActionsSlot` (`src/components/agent-header-actions.tsx`) — React Context slot pattern for page-specific header actions
+- `AgentDetailNav` (`src/components/agent-detail-nav.tsx`) — sidebar navigation with active state via `usePathname()`
+- `AgentDetailTitle` (`src/components/agent-detail-title.tsx`) — dynamic "AgentName - SubPage" title based on route
+- `AutoRefresh` (`src/components/auto-refresh.tsx`) — 60-second auto-refresh interval + manual Refresh button in header; accepts optional `onRefresh` callback for client-fetched pages
 
 ### Data Flow
 
@@ -91,16 +121,16 @@ The system is built around agents that run autonomously:
 3. Responds to user message
 4. Can optionally use foreground tools (web search, graph queries)
 
-**Autonomous Work (Background)**:
+**Autonomous Work (Background — OODA Loop)**:
 1. Worker picks up active agent based on its iteration interval
-2. **Observer phase**: Scans graph, produces plan with queries and insights
-3. **Researcher phase** (for each query):
+2. **Observer** (Observe): Scans graph, produces plan with queries and insights
+3. **Researcher** (Orient) for each query:
    - **Knowledge Acquisition**: Uses Tavily tools to research knowledge gap
    - **Graph Construction**: Structures acquired knowledge into typed graph nodes/edges
 4. Rebuild graph context (now enriched with new data)
-5. **Analyzer phase** (for each insight):
+5. **Analyzer** (Decide) for each insight:
    - **Analysis Generation**: Creates AgentAnalysis nodes from existing knowledge
-6. **Adviser phase** (if analyses were produced):
+6. **Adviser** (Act) if analyses were produced:
    - **Advice Generation**: Reviews AgentAnalysis nodes, may create AgentAdvice nodes which notify user
 7. All phases logged to `llm_interactions` with phase tracking
 
@@ -111,6 +141,8 @@ The system is built around agents that run autonomously:
 - **Encrypted API keys**: User API keys stored encrypted in `userApiKeys` table
 - **Conversation compaction**: Summary messages compress old context via linked list (`previousMessageId`)
 - **Single worker assumption**: One worker per deployment; concurrent workers would require locking
+- **Client-rendered subpages**: All agent detail subpages are `"use client"` components that fetch data via API routes. This keeps the architecture simple — no server/client serialization issues, consistent data-fetching pattern, easy auto-refresh via `useCallback` + `setInterval`
+- **Header action slots**: Subpages inject page-specific actions (Edit/Delete, Refresh, View System Prompt) into the layout header via React Context (`AgentHeaderActions`)
 
 ## Autonomous Operation
 
@@ -121,8 +153,8 @@ For agents to run autonomously:
    ```bash
    npx ts-node --project tsconfig.json src/worker/index.ts
    ```
-3. **5-minute iterations**: Worker processes all active agents every 5 minutes
-4. **Advice via notifications**: AgentAdvice nodes (BUY/SELL/HOLD) automatically create inbox notifications
+3. **Configurable iterations**: Each agent has `iterationIntervalMs` (default 5 minutes)
+4. **Advice via notifications**: AgentAdvice nodes automatically create inbox notifications
 
 ## UI Guidelines
 

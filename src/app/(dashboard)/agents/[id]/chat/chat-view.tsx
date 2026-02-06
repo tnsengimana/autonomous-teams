@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -12,6 +11,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Chat } from "@/components/chat";
+import { AgentHeaderActions } from "@/components/agent-header-actions";
 
 export function AgentChatView({
   agent,
@@ -21,17 +21,8 @@ export function AgentChatView({
   const [isSystemPromptOpen, setIsSystemPromptOpen] = useState(false);
 
   return (
-    <div className="flex h-[calc(100vh-12rem)] flex-col space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <Link
-            href={`/agents/${agent.id}`}
-            className="text-sm text-muted-foreground hover:underline"
-          >
-            Back to Agent
-          </Link>
-          <h1 className="mt-2 text-2xl font-bold">Chat with {agent.name}</h1>
-        </div>
+    <div className="flex h-[calc(100vh-16rem)] flex-col space-y-4">
+      <AgentHeaderActions>
         <Dialog open={isSystemPromptOpen} onOpenChange={setIsSystemPromptOpen}>
           <DialogTrigger asChild>
             <Button variant="outline" size="sm">
@@ -52,7 +43,7 @@ export function AgentChatView({
             </div>
           </DialogContent>
         </Dialog>
-      </div>
+      </AgentHeaderActions>
 
       <Chat
         agentId={agent.id}

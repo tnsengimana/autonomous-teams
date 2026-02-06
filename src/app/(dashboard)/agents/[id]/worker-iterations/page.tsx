@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import Link from "next/link";
+import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import {
   Card,
@@ -18,6 +17,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { ChevronDown, ChevronRight } from "lucide-react";
+import { AutoRefresh } from "@/components/auto-refresh";
 
 interface LLMInteraction {
   id: string;
@@ -240,42 +240,30 @@ export default function WorkerIterationsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function loadIterations() {
-      try {
-        const response = await fetch(`/api/agents/${agentId}/worker-iterations`);
-        if (!response.ok) {
-          throw new Error("Failed to load iterations");
-        }
-        const data = await response.json();
-        setIterations(data);
-      } catch (err) {
-        setError(
-          err instanceof Error ? err.message : "Failed to load iterations",
-        );
-      } finally {
-        setIsLoading(false);
+  const loadIterations = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/agents/${agentId}/worker-iterations`);
+      if (!response.ok) {
+        throw new Error("Failed to load iterations");
       }
+      const data = await response.json();
+      setIterations(data);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to load iterations",
+      );
+    } finally {
+      setIsLoading(false);
     }
-
-    loadIterations();
   }, [agentId]);
+
+  useEffect(() => {
+    loadIterations();
+  }, [loadIterations]);
 
   return (
     <div className="space-y-6">
-      <div>
-        <Link
-          href={`/agents/${agentId}`}
-          className="text-sm text-muted-foreground hover:underline"
-        >
-          Back to Agent
-        </Link>
-        <h1 className="mt-2 text-3xl font-bold">Worker Iterations</h1>
-        <p className="text-muted-foreground">
-          Background worker iterations and LLM interactions for this agent
-        </p>
-      </div>
-
+      <AutoRefresh onRefresh={loadIterations} />
       {error && (
         <div className="rounded-md bg-destructive/10 p-4 text-destructive">
           {error}

@@ -1,6 +1,7 @@
-import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
-import { Button } from "@/components/ui/button";
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import { useParams } from "next/navigation";
 import {
   Card,
   CardContent,
@@ -9,25 +10,61 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { auth } from "@/lib/auth/config";
-import { getAgentById } from "@/lib/db/queries/agents";
 import { AgentActions } from "@/components/agent-actions";
+import { AgentHeaderActions } from "@/components/agent-header-actions";
+import { AutoRefresh } from "@/components/auto-refresh";
 
-export default async function AgentDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    redirect("/auth/signin");
+interface Agent {
+  id: string;
+  name: string;
+  purpose: string | null;
+  isActive: boolean;
+  iterationIntervalMs: number;
+  createdAt: string;
+}
+
+export default function AgentDetailPage() {
+  const params = useParams();
+  const agentId = params.id as string;
+  const [agent, setAgent] = useState<Agent | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadAgent = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/agents/${agentId}`);
+      if (!response.ok) {
+        throw new Error("Failed to load agent");
+      }
+      const data = await response.json();
+      setAgent(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load agent");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [agentId]);
+
+  useEffect(() => {
+    loadAgent();
+  }, [loadAgent]);
+
+  if (isLoading) {
+    return (
+      <div className="text-center text-muted-foreground">Loading...</div>
+    );
   }
 
-  const { id } = await params;
-  const agent = await getAgentById(id);
+  if (error) {
+    return (
+      <div className="rounded-md bg-destructive/10 p-4 text-destructive">
+        {error}
+      </div>
+    );
+  }
 
-  if (!agent || agent.userId !== session.user.id) {
-    notFound();
+  if (!agent) {
+    return null;
   }
 
   // Parse mission from purpose field
@@ -37,40 +74,18 @@ export default async function AgentDetailPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <Link
-          href="/agents"
-          className="text-sm text-muted-foreground hover:underline"
-        >
-          Back to Agents
-        </Link>
-        <div className="mt-2 flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">{agent.name}</h1>
-          </div>
-          <AgentActions
-            agentType="team"
-            agentId={agent.id}
-            agentName={agent.name}
-            isActive={agent.isActive}
-            currentIntervalMs={agent.iterationIntervalMs}
-            backUrl="/agents"
-          />
-        </div>
-      </div>
+      <AutoRefresh onRefresh={loadAgent} />
 
-      {/* Quick Actions */}
-      <div className="flex gap-4">
-        <Link href={`/agents/${agent.id}/chat`}>
-          <Button>Chat</Button>
-        </Link>
-        <Link href={`/agents/${agent.id}/worker-iterations`}>
-          <Button variant="outline">Worker Iterations</Button>
-        </Link>
-        <Link href={`/agents/${agent.id}/knowledge-graph`}>
-          <Button variant="outline">Knowledge Graph</Button>
-        </Link>
-      </div>
+      <AgentHeaderActions>
+        <AgentActions
+          agentType="team"
+          agentId={agent.id}
+          agentName={agent.name}
+          isActive={agent.isActive}
+          currentIntervalMs={agent.iterationIntervalMs}
+          backUrl="/agents"
+        />
+      </AgentHeaderActions>
 
       <div className="grid gap-6 md:grid-cols-3">
         {/* Mission */}

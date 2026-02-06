@@ -1,7 +1,13 @@
 {
   "permissions": {
     "allow": [
-      "WebFetch(domain:ai-sdk.dev)"
+      "WebFetch(domain:ai-sdk.dev)",
+      "Bash(npx tsc:*)",
+      "Bash(npm run lint:*)",
+      "Bash(npx vitest run:*)",
+      "mcp__browsermcp__browser_navigate",
+      "mcp__browsermcp__browser_click",
+      "Bash(ls:*)"
     ]
   }
 }

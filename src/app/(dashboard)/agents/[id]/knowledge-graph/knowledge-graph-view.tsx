@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { XIcon } from "lucide-react";
+import { AutoRefresh } from "@/components/auto-refresh";
 
 // Dynamically import GraphCanvas to avoid SSR issues
 const GraphCanvas = dynamic(
@@ -58,24 +59,24 @@ export function KnowledgeGraphView({ agentId }: KnowledgeGraphViewProps) {
   const [selected, setSelected] = useState<SelectedItem>(null);
   const [selections, setSelections] = useState<string[]>([]);
 
-  useEffect(() => {
-    async function fetchGraph() {
-      try {
-        const response = await fetch(`/api/agents/${agentId}/knowledge-graph`);
-        if (!response.ok) {
-          throw new Error("Failed to fetch graph data");
-        }
-        const data = await response.json();
-        setGraphData(data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Unknown error");
-      } finally {
-        setLoading(false);
+  const fetchGraph = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/agents/${agentId}/knowledge-graph`);
+      if (!response.ok) {
+        throw new Error("Failed to fetch graph data");
       }
+      const data = await response.json();
+      setGraphData(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setLoading(false);
     }
-
-    fetchGraph();
   }, [agentId]);
+
+  useEffect(() => {
+    fetchGraph();
+  }, [fetchGraph]);
 
   const handleNodeClick = useCallback((node: GraphNode) => {
     setSelected({ type: "node", data: node });
@@ -94,34 +95,45 @@ export function KnowledgeGraphView({ agentId }: KnowledgeGraphViewProps) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-muted-foreground">Loading graph...</p>
-      </div>
+      <>
+        <AutoRefresh onRefresh={fetchGraph} />
+        <div className="flex items-center justify-center h-full">
+          <p className="text-muted-foreground">Loading graph...</p>
+        </div>
+      </>
     );
   }
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-destructive">Error: {error}</p>
-      </div>
+      <>
+        <AutoRefresh onRefresh={fetchGraph} />
+        <div className="flex items-center justify-center h-full">
+          <p className="text-destructive">Error: {error}</p>
+        </div>
+      </>
     );
   }
 
   if (!graphData || graphData.nodes.length === 0) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-center">
-          <p className="text-muted-foreground">No knowledge graph data yet.</p>
-          <p className="text-sm text-muted-foreground mt-1">
-            The agent will build its knowledge graph as it works.
-          </p>
+      <>
+        <AutoRefresh onRefresh={fetchGraph} />
+        <div className="flex items-center justify-center h-full">
+          <div className="text-center">
+            <p className="text-muted-foreground">No knowledge graph data yet.</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              The agent will build its knowledge graph as it works.
+            </p>
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
   return (
+    <>
+    <AutoRefresh onRefresh={fetchGraph} />
     <div className="flex h-full gap-4">
       {/* Graph visualization */}
       <div className="flex-1 border rounded-lg overflow-hidden bg-background relative">
@@ -172,6 +184,7 @@ export function KnowledgeGraphView({ agentId }: KnowledgeGraphViewProps) {
         </Card>
       )}
     </div>
+    </>
   );
 }
 

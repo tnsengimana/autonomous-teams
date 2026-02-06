@@ -1,42 +1,69 @@
-import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
-import { auth } from "@/lib/auth/config";
-import { getAgentById } from "@/lib/db/queries/agents";
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import { useParams } from "next/navigation";
 import { KnowledgeGraphView } from "./knowledge-graph-view";
 
-export default async function KnowledgeGraphPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    redirect("/auth/signin");
+interface AgentData {
+  id: string;
+  name: string;
+}
+
+export default function KnowledgeGraphPage() {
+  const params = useParams();
+  const agentId = params.id as string;
+  const [agent, setAgent] = useState<AgentData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadAgent = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/agents/${agentId}`);
+      if (!response.ok) {
+        throw new Error("Failed to load agent");
+      }
+      const data = await response.json();
+      setAgent(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load agent");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [agentId]);
+
+  useEffect(() => {
+    loadAgent();
+  }, [loadAgent]);
+
+  if (isLoading) {
+    return (
+      <div className="text-center text-muted-foreground">Loading...</div>
+    );
   }
 
-  const { id } = await params;
-  const agent = await getAgentById(id);
+  if (error) {
+    return (
+      <div className="rounded-md bg-destructive/10 p-4 text-destructive">
+        {error}
+      </div>
+    );
+  }
 
-  if (!agent || agent.userId !== session.user.id) {
-    notFound();
+  if (!agent) {
+    return (
+      <div className="rounded-md bg-destructive/10 p-4 text-destructive">
+        Agent not found
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <Link
-          href={`/agents/${agent.id}`}
-          className="text-sm text-muted-foreground hover:underline"
-        >
-          Back to {agent.name}
-        </Link>
-        <h1 className="mt-2 text-3xl font-bold">Knowledge Graph</h1>
-        <p className="text-muted-foreground">
-          Interactive visualization of {agent.name}&apos;s knowledge
-        </p>
-      </div>
-      <div className="h-[calc(100vh-14rem)]">
-        <KnowledgeGraphView agentId={agent.id} />
+    <div className="space-y-4">
+      <p className="text-muted-foreground">
+        Interactive visualization of {agent.name}&apos;s knowledge
+      </p>
+      <div className="h-[calc(100vh-16rem)]">
+        <KnowledgeGraphView agentId={agentId} />
       </div>
     </div>
   );
