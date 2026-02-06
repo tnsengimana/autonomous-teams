@@ -740,6 +740,8 @@ export async function generateLLMObject<T>(
           {
             name: "Concept",
             description: "A general concept or topic",
+            justification:
+              "Baseline mock justification: demonstrates concept nodes when no specific ontology is required.",
             propertiesSchema: {
               type: "object",
               properties: {
@@ -757,6 +759,8 @@ export async function generateLLMObject<T>(
           {
             name: "related_to",
             description: "A general relationship between concepts",
+            justification:
+              "Baseline mock justification: demonstrates a generic relationship when domain-specific edge types are unavailable.",
           },
         ],
       },

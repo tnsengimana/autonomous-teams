@@ -73,33 +73,6 @@ export function getAllTools(): Tool[] {
   return Array.from(toolRegistry.values());
 }
 
-/**
- * Get Tavily web search tools
- */
-export function getTavilyTools(): Tool[] {
-  return getAllTools().filter((tool) =>
-    ["tavilySearch", "tavilyExtract", "tavilyResearch"].includes(
-      tool.schema.name,
-    ),
-  );
-}
-
-/**
- * Get graph manipulation tools (available in background work sessions)
- */
-export function getGraphTools(): Tool[] {
-  return getAllTools().filter((tool) =>
-    [
-      "addGraphNode",
-      "addGraphEdge",
-      "queryGraph",
-      "getGraphSummary",
-      "createNodeType",
-      "createEdgeType",
-    ].includes(tool.schema.name),
-  );
-}
-
 // ============================================================================
 // Phase-Specific Tool Sets
 // ============================================================================
@@ -154,12 +127,20 @@ export function getKnowledgeAcquisitionTools(): Tool[] {
 
 /**
  * Get tools for the Graph Construction phase (structuring acquired knowledge into the graph)
- * Tools: queryGraph, addGraphNode, addGraphEdge
+ * Tools: queryGraph, addGraphNode, addGraphEdge, listNodeTypes, listEdgeTypes, createNodeType, createEdgeType
  * Note: Tavily tools are now in the separate Knowledge Acquisition phase
  */
 export function getGraphConstructionTools(): Tool[] {
   return getAllTools().filter((tool) =>
-    ["queryGraph", "addGraphNode", "addGraphEdge"].includes(tool.schema.name),
+    [
+      "queryGraph",
+      "addGraphNode",
+      "addGraphEdge",
+      "listNodeTypes",
+      "listEdgeTypes",
+      "createNodeType",
+      "createEdgeType",
+    ].includes(tool.schema.name),
   );
 }
 

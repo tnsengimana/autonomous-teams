@@ -66,6 +66,7 @@ describe('graphNodeTypes schema', () => {
       agentId: testAgentId,
       name: 'Asset',
       description: 'A financial asset such as a stock or bond',
+      justification: 'Schema test for full node type creation.',
       propertiesSchema,
       exampleProperties,
       createdBy: 'system',
@@ -89,6 +90,7 @@ describe('graphNodeTypes schema', () => {
       agentId: null,  // Global type
       name: 'GlobalConcept',
       description: 'A global concept shared across agents',
+      justification: 'Schema test for global node types.',
       propertiesSchema: { type: 'object', properties: {} },
       createdBy: 'system',
     }).returning();
@@ -105,6 +107,7 @@ describe('graphNodeTypes schema', () => {
       agentId: testAgentId,
       name: 'DefaultCreatedBy',
       description: 'Testing default createdBy value',
+      justification: 'Schema test for createdBy default behavior.',
       propertiesSchema: { type: 'object', properties: {} },
     }).returning();
 
@@ -119,6 +122,7 @@ describe('graphNodeTypes schema', () => {
       agentId: testAgentId,
       name: 'AgentCreatedType',
       description: 'A type created by the agent',
+      justification: 'Schema test for agent-created node type.',
       propertiesSchema: { type: 'object', properties: {} },
       createdBy: 'agent',
     }).returning();
@@ -146,6 +150,7 @@ describe('graphNodeTypes schema', () => {
       agentId: tempAgent.id,
       name: 'CascadeTestType',
       description: 'Type that should be deleted with agent',
+      justification: 'Schema test for agent cascade delete on node types.',
       propertiesSchema: { type: 'object', properties: {} },
     }).returning();
 
@@ -173,6 +178,7 @@ describe('graphEdgeTypes schema', () => {
       agentId: testAgentId,
       name: 'issued_by',
       description: 'Links an asset to its issuing company',
+      justification: 'Schema test for full edge type creation.',
       propertiesSchema,
       exampleProperties,
       createdBy: 'system',
@@ -196,6 +202,7 @@ describe('graphEdgeTypes schema', () => {
       agentId: testAgentId,
       name: 'simple_relation',
       description: 'A simple relationship without properties',
+      justification: 'Schema test for nullable edge property schemas.',
       propertiesSchema: null,
     }).returning();
 
@@ -222,6 +229,7 @@ describe('graphEdgeTypes schema', () => {
       agentId: tempAgent.id,
       name: 'cascade_test_edge',
       description: 'Edge type that should be deleted with agent',
+      justification: 'Schema test for agent cascade delete on edge types.',
     }).returning();
 
     // Delete the agent
@@ -544,6 +552,7 @@ describe('complete graph workflow', () => {
       agentId: testAgentId,
       name: 'Stock',
       description: 'A publicly traded stock',
+      justification: 'Workflow test node type for stock entities.',
       propertiesSchema: {
         type: 'object',
         required: ['ticker'],
@@ -559,6 +568,7 @@ describe('complete graph workflow', () => {
       agentId: testAgentId,
       name: 'Corporation',
       description: 'A corporate agent',
+      justification: 'Workflow test node type for corporation entities.',
       propertiesSchema: {
         type: 'object',
         required: ['name'],
@@ -575,6 +585,7 @@ describe('complete graph workflow', () => {
       agentId: testAgentId,
       name: 'issued_by_corp',
       description: 'Stock issued by corporation',
+      justification: 'Workflow test edge type connecting stock to corporation.',
       propertiesSchema: {
         type: 'object',
         properties: {

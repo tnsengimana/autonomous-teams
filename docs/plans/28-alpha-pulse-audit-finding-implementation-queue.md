@@ -16,7 +16,7 @@
 ## Todo Queue
 - [x] `F1` Observer `relevantNodeIds` are names instead of UUIDs.
 - [x] `F2` Edge ontology is too weak and semantically incorrect for analysis linkage.
-- [ ] `F3` Graph Construction prompt/tool mismatch on type creation.
+- [x] `F3` Graph Construction prompt/tool mismatch on type creation.
 - [ ] `F4` Analyzer loops on impossible edge creation and malformed tool names.
 - [ ] `F5` Failed iterations leave orphaned open `llm_interactions`.
 - [ ] `F6` Knowledge Acquisition instability (`UND_ERR_BODY_TIMEOUT`, extract failures).
@@ -57,3 +57,21 @@
   - Tests:
     - `npm run test:run -- src/lib/llm/__tests__/graph-configuration.test.ts src/lib/llm/tools/__tests__/graph-tools.test.ts src/lib/llm/__tests__/agents.test.ts`
     - `npm run build`
+- 2026-02-06: Completed `F3`.
+  - Implemented:
+    - Enabled Graph Construction phase toolset to include `createNodeType` and `createEdgeType` in `src/lib/llm/tools/index.ts`.
+    - Added explicit Graph Construction guardrails in prompts:
+      - Prefer existing types first.
+      - Create new types only when no existing type fits.
+      - Keep per-run type creation minimal.
+    - Updated Graph Construction runner instruction text to reflect type-creation availability and guardrails.
+    - Updated node-type naming convention from strict PascalCase to capitalized names with spaces allowed:
+      - Tool schema/validation (`src/lib/llm/tools/graph-tools.ts`)
+      - Type initialization schema/prompt guidance (`src/lib/llm/graph-types.ts`)
+      - DB schema comment (`src/lib/db/schema.ts`)
+  - Tests:
+    - Added `src/lib/llm/tools/__tests__/index.test.ts` to verify Graph Construction toolset includes type-creation tools.
+    - Updated createNodeType tests in `src/lib/llm/tools/__tests__/graph-tools.test.ts` for capitalized-space naming.
+    - Revalidated:
+      - `npm run test:run -- src/lib/llm/tools/__tests__/index.test.ts src/lib/llm/tools/__tests__/graph-tools.test.ts src/lib/llm/__tests__/graph-configuration.test.ts src/lib/llm/__tests__/agents.test.ts`
+      - `npm run build`

@@ -99,6 +99,7 @@ describe('createNodeType', () => {
       agentId: testAgentId,
       name: 'Company',
       description: 'A business agent',
+      justification: 'Test coverage for required node type creation.',
       propertiesSchema: {
         type: 'object',
         required: ['name'],
@@ -124,6 +125,7 @@ describe('createNodeType', () => {
       agentId: testAgentId,
       name: 'Asset',
       description: 'A financial instrument',
+      justification: 'Test coverage for node type creation with examples.',
       propertiesSchema: {
         type: 'object',
         required: ['symbol'],
@@ -150,6 +152,7 @@ describe('createNodeType', () => {
       agentId: null,
       name: 'GlobalPerson',
       description: 'A global person type',
+      justification: 'Test coverage for global node type behavior.',
       propertiesSchema: {
         type: 'object',
         properties: {
@@ -170,6 +173,7 @@ describe('createNodeType', () => {
       agentId: testAgentId,
       name: 'AgentCreated',
       description: 'Created by agent',
+      justification: 'Test coverage for createdBy=agent.',
       propertiesSchema: {},
       createdBy: 'agent',
     });
@@ -178,6 +182,7 @@ describe('createNodeType', () => {
       agentId: testAgentId,
       name: 'UserCreated',
       description: 'Created by user',
+      justification: 'Test coverage for createdBy=user.',
       propertiesSchema: {},
       createdBy: 'user',
     });
@@ -199,6 +204,7 @@ describe('getNodeTypesByAgent', () => {
       agentId: testAgentId,
       name: 'AgentSpecificType',
       description: 'Agent specific',
+      justification: 'Test coverage for agent-specific lookup.',
       propertiesSchema: {},
     });
 
@@ -213,6 +219,7 @@ describe('getNodeTypesByAgent', () => {
       agentId: null,
       name: 'GlobalTypeForAgent',
       description: 'Global type',
+      justification: 'Test coverage for global type lookup.',
       propertiesSchema: {},
     });
 
@@ -231,6 +238,7 @@ describe('getNodeTypesByAgent', () => {
       agentId: testAgentId,
       name: 'Agent1Only',
       description: 'Agent 1 specific',
+      justification: 'Test coverage for agent isolation.',
       propertiesSchema: {},
     });
 
@@ -251,6 +259,7 @@ describe('nodeTypeExists', () => {
       agentId: testAgentId,
       name: 'ExistingType',
       description: 'Exists',
+      justification: 'Test coverage for existence check.',
       propertiesSchema: {},
     });
 
@@ -265,6 +274,7 @@ describe('nodeTypeExists', () => {
       agentId: null,
       name: 'GlobalExisting',
       description: 'Global exists',
+      justification: 'Test coverage for global existence check.',
       propertiesSchema: {},
     });
 
@@ -290,6 +300,7 @@ describe('createEdgeType', () => {
       agentId: testAgentId,
       name: 'belongs_to',
       description: 'Indicates ownership or membership',
+      justification: 'Test coverage for required edge type creation.',
     });
 
     expect(edgeType.id).toBeDefined();
@@ -306,6 +317,7 @@ describe('createEdgeType', () => {
       agentId: testAgentId,
       name: 'issued_by',
       description: 'Asset issued by a company',
+      justification: 'Test coverage for unconstrained edge types.',
     });
 
     expect(edgeType.id).toBeDefined();
@@ -320,6 +332,7 @@ describe('createEdgeType', () => {
       agentId: testAgentId,
       name: 'invested_in',
       description: 'Investment relationship',
+      justification: 'Test coverage for edge type properties schema.',
       propertiesSchema: {
         type: 'object',
         properties: {
@@ -347,6 +360,7 @@ describe('getEdgeTypesByAgent', () => {
       agentId: testAgentId,
       name: 'connects_to',
       description: 'Connection',
+      justification: 'Test coverage for agent edge type lookup.',
     });
 
     const edgeTypes = await getEdgeTypesByAgent(testAgentId);
@@ -363,6 +377,7 @@ describe('getEdgeTypesByAgent', () => {
       agentId: null,
       name: 'global_relationship',
       description: 'Global edge type',
+      justification: 'Test coverage for global edge type lookup.',
     });
 
     const edgeTypes = await getEdgeTypesByAgent(testAgentId);
@@ -382,6 +397,7 @@ describe('edgeTypeExists', () => {
       agentId: testAgentId,
       name: 'existing_edge',
       description: 'Exists',
+      justification: 'Test coverage for edge existence check.',
     });
 
     const exists = await edgeTypeExists(testAgentId, 'existing_edge');
@@ -407,6 +423,7 @@ describe('formatTypesForLLMContext', () => {
       agentId: testAgentId,
       name: 'LLMAsset',
       description: 'Financial instrument (stocks, bonds, ETFs, crypto)',
+      justification: 'Test coverage for LLM context formatting.',
       propertiesSchema: {
         type: 'object',
         required: ['symbol'],
@@ -423,6 +440,7 @@ describe('formatTypesForLLMContext', () => {
       agentId: testAgentId,
       name: 'LLMCompany',
       description: 'A business agent',
+      justification: 'Test coverage for LLM context formatting with required fields.',
       propertiesSchema: {
         type: 'object',
         required: ['name'],
@@ -438,6 +456,7 @@ describe('formatTypesForLLMContext', () => {
       agentId: testAgentId,
       name: 'llm_issued_by',
       description: 'Asset issued by a company',
+      justification: 'Test coverage for edge formatting in LLM context.',
     });
 
     const formatted = await formatTypesForLLMContext(testAgentId);

@@ -71,6 +71,7 @@ describe("buildGraphContextBlock", () => {
       agentId: testAgentId,
       name: "Company",
       description: "A business agent",
+      justification: "Test fixture type for graph context rendering.",
       propertiesSchema: {
         type: "object",
         properties: {
@@ -302,6 +303,7 @@ describe("Integration", () => {
         agentId: integrationAgent.id,
         name: "Analyst",
         description: "A financial analyst",
+        justification: "Test fixture type for integration graph context checks.",
         propertiesSchema: {
           type: "object",
           properties: {

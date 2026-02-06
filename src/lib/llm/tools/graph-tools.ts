@@ -5,6 +5,7 @@
  * - Add/update nodes
  * - Add edges
  * - Query the graph
+ * - List available node/edge types
  * - Create new types
  */
 
@@ -13,8 +14,8 @@ import {
   type Tool,
   type ToolResult,
   type ToolContext,
-} from './index';
-import { z } from 'zod';
+} from "./index";
+import { z } from "zod";
 
 // ============================================================================
 // Extended Tool Context (includes conversationId for graph tools)
@@ -29,40 +30,90 @@ export interface GraphToolContext extends ToolContext {
 // ============================================================================
 
 export const AddGraphNodeParamsSchema = z.object({
-  type: z.string().min(1).describe('Node type (must be an existing type, e.g., "Company", "Asset")'),
-  name: z.string().min(1).describe('Human-readable identifier for this node'),
-  properties: z.record(z.string(), z.unknown()).optional().default({}).describe('Properties for this node (must match type schema, including any temporal fields)'),
+  type: z
+    .string()
+    .min(1)
+    .describe('Node type (must be an existing type, e.g., "Company", "Asset")'),
+  name: z.string().min(1).describe("Human-readable identifier for this node"),
+  properties: z
+    .record(z.string(), z.unknown())
+    .optional()
+    .default({})
+    .describe(
+      "Properties for this node (must match type schema, including any temporal fields)",
+    ),
 });
 
 export const AddGraphEdgeParamsSchema = z.object({
   type: z.string().min(1).describe('Edge type (e.g., "affects", "issued_by")'),
-  sourceName: z.string().min(1).describe('Name of the source node'),
-  sourceType: z.string().min(1).describe('Type of the source node'),
-  targetName: z.string().min(1).describe('Name of the target node'),
-  targetType: z.string().min(1).describe('Type of the target node'),
-  properties: z.record(z.string(), z.unknown()).optional().describe('Optional properties for this edge'),
+  sourceName: z.string().min(1).describe("Name of the source node"),
+  sourceType: z.string().min(1).describe("Type of the source node"),
+  targetName: z.string().min(1).describe("Name of the target node"),
+  targetType: z.string().min(1).describe("Type of the target node"),
+  properties: z
+    .record(z.string(), z.unknown())
+    .optional()
+    .describe("Optional properties for this edge"),
 });
 
 export const QueryGraphParamsSchema = z.object({
-  nodeType: z.string().optional().describe('Filter by node type'),
-  searchTerm: z.string().optional().describe('Search in node names'),
-  limit: z.number().min(1).max(100).optional().default(20).describe('Maximum nodes to return'),
+  nodeType: z.string().optional().describe("Filter by node type"),
+  searchTerm: z.string().optional().describe("Search in node names"),
+  limit: z
+    .number()
+    .min(1)
+    .max(100)
+    .optional()
+    .default(20)
+    .describe("Maximum nodes to return"),
 });
 
 export const CreateNodeTypeParamsSchema = z.object({
-  name: z.string().min(1).describe('PascalCase name for the new type (e.g., "Regulation", "Patent")'),
-  description: z.string().min(1).describe('Clear explanation of what this type represents'),
-  propertiesSchema: z.record(z.string(), z.unknown()).describe('JSON Schema defining allowed properties'),
-  exampleProperties: z.record(z.string(), z.unknown()).describe('Example property values for few-shot learning'),
-  justification: z.string().min(1).describe('Why existing types are insufficient'),
+  name: z
+    .string()
+    .min(1)
+    .describe(
+      'Capitalized node type name (spaces allowed), e.g., "Regulation", "Market Event"',
+    ),
+  description: z
+    .string()
+    .min(1)
+    .describe("Clear explanation of what this type represents"),
+  propertiesSchema: z
+    .record(z.string(), z.unknown())
+    .describe("JSON Schema defining allowed properties"),
+  exampleProperties: z
+    .record(z.string(), z.unknown())
+    .describe("Example property values for few-shot learning"),
+  justification: z
+    .string()
+    .min(1)
+    .describe("Why existing types are insufficient"),
 });
 
 export const CreateEdgeTypeParamsSchema = z.object({
-  name: z.string().min(1).describe('snake_case name for the relationship (e.g., "regulates", "competes_with")'),
-  description: z.string().min(1).describe('Clear explanation of what this relationship represents'),
-  propertiesSchema: z.record(z.string(), z.unknown()).optional().describe('Optional JSON Schema for edge properties'),
-  exampleProperties: z.record(z.string(), z.unknown()).optional().describe('Example property values'),
-  justification: z.string().min(1).describe('Why existing edge types are insufficient'),
+  name: z
+    .string()
+    .min(1)
+    .describe(
+      'snake_case name for the relationship (e.g., "regulates", "competes_with")',
+    ),
+  description: z
+    .string()
+    .min(1)
+    .describe("Clear explanation of what this relationship represents"),
+  propertiesSchema: z
+    .record(z.string(), z.unknown())
+    .optional()
+    .describe("Optional JSON Schema for edge properties"),
+  exampleProperties: z
+    .record(z.string(), z.unknown())
+    .optional()
+    .describe("Example property values"),
+  justification: z
+    .string()
+    .min(1)
+    .describe("Why existing edge types are insufficient"),
 });
 
 export type AddGraphNodeParams = z.infer<typeof AddGraphNodeParamsSchema>;
@@ -75,11 +126,11 @@ export type CreateEdgeTypeParams = z.infer<typeof CreateEdgeTypeParamsSchema>;
 // Naming Convention Validators
 // ============================================================================
 
-const PASCAL_CASE_REGEX = /^[A-Z][a-zA-Z]*$/;
+const CAPITALIZED_TYPE_NAME_REGEX = /^[A-Z][A-Za-z0-9]*(?: [A-Za-z0-9]+)*$/;
 const SNAKE_CASE_REGEX = /^[a-z][a-z_]*$/;
 
-function isPascalCase(name: string): boolean {
-  return PASCAL_CASE_REGEX.test(name);
+function isCapitalizedTypeName(name: string): boolean {
+  return CAPITALIZED_TYPE_NAME_REGEX.test(name);
 }
 
 function isSnakeCase(name: string): boolean {
@@ -92,25 +143,28 @@ function isSnakeCase(name: string): boolean {
 
 const addGraphNodeTool: Tool = {
   schema: {
-    name: 'addGraphNode',
-    description: 'Add a node to the knowledge graph. Use existing node types when possible. Temporal fields (occurred_at, published_at, etc.) should be included in properties per the type schema.',
+    name: "addGraphNode",
+    description:
+      "Add a node to the knowledge graph. Use existing node types when possible. Temporal fields (occurred_at, published_at, etc.) should be included in properties per the type schema.",
     parameters: [
       {
-        name: 'type',
-        type: 'string',
-        description: 'Node type (must be an existing type, e.g., "Company", "Asset")',
+        name: "type",
+        type: "string",
+        description:
+          'Node type (must be an existing type, e.g., "Company", "Asset")',
         required: true,
       },
       {
-        name: 'name',
-        type: 'string',
-        description: 'Human-readable identifier for this node',
+        name: "name",
+        type: "string",
+        description: "Human-readable identifier for this node",
         required: true,
       },
       {
-        name: 'properties',
-        type: 'object',
-        description: 'Properties for this node (must match type schema, including any temporal fields)',
+        name: "properties",
+        type: "object",
+        description:
+          "Properties for this node (must match type schema, including any temporal fields)",
         required: false,
       },
     ],
@@ -128,8 +182,9 @@ const addGraphNodeTool: Tool = {
     const ctx = context as GraphToolContext;
 
     try {
-      const { createNode, findNodeByTypeAndName, updateNodeProperties } = await import('@/lib/db/queries/graph-data');
-      const { nodeTypeExists } = await import('@/lib/db/queries/graph-types');
+      const { createNode, findNodeByTypeAndName, updateNodeProperties } =
+        await import("@/lib/db/queries/graph-data");
+      const { nodeTypeExists } = await import("@/lib/db/queries/graph-types");
 
       // Validate type exists
       if (!(await nodeTypeExists(ctx.agentId, type))) {
@@ -142,12 +197,15 @@ const addGraphNodeTool: Tool = {
       // Check for existing node (upsert semantics)
       const existing = await findNodeByTypeAndName(ctx.agentId, type, name);
       if (existing) {
-        await updateNodeProperties(existing.id, { ...(existing.properties as object), ...properties });
+        await updateNodeProperties(existing.id, {
+          ...(existing.properties as object),
+          ...properties,
+        });
         return {
           success: true,
           data: {
             nodeId: existing.id,
-            action: 'updated',
+            action: "updated",
           },
         };
       }
@@ -164,13 +222,14 @@ const addGraphNodeTool: Tool = {
         success: true,
         data: {
           nodeId: node.id,
-          action: 'created',
+          action: "created",
         },
       };
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to add graph node',
+        error:
+          error instanceof Error ? error.message : "Failed to add graph node",
       };
     }
   },
@@ -182,43 +241,44 @@ const addGraphNodeTool: Tool = {
 
 const addGraphEdgeTool: Tool = {
   schema: {
-    name: 'addGraphEdge',
-    description: 'Add a relationship (edge) between two nodes in the knowledge graph.',
+    name: "addGraphEdge",
+    description:
+      "Add a relationship (edge) between two nodes in the knowledge graph.",
     parameters: [
       {
-        name: 'type',
-        type: 'string',
+        name: "type",
+        type: "string",
         description: 'Edge type (e.g., "affects", "issued_by")',
         required: true,
       },
       {
-        name: 'sourceName',
-        type: 'string',
-        description: 'Name of the source node',
+        name: "sourceName",
+        type: "string",
+        description: "Name of the source node",
         required: true,
       },
       {
-        name: 'sourceType',
-        type: 'string',
-        description: 'Type of the source node',
+        name: "sourceType",
+        type: "string",
+        description: "Type of the source node",
         required: true,
       },
       {
-        name: 'targetName',
-        type: 'string',
-        description: 'Name of the target node',
+        name: "targetName",
+        type: "string",
+        description: "Name of the target node",
         required: true,
       },
       {
-        name: 'targetType',
-        type: 'string',
-        description: 'Type of the target node',
+        name: "targetType",
+        type: "string",
+        description: "Type of the target node",
         required: true,
       },
       {
-        name: 'properties',
-        type: 'object',
-        description: 'Optional properties for this edge',
+        name: "properties",
+        type: "object",
+        description: "Optional properties for this edge",
         required: false,
       },
     ],
@@ -232,12 +292,14 @@ const addGraphEdgeTool: Tool = {
       };
     }
 
-    const { type, sourceName, sourceType, targetName, targetType, properties } = parsed.data;
+    const { type, sourceName, sourceType, targetName, targetType, properties } =
+      parsed.data;
     const ctx = context as GraphToolContext;
 
     try {
-      const { findNodeByTypeAndName, createEdge, findEdge } = await import('@/lib/db/queries/graph-data');
-      const { edgeTypeExists } = await import('@/lib/db/queries/graph-types');
+      const { findNodeByTypeAndName, createEdge, findEdge } =
+        await import("@/lib/db/queries/graph-data");
+      const { edgeTypeExists } = await import("@/lib/db/queries/graph-types");
 
       // Validate edge type exists
       if (!(await edgeTypeExists(ctx.agentId, type))) {
@@ -248,8 +310,16 @@ const addGraphEdgeTool: Tool = {
       }
 
       // Find source and target nodes
-      const sourceNode = await findNodeByTypeAndName(ctx.agentId, sourceType, sourceName);
-      const targetNode = await findNodeByTypeAndName(ctx.agentId, targetType, targetName);
+      const sourceNode = await findNodeByTypeAndName(
+        ctx.agentId,
+        sourceType,
+        sourceName,
+      );
+      const targetNode = await findNodeByTypeAndName(
+        ctx.agentId,
+        targetType,
+        targetName,
+      );
 
       if (!sourceNode) {
         return {
@@ -265,13 +335,18 @@ const addGraphEdgeTool: Tool = {
       }
 
       // Check for existing edge (avoid duplicates)
-      const existing = await findEdge(ctx.agentId, type, sourceNode.id, targetNode.id);
+      const existing = await findEdge(
+        ctx.agentId,
+        type,
+        sourceNode.id,
+        targetNode.id,
+      );
       if (existing) {
         return {
           success: true,
           data: {
             edgeId: existing.id,
-            action: 'already_exists',
+            action: "already_exists",
           },
         };
       }
@@ -289,13 +364,14 @@ const addGraphEdgeTool: Tool = {
         success: true,
         data: {
           edgeId: edge.id,
-          action: 'created',
+          action: "created",
         },
       };
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to add graph edge',
+        error:
+          error instanceof Error ? error.message : "Failed to add graph edge",
       };
     }
   },
@@ -307,25 +383,26 @@ const addGraphEdgeTool: Tool = {
 
 const queryGraphTool: Tool = {
   schema: {
-    name: 'queryGraph',
-    description: 'Query the knowledge graph to find relevant information. Returns nodes and their relationships.',
+    name: "queryGraph",
+    description:
+      "Query the knowledge graph to find relevant information. Returns nodes and their relationships.",
     parameters: [
       {
-        name: 'nodeType',
-        type: 'string',
-        description: 'Filter by node type',
+        name: "nodeType",
+        type: "string",
+        description: "Filter by node type",
         required: false,
       },
       {
-        name: 'searchTerm',
-        type: 'string',
-        description: 'Search in node names',
+        name: "searchTerm",
+        type: "string",
+        description: "Search in node names",
         required: false,
       },
       {
-        name: 'limit',
-        type: 'number',
-        description: 'Maximum nodes to return (default 20)',
+        name: "limit",
+        type: "number",
+        description: "Maximum nodes to return (default 20)",
         required: false,
       },
     ],
@@ -343,35 +420,36 @@ const queryGraphTool: Tool = {
     const ctx = context as GraphToolContext;
 
     try {
-      const { getNodesByAgent, getEdgesByNode } = await import('@/lib/db/queries/graph-data');
+      const { getNodesByAgent, getEdgesByNode } =
+        await import("@/lib/db/queries/graph-data");
 
       let nodes = await getNodesByAgent(ctx.agentId, { type: nodeType, limit });
 
       // Filter by search term if provided
       if (searchTerm) {
         const term = searchTerm.toLowerCase();
-        nodes = nodes.filter(n => n.name.toLowerCase().includes(term));
+        nodes = nodes.filter((n) => n.name.toLowerCase().includes(term));
       }
 
       // Get edges for these nodes
-      const edgePromises = nodes.map(n => getEdgesByNode(n.id, 'both'));
+      const edgePromises = nodes.map((n) => getEdgesByNode(n.id, "both"));
       const edgeResults = await Promise.all(edgePromises);
       const allEdges = edgeResults.flat();
 
       // Deduplicate edges by id
-      const edgeMap = new Map(allEdges.map(e => [e.id, e]));
+      const edgeMap = new Map(allEdges.map((e) => [e.id, e]));
       const edges = Array.from(edgeMap.values());
 
       return {
         success: true,
         data: {
-          nodes: nodes.map(n => ({
+          nodes: nodes.map((n) => ({
             id: n.id,
             type: n.type,
             name: n.name,
             properties: n.properties,
           })),
-          edges: edges.map(e => ({
+          edges: edges.map((e) => ({
             type: e.type,
             sourceId: e.sourceId,
             targetId: e.targetId,
@@ -382,7 +460,7 @@ const queryGraphTool: Tool = {
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to query graph',
+        error: error instanceof Error ? error.message : "Failed to query graph",
       };
     }
   },
@@ -394,15 +472,16 @@ const queryGraphTool: Tool = {
 
 const getGraphSummaryTool: Tool = {
   schema: {
-    name: 'getGraphSummary',
-    description: 'Get a summary of the current knowledge graph state (node counts, edge counts by type).',
+    name: "getGraphSummary",
+    description:
+      "Get a summary of the current knowledge graph state (node counts, edge counts by type).",
     parameters: [],
   },
   handler: async (_params, context): Promise<ToolResult> => {
     const ctx = context as GraphToolContext;
 
     try {
-      const { getGraphStats } = await import('@/lib/db/queries/graph-data');
+      const { getGraphStats } = await import("@/lib/db/queries/graph-data");
       const stats = await getGraphStats(ctx.agentId);
 
       return {
@@ -412,7 +491,96 @@ const getGraphSummaryTool: Tool = {
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to get graph summary',
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to get graph summary",
+      };
+    }
+  },
+};
+
+// ============================================================================
+// listNodeTypes Tool
+// ============================================================================
+
+const listNodeTypesTool: Tool = {
+  schema: {
+    name: "listNodeTypes",
+    description:
+      "List all available node types (agent-specific and global) with descriptions and schemas. Use this before creating new node types.",
+    parameters: [],
+  },
+  handler: async (_params, context): Promise<ToolResult> => {
+    const ctx = context as GraphToolContext;
+
+    try {
+      const { getNodeTypesByAgent } =
+        await import("@/lib/db/queries/graph-types");
+      const nodeTypes = await getNodeTypesByAgent(ctx.agentId);
+
+      return {
+        success: true,
+        data: {
+          nodeTypes: nodeTypes.map((nodeType) => ({
+            id: nodeType.id,
+            name: nodeType.name,
+            description: nodeType.description,
+            justification: nodeType.justification,
+            propertiesSchema: nodeType.propertiesSchema,
+            exampleProperties: nodeType.exampleProperties,
+            createdBy: nodeType.createdBy,
+          })),
+        },
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error:
+          error instanceof Error ? error.message : "Failed to list node types",
+      };
+    }
+  },
+};
+
+// ============================================================================
+// listEdgeTypes Tool
+// ============================================================================
+
+const listEdgeTypesTool: Tool = {
+  schema: {
+    name: "listEdgeTypes",
+    description:
+      "List all available edge types (agent-specific and global) with descriptions and schemas. Use this before creating new edge types.",
+    parameters: [],
+  },
+  handler: async (_params, context): Promise<ToolResult> => {
+    const ctx = context as GraphToolContext;
+
+    try {
+      const { getEdgeTypesByAgent } =
+        await import("@/lib/db/queries/graph-types");
+      const edgeTypes = await getEdgeTypesByAgent(ctx.agentId);
+
+      return {
+        success: true,
+        data: {
+          edgeTypes: edgeTypes.map((edgeType) => ({
+            id: edgeType.id,
+            name: edgeType.name,
+            description: edgeType.description,
+            justification: edgeType.justification,
+            propertiesSchema: edgeType.propertiesSchema,
+            exampleProperties: edgeType.exampleProperties,
+            createdBy: edgeType.createdBy,
+          })),
+        },
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error:
+          error instanceof Error ? error.message : "Failed to list edge types",
       };
     }
   },
@@ -424,37 +592,39 @@ const getGraphSummaryTool: Tool = {
 
 const createNodeTypeTool: Tool = {
   schema: {
-    name: 'createNodeType',
-    description: 'Create a new node type when you discover knowledge that does not fit existing types. Use sparingly - prefer existing types.',
+    name: "createNodeType",
+    description:
+      "Create a new node type when you discover knowledge that does not fit existing types. Use sparingly - prefer existing types.",
     parameters: [
       {
-        name: 'name',
-        type: 'string',
-        description: 'PascalCase name for the new type (e.g., "Regulation", "Patent")',
+        name: "name",
+        type: "string",
+        description:
+          'Capitalized node type name (spaces allowed), e.g., "Regulation", "Market Event"',
         required: true,
       },
       {
-        name: 'description',
-        type: 'string',
-        description: 'Clear explanation of what this type represents',
+        name: "description",
+        type: "string",
+        description: "Clear explanation of what this type represents",
         required: true,
       },
       {
-        name: 'propertiesSchema',
-        type: 'object',
-        description: 'JSON Schema defining allowed properties',
+        name: "propertiesSchema",
+        type: "object",
+        description: "JSON Schema defining allowed properties",
         required: true,
       },
       {
-        name: 'exampleProperties',
-        type: 'object',
-        description: 'Example property values for few-shot learning',
+        name: "exampleProperties",
+        type: "object",
+        description: "Example property values for few-shot learning",
         required: true,
       },
       {
-        name: 'justification',
-        type: 'string',
-        description: 'Why existing types are insufficient',
+        name: "justification",
+        type: "string",
+        description: "Why existing types are insufficient",
         required: true,
       },
     ],
@@ -468,19 +638,26 @@ const createNodeTypeTool: Tool = {
       };
     }
 
-    const { name, description, propertiesSchema, exampleProperties, justification } = parsed.data;
+    const {
+      name,
+      description,
+      propertiesSchema,
+      exampleProperties,
+      justification,
+    } = parsed.data;
     const ctx = context as GraphToolContext;
 
-    // Validate PascalCase naming
-    if (!isPascalCase(name)) {
+    // Validate node type naming: must start with capital letter; spaces are allowed.
+    if (!isCapitalizedTypeName(name)) {
       return {
         success: false,
-        error: `Node type name must be PascalCase (e.g., "Regulation", "Patent"). Got: "${name}"`,
+        error: `Node type name must start with a capital letter and may contain spaces (e.g., "Regulation", "Market Event"). Got: "${name}"`,
       };
     }
 
     try {
-      const { nodeTypeExists, createNodeType } = await import('@/lib/db/queries/graph-types');
+      const { nodeTypeExists, createNodeType } =
+        await import("@/lib/db/queries/graph-types");
 
       // Check if type already exists
       if (await nodeTypeExists(ctx.agentId, name)) {
@@ -495,9 +672,10 @@ const createNodeTypeTool: Tool = {
         agentId: ctx.agentId,
         name,
         description,
+        justification,
         propertiesSchema,
         exampleProperties,
-        createdBy: 'agent',
+        createdBy: "agent",
       });
 
       return {
@@ -511,7 +689,8 @@ const createNodeTypeTool: Tool = {
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to create node type',
+        error:
+          error instanceof Error ? error.message : "Failed to create node type",
       };
     }
   },
@@ -523,37 +702,39 @@ const createNodeTypeTool: Tool = {
 
 const createEdgeTypeTool: Tool = {
   schema: {
-    name: 'createEdgeType',
-    description: 'Create a new edge (relationship) type when you need to express a relationship not covered by existing types.',
+    name: "createEdgeType",
+    description:
+      "Create a new edge (relationship) type when you need to express a relationship not covered by existing types.",
     parameters: [
       {
-        name: 'name',
-        type: 'string',
-        description: 'snake_case name for the relationship (e.g., "regulates", "competes_with")',
+        name: "name",
+        type: "string",
+        description:
+          'snake_case name for the relationship (e.g., "regulates", "competes_with")',
         required: true,
       },
       {
-        name: 'description',
-        type: 'string',
-        description: 'Clear explanation of what this relationship represents',
+        name: "description",
+        type: "string",
+        description: "Clear explanation of what this relationship represents",
         required: true,
       },
       {
-        name: 'propertiesSchema',
-        type: 'object',
-        description: 'Optional JSON Schema for edge properties',
+        name: "propertiesSchema",
+        type: "object",
+        description: "Optional JSON Schema for edge properties",
         required: false,
       },
       {
-        name: 'exampleProperties',
-        type: 'object',
-        description: 'Example property values',
+        name: "exampleProperties",
+        type: "object",
+        description: "Example property values",
         required: false,
       },
       {
-        name: 'justification',
-        type: 'string',
-        description: 'Why existing edge types are insufficient',
+        name: "justification",
+        type: "string",
+        description: "Why existing edge types are insufficient",
         required: true,
       },
     ],
@@ -567,7 +748,13 @@ const createEdgeTypeTool: Tool = {
       };
     }
 
-    const { name, description, propertiesSchema, exampleProperties, justification } = parsed.data;
+    const {
+      name,
+      description,
+      propertiesSchema,
+      exampleProperties,
+      justification,
+    } = parsed.data;
     const ctx = context as GraphToolContext;
 
     // Validate snake_case naming
@@ -579,7 +766,8 @@ const createEdgeTypeTool: Tool = {
     }
 
     try {
-      const { edgeTypeExists, createEdgeType } = await import('@/lib/db/queries/graph-types');
+      const { edgeTypeExists, createEdgeType } =
+        await import("@/lib/db/queries/graph-types");
 
       // Check if type already exists
       if (await edgeTypeExists(ctx.agentId, name)) {
@@ -594,9 +782,10 @@ const createEdgeTypeTool: Tool = {
         agentId: ctx.agentId,
         name,
         description,
+        justification,
         propertiesSchema,
         exampleProperties,
-        createdBy: 'agent',
+        createdBy: "agent",
       });
 
       return {
@@ -610,7 +799,8 @@ const createEdgeTypeTool: Tool = {
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to create edge type',
+        error:
+          error instanceof Error ? error.message : "Failed to create edge type",
       };
     }
   },
@@ -621,33 +811,59 @@ const createEdgeTypeTool: Tool = {
 // ============================================================================
 
 export const AddAgentAnalysisNodeParamsSchema = z.object({
-  name: z.string().min(1).describe('Name for the analysis node (e.g., "Services Revenue Growth Pattern")'),
+  name: z
+    .string()
+    .min(1)
+    .describe(
+      'Name for the analysis node (e.g., "Services Revenue Growth Pattern")',
+    ),
   properties: z.object({
-    type: z.enum(['observation', 'pattern']).describe('observation=notable trend or development, pattern=recurring behavior or relationship'),
-    summary: z.string().min(1).describe('Brief 1-2 sentence summary of the analysis'),
-    content: z.string().min(1).describe('Detailed analysis with [node:uuid] or [edge:uuid] citations'),
-    confidence: z.number().min(0).max(1).optional().describe('Confidence level (0=low, 1=high)'),
-    generated_at: z.string().describe('When this analysis was derived (ISO datetime)'),
+    type: z
+      .enum(["observation", "pattern"])
+      .describe(
+        "observation=notable trend or development, pattern=recurring behavior or relationship",
+      ),
+    summary: z
+      .string()
+      .min(1)
+      .describe("Brief 1-2 sentence summary of the analysis"),
+    content: z
+      .string()
+      .min(1)
+      .describe("Detailed analysis with [node:uuid] or [edge:uuid] citations"),
+    confidence: z
+      .number()
+      .min(0)
+      .max(1)
+      .optional()
+      .describe("Confidence level (0=low, 1=high)"),
+    generated_at: z
+      .string()
+      .describe("When this analysis was derived (ISO datetime)"),
   }),
 });
 
-export type AddAgentAnalysisNodeParams = z.infer<typeof AddAgentAnalysisNodeParamsSchema>;
+export type AddAgentAnalysisNodeParams = z.infer<
+  typeof AddAgentAnalysisNodeParamsSchema
+>;
 
 const addAgentAnalysisNodeTool: Tool = {
   schema: {
-    name: 'addAgentAnalysisNode',
-    description: 'Create an AgentAnalysis node for observations or patterns. This does NOT notify users - it is for internal analysis only.',
+    name: "addAgentAnalysisNode",
+    description:
+      "Create an AgentAnalysis node for observations or patterns. This does NOT notify users - it is for internal analysis only.",
     parameters: [
       {
-        name: 'name',
-        type: 'string',
-        description: 'Descriptive name for the analysis',
+        name: "name",
+        type: "string",
+        description: "Descriptive name for the analysis",
         required: true,
       },
       {
-        name: 'properties',
-        type: 'object',
-        description: 'Properties: type (observation|pattern), summary (1-2 sentences), content (detailed analysis with [node:uuid] citations), confidence (0-1, optional), generated_at (ISO datetime)',
+        name: "properties",
+        type: "object",
+        description:
+          "Properties: type (observation|pattern), summary (1-2 sentences), content (detailed analysis with [node:uuid] citations), confidence (0-1, optional), generated_at (ISO datetime)",
         required: true,
       },
     ],
@@ -665,14 +881,15 @@ const addAgentAnalysisNodeTool: Tool = {
     const ctx = context as GraphToolContext;
 
     try {
-      const { createNode } = await import('@/lib/db/queries/graph-data');
-      const { nodeTypeExists } = await import('@/lib/db/queries/graph-types');
+      const { createNode } = await import("@/lib/db/queries/graph-data");
+      const { nodeTypeExists } = await import("@/lib/db/queries/graph-types");
 
       // Validate AgentAnalysis type exists
-      if (!(await nodeTypeExists(ctx.agentId, 'AgentAnalysis'))) {
+      if (!(await nodeTypeExists(ctx.agentId, "AgentAnalysis"))) {
         return {
           success: false,
-          error: 'AgentAnalysis node type does not exist. This should have been created during agent initialization.',
+          error:
+            "AgentAnalysis node type does not exist. This should have been created during agent initialization.",
         };
       }
 
@@ -681,7 +898,7 @@ const addAgentAnalysisNodeTool: Tool = {
       // NO conversation message - these don't notify users
       const node = await createNode({
         agentId: ctx.agentId,
-        type: 'AgentAnalysis',
+        type: "AgentAnalysis",
         name,
         properties,
       });
@@ -696,7 +913,10 @@ const addAgentAnalysisNodeTool: Tool = {
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to add AgentAnalysis node',
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to add AgentAnalysis node",
       };
     }
   },
@@ -707,33 +927,55 @@ const addAgentAnalysisNodeTool: Tool = {
 // ============================================================================
 
 export const AddAgentAdviceNodeParamsSchema = z.object({
-  name: z.string().min(1).describe('Name for the advice node (e.g., "AAPL Buy Recommendation")'),
+  name: z
+    .string()
+    .min(1)
+    .describe('Name for the advice node (e.g., "AAPL Buy Recommendation")'),
   properties: z.object({
-    action: z.enum(['BUY', 'SELL', 'HOLD']).describe('The recommended action'),
-    summary: z.string().min(1).describe('Executive summary of the recommendation (1-2 sentences)'),
-    content: z.string().min(1).describe('Detailed reasoning citing ONLY AgentAnalysis nodes via [node:uuid] format'),
-    confidence: z.number().min(0).max(1).optional().describe('Confidence level (0=low, 1=high)'),
-    generated_at: z.string().describe('When this advice was generated (ISO datetime)'),
+    action: z.enum(["BUY", "SELL", "HOLD"]).describe("The recommended action"),
+    summary: z
+      .string()
+      .min(1)
+      .describe("Executive summary of the recommendation (1-2 sentences)"),
+    content: z
+      .string()
+      .min(1)
+      .describe(
+        "Detailed reasoning citing ONLY AgentAnalysis nodes via [node:uuid] format",
+      ),
+    confidence: z
+      .number()
+      .min(0)
+      .max(1)
+      .optional()
+      .describe("Confidence level (0=low, 1=high)"),
+    generated_at: z
+      .string()
+      .describe("When this advice was generated (ISO datetime)"),
   }),
 });
 
-export type AddAgentAdviceNodeParams = z.infer<typeof AddAgentAdviceNodeParamsSchema>;
+export type AddAgentAdviceNodeParams = z.infer<
+  typeof AddAgentAdviceNodeParamsSchema
+>;
 
 const addAgentAdviceNodeTool: Tool = {
   schema: {
-    name: 'addAgentAdviceNode',
-    description: 'Create an AgentAdvice node with an actionable recommendation. This WILL notify the user via inbox and append to conversation.',
+    name: "addAgentAdviceNode",
+    description:
+      "Create an AgentAdvice node with an actionable recommendation. This WILL notify the user via inbox and append to conversation.",
     parameters: [
       {
-        name: 'name',
-        type: 'string',
+        name: "name",
+        type: "string",
         description: 'Descriptive name (e.g., "AAPL Buy Recommendation")',
         required: true,
       },
       {
-        name: 'properties',
-        type: 'object',
-        description: 'Properties: action (BUY|SELL|HOLD), summary (1-2 sentence executive summary), content (detailed reasoning citing AgentAnalysis nodes via [node:uuid]), confidence (0-1, optional), generated_at (ISO datetime)',
+        name: "properties",
+        type: "object",
+        description:
+          "Properties: action (BUY|SELL|HOLD), summary (1-2 sentence executive summary), content (detailed reasoning citing AgentAnalysis nodes via [node:uuid]), confidence (0-1, optional), generated_at (ISO datetime)",
         required: true,
       },
     ],
@@ -751,18 +993,20 @@ const addAgentAdviceNodeTool: Tool = {
     const ctx = context as GraphToolContext;
 
     try {
-      const { createNode } = await import('@/lib/db/queries/graph-data');
-      const { nodeTypeExists } = await import('@/lib/db/queries/graph-types');
-      const { getAgentById } = await import('@/lib/db/queries/agents');
-      const { createInboxItem } = await import('@/lib/db/queries/inboxItems');
-      const { getOrCreateConversation } = await import('@/lib/db/queries/conversations');
-      const { appendLLMMessage } = await import('@/lib/db/queries/messages');
+      const { createNode } = await import("@/lib/db/queries/graph-data");
+      const { nodeTypeExists } = await import("@/lib/db/queries/graph-types");
+      const { getAgentById } = await import("@/lib/db/queries/agents");
+      const { createInboxItem } = await import("@/lib/db/queries/inboxItems");
+      const { getOrCreateConversation } =
+        await import("@/lib/db/queries/conversations");
+      const { appendLLMMessage } = await import("@/lib/db/queries/messages");
 
       // Validate AgentAdvice type exists
-      if (!(await nodeTypeExists(ctx.agentId, 'AgentAdvice'))) {
+      if (!(await nodeTypeExists(ctx.agentId, "AgentAdvice"))) {
         return {
           success: false,
-          error: 'AgentAdvice node type does not exist. This should have been created during agent initialization.',
+          error:
+            "AgentAdvice node type does not exist. This should have been created during agent initialization.",
         };
       }
 
@@ -778,7 +1022,7 @@ const addAgentAdviceNodeTool: Tool = {
       // 1. Create the AgentAdvice node in the graph
       const node = await createNode({
         agentId: ctx.agentId,
-        type: 'AgentAdvice',
+        type: "AgentAdvice",
         name,
         properties,
       });
@@ -794,11 +1038,13 @@ const addAgentAdviceNodeTool: Tool = {
       // 3. Append advice as a message to the agent's conversation
       const conversation = await getOrCreateConversation(ctx.agentId);
 
-      const confidenceText = properties.confidence !== undefined
-        ? ` (confidence: ${Math.round(properties.confidence * 100)}%)`
-        : '';
+      const confidenceText =
+        properties.confidence !== undefined
+          ? ` (confidence: ${Math.round(properties.confidence * 100)}%)`
+          : "";
 
-      const conversationMessage = `**New Advice: ${name}**\n\n` +
+      const conversationMessage =
+        `**New Advice: ${name}**\n\n` +
         `**Action:** ${properties.action}${confidenceText}\n\n` +
         `${properties.summary}\n\n---\n\n${properties.content}`;
 
@@ -815,7 +1061,10 @@ const addAgentAdviceNodeTool: Tool = {
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to add AgentAdvice node',
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to add AgentAdvice node",
       };
     }
   },
@@ -833,6 +1082,8 @@ export function registerGraphTools(): void {
   registerTool(addGraphEdgeTool);
   registerTool(queryGraphTool);
   registerTool(getGraphSummaryTool);
+  registerTool(listNodeTypesTool);
+  registerTool(listEdgeTypesTool);
   registerTool(createNodeTypeTool);
   registerTool(createEdgeTypeTool);
   registerTool(addAgentAnalysisNodeTool);
@@ -844,14 +1095,16 @@ export function registerGraphTools(): void {
  */
 export function getGraphToolNames(): string[] {
   return [
-    'addGraphNode',
-    'addGraphEdge',
-    'queryGraph',
-    'getGraphSummary',
-    'createNodeType',
-    'createEdgeType',
-    'addAgentAnalysisNode',
-    'addAgentAdviceNode',
+    "addGraphNode",
+    "addGraphEdge",
+    "queryGraph",
+    "getGraphSummary",
+    "listNodeTypes",
+    "listEdgeTypes",
+    "createNodeType",
+    "createEdgeType",
+    "addAgentAnalysisNode",
+    "addAgentAdviceNode",
   ];
 }
 
@@ -861,6 +1114,8 @@ export {
   addGraphEdgeTool,
   queryGraphTool,
   getGraphSummaryTool,
+  listNodeTypesTool,
+  listEdgeTypesTool,
   createNodeTypeTool,
   createEdgeTypeTool,
   addAgentAnalysisNodeTool,

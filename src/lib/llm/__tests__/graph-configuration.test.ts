@@ -35,6 +35,8 @@ const mockTypeInitializationResult: TypeInitializationResult = {
     {
       name: "Company",
       description: "A business agent or corporation",
+      justification:
+        "Needed to represent organizations as first-class entities with reusable market attributes.",
       propertiesSchema: {
         type: "object",
         required: ["ticker"],
@@ -53,6 +55,8 @@ const mockTypeInitializationResult: TypeInitializationResult = {
     {
       name: "MarketEvent",
       description: "A significant market event or news",
+      justification:
+        "Needed to track discrete events over time instead of embedding event text on unrelated nodes.",
       propertiesSchema: {
         type: "object",
         required: ["occurred_at"],
@@ -78,6 +82,8 @@ const mockTypeInitializationResult: TypeInitializationResult = {
     {
       name: "Analyst",
       description: "A financial analyst or research firm",
+      justification:
+        "Needed to represent market commentators and research producers separately from companies.",
       propertiesSchema: {
         type: "object",
         properties: {
@@ -95,6 +101,8 @@ const mockTypeInitializationResult: TypeInitializationResult = {
     {
       name: "affects",
       description: "Indicates that one agent affects another",
+      justification:
+        "Needed to capture directional impact relationships between entities and events.",
       propertiesSchema: {
         type: "object",
         properties: {
@@ -108,10 +116,14 @@ const mockTypeInitializationResult: TypeInitializationResult = {
     {
       name: "covers",
       description: "Indicates that an analyst covers a company",
+      justification:
+        "Needed to encode analyst coverage relationships that influence sentiment and recommendations.",
     },
     {
       name: "competes_with",
       description: "Indicates competition between companies",
+      justification:
+        "Needed to encode peer competition relationships for comparative analysis.",
     },
   ],
 };
@@ -178,6 +190,8 @@ describe("initializeTypesForAgent", () => {
       expect(typeof nodeType.name).toBe("string");
       expect(nodeType.description).toBeDefined();
       expect(typeof nodeType.description).toBe("string");
+      expect(nodeType.justification).toBeDefined();
+      expect(typeof nodeType.justification).toBe("string");
       expect(nodeType.propertiesSchema).toBeDefined();
       expect(nodeType.propertiesSchema.type).toBe("object");
       expect(nodeType.propertiesSchema.properties).toBeDefined();
@@ -219,6 +233,7 @@ describe("initializeTypesForAgent", () => {
     for (const edgeType of result.edgeTypes) {
       // snake_case: lowercase, may contain underscores
       expect(edgeType.name).toBe(edgeType.name.toLowerCase());
+      expect(typeof edgeType.justification).toBe("string");
     }
 
     mockGenerateLLMObject.mockRestore();
@@ -320,6 +335,7 @@ describe("persistInitializedTypes", () => {
         const found = nodeTypes.find((nt) => nt.name === expectedType.name);
         expect(found).toBeDefined();
         expect(found!.description).toBe(expectedType.description);
+        expect(found!.justification).toBe(expectedType.justification);
         expect(found!.agentId).toBe(testAgent.id);
         expect(found!.createdBy).toBe("system");
       }
@@ -363,6 +379,7 @@ describe("persistInitializedTypes", () => {
         const found = edgeTypes.find((et) => et.name === expectedType.name);
         expect(found).toBeDefined();
         expect(found!.description).toBe(expectedType.description);
+        expect(found!.justification).toBe(expectedType.justification);
         expect(found!.agentId).toBe(testAgent.id);
         expect(found!.createdBy).toBe("system");
       }
@@ -440,6 +457,8 @@ describe("persistInitializedTypes", () => {
           {
             name: "derived_from",
             description: "Duplicate of seeded edge",
+            justification:
+              "Duplicate fixture justification for seeded edge duplicate handling.",
           },
         ],
       };

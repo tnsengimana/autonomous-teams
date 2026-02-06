@@ -401,9 +401,13 @@ Generate a graphConstructionSystemPrompt (4-6 paragraphs) that instructs the age
 
 ### 4. Type Management (CRITICAL)
 Before creating ANY new node or edge type:
+- Use listNodeTypes and listEdgeTypes to inspect what already exists
 - First check existing types - does one already fit?
+- Prefer adapting node names/properties over creating new types
 - Search for established ontologies and schemas in the domain
 - New types should only be created when truly necessary
+- If no existing type fits, create the minimum number of new types required
+- Keep type creation minimal per run (typically 0-2 node types and 0-2 edge types)
 - Design schemas carefully - they are difficult to change later
 - Include: source_url for provenance, temporal properties, confidence when uncertain
 

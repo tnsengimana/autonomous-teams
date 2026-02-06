@@ -586,7 +586,10 @@ ${acquiredKnowledge}
 ## Current Knowledge Graph
 ${graphContext}
 
-Transform the research findings above into structured graph nodes and edges. Use queryGraph to check for existing nodes, addGraphNode to create new nodes, and addGraphEdge to create relationships.`,
+Transform the research findings above into structured graph nodes and edges. Use queryGraph to check for existing nodes, addGraphNode to create new nodes, and addGraphEdge to create relationships.
+
+For type discovery, use listNodeTypes/listEdgeTypes before creating any new type.
+If no existing type fits, you may use createNodeType/createEdgeType, but only after checking existing types first. Keep type creation minimal (typically 0-2 new node types and 0-2 new edge types in this run).`,
     },
   ];
 

@@ -53,8 +53,6 @@ export {
   registerTool,
   getTool,
   getAllTools,
-  getGraphTools,
-  getTavilyTools,
   getToolSchemas,
   executeTool,
   toolSchemasToOpenAIFunctions,

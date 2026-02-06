@@ -28,6 +28,7 @@ export async function createNodeType(data: {
   agentId?: string | null;
   name: string;
   description: string;
+  justification: string;
   propertiesSchema: object;
   exampleProperties?: object;
   createdBy?: GraphTypeCreator;
@@ -38,6 +39,7 @@ export async function createNodeType(data: {
       agentId: data.agentId ?? null,
       name: data.name,
       description: data.description,
+      justification: data.justification,
       propertiesSchema: data.propertiesSchema,
       exampleProperties: data.exampleProperties ?? null,
       createdBy: data.createdBy ?? "system",
@@ -116,6 +118,7 @@ export async function createEdgeType(data: {
   agentId?: string | null;
   name: string;
   description: string;
+  justification: string;
   propertiesSchema?: object;
   exampleProperties?: object;
   createdBy?: GraphTypeCreator;
@@ -126,6 +129,7 @@ export async function createEdgeType(data: {
       agentId: data.agentId ?? null,
       name: data.name,
       description: data.description,
+      justification: data.justification,
       propertiesSchema: data.propertiesSchema ?? null,
       exampleProperties: data.exampleProperties ?? null,
       createdBy: data.createdBy ?? "system",

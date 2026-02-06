@@ -49,6 +49,7 @@ When working on tasks, follow this pattern:
    - Use consistent naming (e.g., "Apple Inc." not "Apple" vs "Apple Inc")
 
 4. **Use existing types**: Prefer existing node/edge types over creating new ones
+   - Use listNodeTypes/listEdgeTypes to inspect available types first
    - Only use createNodeType/createEdgeType if truly necessary
    - Provide justification when creating new types
 </knowledge_graph>
@@ -85,6 +86,7 @@ When working on tasks, follow this pattern:
    - Use consistent naming (e.g., "Apple Inc." not "Apple" vs "Apple Inc")
 
 4. **Use existing types**: Prefer existing node/edge types over creating new ones
+   - Use listNodeTypes/listEdgeTypes to inspect available types first
    - Only use createNodeType/createEdgeType if truly necessary
    - Provide justification when creating new types
 

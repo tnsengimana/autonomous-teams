@@ -25,6 +25,8 @@ import {
   addGraphEdgeTool,
   queryGraphTool,
   getGraphSummaryTool,
+  listNodeTypesTool,
+  listEdgeTypesTool,
   createNodeTypeTool,
   createEdgeTypeTool,
   addAgentAnalysisNodeTool,
@@ -75,6 +77,7 @@ beforeAll(async () => {
       agentId: testAgentId,
       name: 'Company',
       description: 'A company or organization',
+      justification: 'Baseline entity type for organizations referenced in graph tests.',
       propertiesSchema: {
         type: 'object',
         properties: {
@@ -88,6 +91,7 @@ beforeAll(async () => {
       agentId: testAgentId,
       name: 'Person',
       description: 'An individual person',
+      justification: 'Baseline entity type for people referenced in graph tests.',
       propertiesSchema: {
         type: 'object',
         properties: {
@@ -100,6 +104,7 @@ beforeAll(async () => {
       agentId: testAgentId,
       name: 'AgentAnalysis',
       description: 'Agent-derived observations and patterns from knowledge analysis',
+      justification: 'Required baseline node type for analysis outputs in graph tool tests.',
       propertiesSchema: {
         type: 'object',
         required: ['type', 'summary', 'content', 'generated_at'],
@@ -117,6 +122,7 @@ beforeAll(async () => {
       agentId: testAgentId,
       name: 'AgentAdvice',
       description: 'Actionable investment recommendation derived exclusively from AgentAnalysis analysis',
+      justification: 'Required baseline node type for advice outputs in graph tool tests.',
       propertiesSchema: {
         type: 'object',
         required: ['action', 'summary', 'content', 'generated_at'],
@@ -138,12 +144,14 @@ beforeAll(async () => {
       agentId: testAgentId,
       name: 'works_at',
       description: 'A person works at a company',
+      justification: 'Baseline relationship needed for graph edge tool tests.',
       createdBy: 'system',
     },
     {
       agentId: testAgentId,
       name: 'derived_from',
       description: 'An analysis is derived from source data',
+      justification: 'Baseline lineage relationship needed for analysis linkage tests.',
       createdBy: 'system',
     },
   ]);
@@ -490,6 +498,56 @@ describe('getGraphSummary', () => {
 });
 
 // ============================================================================
+// listNodeTypes Tests
+// ============================================================================
+
+describe('listNodeTypes', () => {
+  test('returns available node types with schema details', async () => {
+    const result = await listNodeTypesTool.handler({}, testContext);
+
+    expect(result.success).toBe(true);
+    const nodeTypes = (result.data as {
+      nodeTypes: Array<{
+        name: string;
+        description: string;
+        propertiesSchema: unknown;
+      }>;
+    }).nodeTypes;
+
+    expect(Array.isArray(nodeTypes)).toBe(true);
+    expect(nodeTypes.some((type) => type.name === 'Company')).toBe(true);
+    expect(nodeTypes.some((type) => type.name === 'AgentAnalysis')).toBe(true);
+    expect(nodeTypes.every((type) => type.description.length > 0)).toBe(true);
+    expect(nodeTypes.every((type) => type.propertiesSchema !== undefined)).toBe(true);
+  });
+});
+
+// ============================================================================
+// listEdgeTypes Tests
+// ============================================================================
+
+describe('listEdgeTypes', () => {
+  test('returns available edge types with metadata', async () => {
+    const result = await listEdgeTypesTool.handler({}, testContext);
+
+    expect(result.success).toBe(true);
+    const edgeTypes = (result.data as {
+      edgeTypes: Array<{
+        name: string;
+        description: string;
+        justification: string;
+      }>;
+    }).edgeTypes;
+
+    expect(Array.isArray(edgeTypes)).toBe(true);
+    expect(edgeTypes.some((type) => type.name === 'works_at')).toBe(true);
+    expect(edgeTypes.some((type) => type.name === 'derived_from')).toBe(true);
+    expect(edgeTypes.every((type) => type.description.length > 0)).toBe(true);
+    expect(edgeTypes.every((type) => type.justification.length > 0)).toBe(true);
+  });
+});
+
+// ============================================================================
 // createNodeType Tests
 // ============================================================================
 
@@ -500,10 +558,10 @@ describe('createNodeType', () => {
     await cleanupNodeTypes(testTypeNames);
   });
 
-  test('creates new node type with PascalCase name', async () => {
+  test('creates new node type with capitalized name (spaces allowed)', async () => {
     const result = await createNodeTypeTool.handler(
       {
-        name: 'TestRegulation',
+        name: 'Test Regulation',
         description: 'A government regulation',
         propertiesSchema: {
           type: 'object',
@@ -518,14 +576,24 @@ describe('createNodeType', () => {
     );
 
     expect(result.success).toBe(true);
-    expect((result.data as { name: string }).name).toBe('TestRegulation');
-    testTypeNames.push('TestRegulation');
+    expect((result.data as { name: string }).name).toBe('Test Regulation');
+    const persisted = await db
+      .select()
+      .from(graphNodeTypes)
+      .where(
+        and(
+          eq(graphNodeTypes.agentId, testAgentId),
+          eq(graphNodeTypes.name, 'Test Regulation')
+        )
+      );
+    expect(persisted[0]?.justification).toBe('Need to track regulatory compliance');
+    testTypeNames.push('Test Regulation');
   });
 
-  test('rejects non-PascalCase names', async () => {
+  test('rejects node type names that do not start with a capital letter', async () => {
     const result = await createNodeTypeTool.handler(
       {
-        name: 'test_regulation',
+        name: 'test regulation',
         description: 'A government regulation',
         propertiesSchema: {
           type: 'object',
@@ -538,7 +606,7 @@ describe('createNodeType', () => {
     );
 
     expect(result.success).toBe(false);
-    expect(result.error).toContain('PascalCase');
+    expect(result.error).toContain('start with a capital letter');
   });
 
   test('rejects duplicate type name', async () => {
@@ -595,6 +663,16 @@ describe('createEdgeType', () => {
 
     expect(result.success).toBe(true);
     expect((result.data as { name: string }).name).toBe('regulates');
+    const persisted = await db
+      .select()
+      .from(graphEdgeTypes)
+      .where(
+        and(
+          eq(graphEdgeTypes.agentId, testAgentId),
+          eq(graphEdgeTypes.name, 'regulates')
+        )
+      );
+    expect(persisted[0]?.justification).toBe('Need to track regulatory relationships');
     testEdgeTypeNames.push('regulates');
   });
 

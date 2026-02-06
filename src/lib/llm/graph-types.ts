@@ -22,6 +22,8 @@ export const AGENT_ANALYSIS_NODE_TYPE = {
   name: "AgentAnalysis",
   description:
     "Agent-derived observations and patterns from knowledge analysis",
+  justification:
+    "Required baseline type for the Decide step: stores reusable analytical outputs that are distinct from raw evidence nodes.",
   propertiesSchema: {
     type: "object" as const,
     required: ["type", "summary", "content", "generated_at"],
@@ -77,6 +79,8 @@ export const AGENT_ADVICE_NODE_TYPE = {
   name: "AgentAdvice",
   description:
     "Actionable investment recommendation derived exclusively from AgentAnalysis analysis",
+  justification:
+    "Required baseline type for the Act step: stores actionable recommendations that can trigger user-facing notifications.",
   propertiesSchema: {
     type: "object" as const,
     required: ["action", "summary", "content", "generated_at"],
@@ -136,31 +140,43 @@ export const SEED_EDGE_TYPES = [
     name: "derived_from",
     description:
       "Indicates the source node was derived from the target node or its underlying information.",
+    justification:
+      "Baseline provenance relationship needed to trace how any node output was generated.",
   },
   {
     name: "about",
     description:
       "Indicates the source node is about, concerns, or focuses on the target node.",
+    justification:
+      "Baseline semantic relationship needed to associate analyses, advice, and findings with their subjects.",
   },
   {
     name: "supports",
     description:
       "Indicates the source node provides supporting evidence or rationale for the target node.",
+    justification:
+      "Baseline evidence relationship needed to represent positive evidence chains.",
   },
   {
     name: "contradicts",
     description:
       "Indicates the source node conflicts with or challenges the target node.",
+    justification:
+      "Baseline evidence relationship needed to represent conflicting evidence and avoid one-sided conclusions.",
   },
   {
     name: "correlates_with",
     description:
       "Indicates the source node has a meaningful correlation or association with the target node.",
+    justification:
+      "Baseline analytical relationship needed to model non-causal but decision-relevant associations.",
   },
   {
     name: "based_on",
     description:
       "Indicates the source node is based on information, evidence, or analysis represented by the target node.",
+    justification:
+      "Baseline lineage relationship needed to connect downstream outputs like advice back to upstream analyses.",
   },
 ] as const;
 
@@ -169,8 +185,15 @@ export const SEED_EDGE_TYPES = [
 // ============================================================================
 
 const NodeTypeDefinitionSchema = z.object({
-  name: z.string().describe("PascalCase type name"),
+  name: z
+    .string()
+    .describe(
+      'Capitalized node type name (spaces allowed), e.g., "Company", "Market Event"',
+    ),
   description: z.string().describe("What this type represents"),
+  justification: z
+    .string()
+    .describe("Why existing node types are insufficient for this concept"),
   propertiesSchema: z.object({
     type: z.literal("object"),
     required: z.array(z.string()).optional(),
@@ -182,6 +205,9 @@ const NodeTypeDefinitionSchema = z.object({
 const EdgeTypeDefinitionSchema = z.object({
   name: z.string().describe("snake_case edge type name"),
   description: z.string().describe("What this relationship represents"),
+  justification: z
+    .string()
+    .describe("Why existing edge types are insufficient for this relationship"),
   propertiesSchema: z
     .object({
       type: z.literal("object"),
@@ -212,13 +238,14 @@ const TYPE_INITIALIZATION_SYSTEM_PROMPT = `You are a knowledge graph schema desi
 The agent runs autonomously on behalf of a single user, researching and learning over time. The knowledge graph stores external knowledge the agent discovers; never user data. User preferences and profile information are handled separately outside the graph.
 
 ## Naming Conventions
-- Node types: PascalCase (e.g., "Company", "ResearchPaper", "MarketEvent")
+- Node types: Capitalized names with spaces allowed (e.g., "Company", "Research Paper", "Market Event")
 - Edge types: snake_case (e.g., "published_by", "relates_to", "occurred_at")
 
 ## Schema Requirements
 - Design 5-10 node types and 5-10 edge types covering key domain concepts
-- Each node type needs: name, description, propertiesSchema (JSON Schema), exampleProperties
-- Each edge type needs: name, description, and optionally propertiesSchema/exampleProperties
+- Each node type needs: name, description, justification, propertiesSchema (JSON Schema), exampleProperties
+- Each edge type needs: name, description, justification, and optionally propertiesSchema/exampleProperties
+- Justification must be specific and explain why existing types would not adequately represent this concept/relationship
 
 ## Property Guidelines
 - Include a "source_url" property on types where provenance matters (articles, data points, claims)
@@ -267,6 +294,7 @@ export async function createSeedNodeTypes(agentId: string): Promise<void> {
       agentId: agentId,
       name: AGENT_ANALYSIS_NODE_TYPE.name,
       description: AGENT_ANALYSIS_NODE_TYPE.description,
+      justification: AGENT_ANALYSIS_NODE_TYPE.justification,
       propertiesSchema: AGENT_ANALYSIS_NODE_TYPE.propertiesSchema,
       exampleProperties: AGENT_ANALYSIS_NODE_TYPE.exampleProperties,
       createdBy: "system",
@@ -288,6 +316,7 @@ export async function createSeedNodeTypes(agentId: string): Promise<void> {
       agentId: agentId,
       name: AGENT_ADVICE_NODE_TYPE.name,
       description: AGENT_ADVICE_NODE_TYPE.description,
+      justification: AGENT_ADVICE_NODE_TYPE.justification,
       propertiesSchema: AGENT_ADVICE_NODE_TYPE.propertiesSchema,
       exampleProperties: AGENT_ADVICE_NODE_TYPE.exampleProperties,
       createdBy: "system",
@@ -315,6 +344,7 @@ export async function createSeedEdgeTypes(agentId: string): Promise<void> {
       agentId,
       name: edgeType.name,
       description: edgeType.description,
+      justification: edgeType.justification,
       createdBy: "system",
     });
 
@@ -396,6 +426,7 @@ export async function persistInitializedTypes(
       agentId: agentId,
       name: nodeType.name,
       description: nodeType.description,
+      justification: nodeType.justification,
       propertiesSchema: nodeType.propertiesSchema,
       exampleProperties: nodeType.exampleProperties,
       createdBy: "system",
@@ -416,6 +447,7 @@ export async function persistInitializedTypes(
       agentId: agentId,
       name: edgeType.name,
       description: edgeType.description,
+      justification: edgeType.justification,
       propertiesSchema: edgeType.propertiesSchema,
       exampleProperties: edgeType.exampleProperties,
       createdBy: "system",

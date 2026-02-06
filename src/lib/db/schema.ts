@@ -224,8 +224,9 @@ export const graphNodeTypes = pgTable(
     agentId: uuid("agent_id").references(() => agents.id, {
       onDelete: "cascade",
     }), // NULL = global type
-    name: text("name").notNull(), // PascalCase, e.g., "Company", "Asset"
+    name: text("name").notNull(), // Capitalized name, spaces allowed (e.g., "Company", "Market Event")
     description: text("description").notNull(),
+    justification: text("justification").notNull(), // Why this type exists and why existing types were insufficient
     propertiesSchema: jsonb("properties_schema").notNull(), // JSON Schema for validation
     exampleProperties: jsonb("example_properties"), // For LLM few-shot learning
     createdBy: text("created_by").notNull().default("system"), // 'system' | 'agent' | 'user'
@@ -243,6 +244,7 @@ export const graphEdgeTypes = pgTable(
     }), // NULL = global type
     name: text("name").notNull(), // snake_case, e.g., "issued_by", "affects"
     description: text("description").notNull(),
+    justification: text("justification").notNull(), // Why this relationship type exists and why existing types were insufficient
     propertiesSchema: jsonb("properties_schema"), // JSON Schema for edge properties
     exampleProperties: jsonb("example_properties"), // For LLM few-shot learning
     createdBy: text("created_by").notNull().default("system"), // 'system' | 'agent' | 'user'
