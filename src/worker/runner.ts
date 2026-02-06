@@ -674,7 +674,13 @@ ${graphContext}
 Transform the research findings above into structured graph nodes and edges. Use queryGraph to check for existing nodes, addGraphNode to create new nodes, and addGraphEdge to create relationships.
 
 For type discovery, use listNodeTypes/listEdgeTypes before creating any new type.
-If no existing type fits, you may use createNodeType/createEdgeType, but only after checking existing types first. Keep type creation minimal (typically 0-2 new node types and 0-2 new edge types in this run).`,
+If no existing type fits, you may use createNodeType/createEdgeType, but only after checking existing types first. Keep type creation minimal (typically 0-2 new node types and 0-2 new edge types in this run).
+
+Modeling guardrails:
+- Do not overload broad entity/profile types (for example, "Company") with quote/event/time-series facts.
+- For quantitative facts, store machine-typed numbers (not formatted strings like "$171.88" or "206.31M").
+- Keep units/currency in separate fields (for example, currency="USD", volume_unit="shares").
+- If you need to preserve original human formatting, keep it in an optional raw_text field.`,
     },
   ];
 

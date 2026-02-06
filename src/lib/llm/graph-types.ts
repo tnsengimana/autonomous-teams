@@ -252,6 +252,8 @@ The agent runs autonomously on behalf of a single user, researching and learning
 - Include temporal properties where appropriate: discovered_at, published_at, occurred_at, updated_at
 - Include "summary" or "description" fields for human-readable context
 - Use specific property types: numbers for quantities, dates for timestamps, arrays for lists
+- For quantitative facts, store normalized numeric values and separate unit/currency fields (avoid stringified numbers)
+- Avoid overloading entity/profile types with event or time-series metrics; create dedicated node types when semantics differ
 
 ## What to Include
 - Domain entities the agent will research (companies, people, technologies, etc.)

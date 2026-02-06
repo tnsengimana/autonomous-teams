@@ -31,6 +31,15 @@ describe("generateAgentConfiguration", () => {
       'Never use node names, labels, or "Type:Name" values in relevantNodeIds',
     );
     expect(systemPrompt).toContain("based_on");
+    expect(systemPrompt).toContain(
+      "Never overload an existing type with semantically different data just to avoid creating a type",
+    );
+    expect(systemPrompt).toContain(
+      'For quantitative fields, use machine-typed numbers and separate unit/currency fields',
+    );
+    expect(systemPrompt).toContain(
+      'Keep formatted human strings (e.g., "$171.88", "206.31M", "$10.32B vs $8.03B") in optional raw_text only',
+    );
 
     mockGenerateLLMObject.mockRestore();
   });

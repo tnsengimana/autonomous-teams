@@ -21,7 +21,7 @@
 - [ ] `F5` Failed iterations leave orphaned open `llm_interactions`.
 - [x] `F6` Knowledge Acquisition instability (`UND_ERR_BODY_TIMEOUT`, extract failures).
 - [x] `F7` Analysis citations do not follow required `[node:uuid]`/`[edge:uuid]` format.
-- [ ] `F8` Data model overload in `Company` nodes and stringified numeric metrics.
+- [x] `F8` Data model overload in `Company` nodes and stringified numeric metrics.
 - [ ] `F9` Advice generation criteria are over-constrained for practical output.
 - [ ] `F10` Type initialization allows edge constraints with missing source/target sets.
 
@@ -142,4 +142,29 @@
   - Revalidated:
     - `npm run test:run -- src/lib/llm/tools/__tests__/graph-tools.test.ts src/lib/db/queries/__tests__/graph-data.test.ts src/lib/llm/__tests__/knowledge-graph.test.ts`
     - `npm run test:run -- src/lib/llm/__tests__/agents.test.ts`
+    - `npm run build`
+- 2026-02-06: Completed `F8`.
+  - Implemented:
+    - Added runtime node-property schema validation in `addGraphNode` (`src/lib/llm/tools/graph-tools.ts`) for both create and update paths.
+    - Validation now enforces required fields and property types from each node type's `propertiesSchema`; invalid writes fail with explicit `NODE_PROPERTIES_SCHEMA_VALIDATION_FAILED` errors and warning logs.
+    - Added runtime edge-property schema validation in `addGraphEdge` (`src/lib/llm/tools/graph-tools.ts`) on edge creation.
+    - Edge writes now enforce required fields and property types from each edge type's `propertiesSchema`; invalid writes fail with explicit `EDGE_PROPERTIES_SCHEMA_VALIDATION_FAILED` errors and warning logs.
+    - Strengthened graph-construction/meta-prompt guidance to prevent overloading broad entity nodes with event/time-series data and require machine-typed numeric fields plus separate unit/currency fields:
+      - `src/lib/llm/agents.ts`
+      - `src/lib/llm/graph-types.ts`
+      - `src/worker/runner.ts`
+    - Kept type creation fully dynamic (no new hardcoded finance seed node types).
+  - Tests:
+    - Extended `addGraphNode` coverage in `src/lib/llm/tools/__tests__/graph-tools.test.ts`:
+      - rejects stringified numeric values for numeric schema fields
+      - rejects missing required schema fields
+      - validates merged properties on upsert updates
+    - Extended `addGraphEdge` coverage in `src/lib/llm/tools/__tests__/graph-tools.test.ts`:
+      - rejects stringified numeric values for numeric edge properties
+      - rejects missing required edge properties
+      - accepts valid schema-compliant edge properties
+    - Added prompt guardrail assertions in `src/lib/llm/__tests__/agents.test.ts`.
+  - Revalidated:
+    - `npm run test:run -- src/lib/llm/tools/__tests__/graph-tools.test.ts src/lib/llm/__tests__/agents.test.ts`
+    - `npm run test:run`
     - `npm run build`

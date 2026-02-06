@@ -145,6 +145,203 @@ function formatAvailableTypeNames(typeNames: string[]): string {
 }
 
 // ============================================================================
+// Node Properties Schema Validation Helpers
+// ============================================================================
+
+type JsonSchemaLike = {
+  type?: string | string[];
+  properties?: Record<string, unknown>;
+  required?: string[];
+  enum?: unknown[];
+  minimum?: number;
+  maximum?: number;
+  minLength?: number;
+  maxLength?: number;
+  minItems?: number;
+  maxItems?: number;
+  pattern?: string;
+  format?: string;
+  items?: unknown;
+};
+
+function valueTypeLabel(value: unknown): string {
+  if (value === null) {
+    return "null";
+  }
+  if (Array.isArray(value)) {
+    return "array";
+  }
+  return typeof value;
+}
+
+function matchesSchemaType(value: unknown, schemaType: string): boolean {
+  if (schemaType === "null") {
+    return value === null;
+  }
+  if (schemaType === "array") {
+    return Array.isArray(value);
+  }
+  if (schemaType === "object") {
+    return value !== null && typeof value === "object" && !Array.isArray(value);
+  }
+  if (schemaType === "integer") {
+    return typeof value === "number" && Number.isInteger(value);
+  }
+  return typeof value === schemaType;
+}
+
+function validateValueAgainstSchema(
+  value: unknown,
+  schema: unknown,
+  path: string,
+  errors: string[],
+): void {
+  if (
+    !schema ||
+    typeof schema !== "object" ||
+    Array.isArray(schema)
+  ) {
+    return;
+  }
+
+  const typedSchema = schema as JsonSchemaLike;
+  const schemaTypes = Array.isArray(typedSchema.type)
+    ? typedSchema.type
+    : typedSchema.type
+      ? [typedSchema.type]
+      : [];
+
+  if (schemaTypes.length > 0) {
+    const matches = schemaTypes.some((schemaType) =>
+      matchesSchemaType(value, schemaType),
+    );
+    if (!matches) {
+      errors.push(
+        `${path} expected ${schemaTypes.join("|")}, got ${valueTypeLabel(value)} (${JSON.stringify(value)})`,
+      );
+      return;
+    }
+  }
+
+  if (typedSchema.enum && !typedSchema.enum.includes(value)) {
+    errors.push(
+      `${path} must be one of ${typedSchema.enum.map((v) => JSON.stringify(v)).join(", ")}`,
+    );
+  }
+
+  if (typeof value === "number") {
+    if (
+      typeof typedSchema.minimum === "number" &&
+      value < typedSchema.minimum
+    ) {
+      errors.push(`${path} must be >= ${typedSchema.minimum}, got ${value}`);
+    }
+    if (
+      typeof typedSchema.maximum === "number" &&
+      value > typedSchema.maximum
+    ) {
+      errors.push(`${path} must be <= ${typedSchema.maximum}, got ${value}`);
+    }
+  }
+
+  if (typeof value === "string") {
+    if (
+      typeof typedSchema.minLength === "number" &&
+      value.length < typedSchema.minLength
+    ) {
+      errors.push(
+        `${path} must have length >= ${typedSchema.minLength}, got ${value.length}`,
+      );
+    }
+    if (
+      typeof typedSchema.maxLength === "number" &&
+      value.length > typedSchema.maxLength
+    ) {
+      errors.push(
+        `${path} must have length <= ${typedSchema.maxLength}, got ${value.length}`,
+      );
+    }
+    if (typedSchema.pattern) {
+      try {
+        const regex = new RegExp(typedSchema.pattern);
+        if (!regex.test(value)) {
+          errors.push(
+            `${path} must match pattern ${typedSchema.pattern}, got ${JSON.stringify(value)}`,
+          );
+        }
+      } catch {
+        // Ignore invalid regex patterns in dynamic schemas.
+      }
+    }
+    if (typedSchema.format === "date-time" && Number.isNaN(Date.parse(value))) {
+      errors.push(`${path} must be a valid date-time string, got ${JSON.stringify(value)}`);
+    }
+  }
+
+  if (Array.isArray(value)) {
+    if (
+      typeof typedSchema.minItems === "number" &&
+      value.length < typedSchema.minItems
+    ) {
+      errors.push(
+        `${path} must have at least ${typedSchema.minItems} items, got ${value.length}`,
+      );
+    }
+    if (
+      typeof typedSchema.maxItems === "number" &&
+      value.length > typedSchema.maxItems
+    ) {
+      errors.push(
+        `${path} must have at most ${typedSchema.maxItems} items, got ${value.length}`,
+      );
+    }
+    if (typedSchema.items) {
+      value.forEach((item, index) => {
+        validateValueAgainstSchema(item, typedSchema.items, `${path}[${index}]`, errors);
+      });
+    }
+  }
+
+  if (
+    value &&
+    typeof value === "object" &&
+    !Array.isArray(value)
+  ) {
+    const record = value as Record<string, unknown>;
+    const required = typedSchema.required ?? [];
+    for (const requiredKey of required) {
+      if (!(requiredKey in record)) {
+        errors.push(`${path}.${requiredKey} is required`);
+      }
+    }
+
+    const properties = typedSchema.properties ?? {};
+    for (const [key, propertyValue] of Object.entries(record)) {
+      if (key in properties) {
+        validateValueAgainstSchema(
+          propertyValue,
+          properties[key],
+          `${path}.${key}`,
+          errors,
+        );
+      }
+    }
+  }
+}
+
+function validatePropertiesAgainstSchema(
+  properties: Record<string, unknown>,
+  schema: unknown,
+): { isValid: boolean; errors: string[] } {
+  const errors: string[] = [];
+  if (schema == null) {
+    return { isValid: true, errors };
+  }
+  validateValueAgainstSchema(properties, schema, "properties", errors);
+  return { isValid: errors.length === 0, errors };
+}
+
+// ============================================================================
 // Citation Validation Helpers
 // ============================================================================
 
@@ -323,7 +520,7 @@ const addGraphNodeTool: Tool = {
     try {
       const { createNode, findNodeByTypeAndName, updateNodeProperties } =
         await import("@/lib/db/queries/graph-data");
-      const { nodeTypeExists, getNodeTypesByAgent } = await import(
+      const { nodeTypeExists, getNodeTypesByAgent, getNodeTypeByName } = await import(
         "@/lib/db/queries/graph-types"
       );
 
@@ -348,13 +545,46 @@ const addGraphNodeTool: Tool = {
         };
       }
 
+      const nodeType = await getNodeTypeByName(ctx.agentId, type);
+      if (!nodeType) {
+        return {
+          success: false,
+          error: `NODE_TYPE_NOT_FOUND: Node type "${type}" could not be loaded for validation.`,
+        };
+      }
+
       // Check for existing node (upsert semantics)
       const existing = await findNodeByTypeAndName(ctx.agentId, type, name);
       if (existing) {
-        await updateNodeProperties(existing.id, {
+        const mergedProperties = {
           ...(existing.properties as object),
           ...properties,
-        });
+        } as Record<string, unknown>;
+
+        const validation = validatePropertiesAgainstSchema(
+          mergedProperties,
+          nodeType.propertiesSchema,
+        );
+
+        if (!validation.isValid) {
+          console.warn(
+            `[GraphTools][WARN][addGraphNode] Node property schema validation failed on update`,
+            {
+              agentId: ctx.agentId,
+              requestedNodeType: type,
+              requestedNodeName: name,
+              properties: mergedProperties,
+              validationErrors: validation.errors,
+            },
+          );
+
+          return {
+            success: false,
+            error: `NODE_PROPERTIES_SCHEMA_VALIDATION_FAILED: ${validation.errors.join("; ")}`,
+          };
+        }
+
+        await updateNodeProperties(existing.id, mergedProperties);
         return {
           success: true,
           data: {
@@ -364,12 +594,36 @@ const addGraphNodeTool: Tool = {
         };
       }
 
+      const createProperties = properties as Record<string, unknown>;
+      const createValidation = validatePropertiesAgainstSchema(
+        createProperties,
+        nodeType.propertiesSchema,
+      );
+
+      if (!createValidation.isValid) {
+        console.warn(
+          `[GraphTools][WARN][addGraphNode] Node property schema validation failed on create`,
+          {
+            agentId: ctx.agentId,
+            requestedNodeType: type,
+            requestedNodeName: name,
+            properties: createProperties,
+            validationErrors: createValidation.errors,
+          },
+        );
+
+        return {
+          success: false,
+          error: `NODE_PROPERTIES_SCHEMA_VALIDATION_FAILED: ${createValidation.errors.join("; ")}`,
+        };
+      }
+
       // Create new node
       const node = await createNode({
         agentId: ctx.agentId,
         type,
         name,
-        properties,
+        properties: createProperties,
       });
 
       return {
@@ -465,7 +719,7 @@ const addGraphEdgeTool: Tool = {
     try {
       const { findNodeByTypeAndName, createEdge, findEdge } =
         await import("@/lib/db/queries/graph-data");
-      const { edgeTypeExists, getEdgeTypesByAgent } = await import(
+      const { edgeTypeExists, getEdgeTypesByAgent, getEdgeTypeByName } = await import(
         "@/lib/db/queries/graph-types"
       );
 
@@ -483,6 +737,37 @@ const addGraphEdgeTool: Tool = {
         return {
           success: false,
           error: `EDGE_TYPE_NOT_FOUND: Edge type "${type}" does not exist. Available edge types: ${formatAvailableTypeNames(availableEdgeTypeNames)}. Use listEdgeTypes first and select an existing type.`,
+        };
+      }
+
+      const edgeType = await getEdgeTypeByName(ctx.agentId, type);
+      if (!edgeType) {
+        return {
+          success: false,
+          error: `EDGE_TYPE_NOT_FOUND: Edge type "${type}" could not be loaded for validation.`,
+        };
+      }
+
+      const edgeProperties = (properties || {}) as Record<string, unknown>;
+      const edgePropertyValidation = validatePropertiesAgainstSchema(
+        edgeProperties,
+        edgeType.propertiesSchema,
+      );
+
+      if (!edgePropertyValidation.isValid) {
+        console.warn(
+          `[GraphTools][WARN][addGraphEdge] Edge property schema validation failed`,
+          {
+            agentId: ctx.agentId,
+            attemptedEdge: edgeDescriptor,
+            properties: edgeProperties,
+            validationErrors: edgePropertyValidation.errors,
+          },
+        );
+
+        return {
+          success: false,
+          error: `EDGE_PROPERTIES_SCHEMA_VALIDATION_FAILED: ${edgePropertyValidation.errors.join("; ")}`,
         };
       }
 
@@ -549,7 +834,7 @@ const addGraphEdgeTool: Tool = {
         type,
         sourceId: sourceNode.id,
         targetId: targetNode.id,
-        properties: properties || {},
+        properties: edgeProperties,
       });
 
       return {

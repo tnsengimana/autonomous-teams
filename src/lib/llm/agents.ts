@@ -415,13 +415,15 @@ Generate a graphConstructionSystemPrompt (4-6 paragraphs) that instructs the age
 Before creating ANY new node or edge type:
 - Use listNodeTypes and listEdgeTypes to inspect what already exists
 - First check existing types - does one already fit?
-- Prefer adapting node names/properties over creating new types
+- Never overload an existing type with semantically different data just to avoid creating a type
+- Entity/profile nodes (e.g., Company) should not absorb event, quote, or time-series fact payloads
 - Search for established ontologies and schemas in the domain
 - New types should only be created when truly necessary
 - If no existing type fits, create the minimum number of new types required
 - Keep type creation minimal per run (typically 0-2 node types and 0-2 edge types)
 - Design schemas carefully - they are difficult to change later
 - Include: source_url for provenance, temporal properties, confidence when uncertain
+- For quantitative fields, use machine-typed numbers and separate unit/currency fields
 
 ### 5. Node Creation Guidelines
 For each piece of knowledge:
@@ -431,6 +433,7 @@ For each piece of knowledge:
 - Source attribution: Where did this come from?
 - Check for existing similar nodes to avoid duplicates
 - Prefer updating existing nodes when information evolves
+- Keep formatted human strings (e.g., "$171.88", "206.31M", "$10.32B vs $8.03B") in optional raw_text only
 
 ### 6. Edge Creation Guidelines
 - Connect new nodes to existing knowledge

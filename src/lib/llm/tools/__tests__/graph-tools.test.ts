@@ -61,6 +61,7 @@ beforeAll(async () => {
     observerSystemPrompt: 'You observe and classify information for testing.',
     analysisGenerationSystemPrompt: 'You generate analyses for testing.',
     adviceGenerationSystemPrompt: 'You generate advice for testing.',
+    knowledgeAcquisitionSystemPrompt: 'You gather knowledge for testing.',
     graphConstructionSystemPrompt: 'You construct graphs for testing.',
     iterationIntervalMs: 300000,
   }).returning();
@@ -96,6 +97,24 @@ beforeAll(async () => {
         type: 'object',
         properties: {
           role: { type: 'string' },
+        },
+      },
+      createdBy: 'system',
+    },
+    {
+      agentId: testAgentId,
+      name: 'Market Quote',
+      description: 'A time-stamped market quote and related trading metrics',
+      justification: 'Dedicated type for numeric quote data to avoid overloading Company nodes in tests.',
+      propertiesSchema: {
+        type: 'object',
+        required: ['price', 'currency', 'as_of'],
+        properties: {
+          price: { type: 'number' },
+          currency: { type: 'string' },
+          volume: { type: 'number' },
+          as_of: { type: 'string', format: 'date-time' },
+          raw_text: { type: 'string' },
         },
       },
       createdBy: 'system',
@@ -152,6 +171,22 @@ beforeAll(async () => {
       name: 'derived_from',
       description: 'An analysis is derived from source data',
       justification: 'Baseline lineage relationship needed for analysis linkage tests.',
+      createdBy: 'system',
+    },
+    {
+      agentId: testAgentId,
+      name: 'has_quote_metric',
+      description: 'Connects an entity relationship to a numeric quote/metric payload',
+      justification: 'Used to verify edge property schema validation behavior in tests.',
+      propertiesSchema: {
+        type: 'object',
+        required: ['price', 'as_of'],
+        properties: {
+          price: { type: 'number' },
+          as_of: { type: 'string', format: 'date-time' },
+          raw_text: { type: 'string' },
+        },
+      },
       createdBy: 'system',
     },
   ]);
@@ -274,6 +309,79 @@ describe('addGraphNode', () => {
 
     expect(result.success).toBe(false);
     expect(result.error).toContain('Invalid parameters');
+  });
+
+  test('rejects stringified numeric properties when schema expects number', async () => {
+    const result = await addGraphNodeTool.handler(
+      {
+        type: 'Market Quote',
+        name: 'NVDA Quote Invalid Numeric',
+        properties: {
+          price: '$171.88',
+          currency: 'USD',
+          as_of: '2026-02-06T10:00:00Z',
+        },
+      },
+      testContext
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('NODE_PROPERTIES_SCHEMA_VALIDATION_FAILED');
+    expect(result.error).toContain('properties.price expected number');
+  });
+
+  test('rejects missing required properties from type schema', async () => {
+    const result = await addGraphNodeTool.handler(
+      {
+        type: 'Market Quote',
+        name: 'NVDA Quote Missing Required',
+        properties: {
+          currency: 'USD',
+          as_of: '2026-02-06T10:00:00Z',
+        },
+      },
+      testContext
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('NODE_PROPERTIES_SCHEMA_VALIDATION_FAILED');
+    expect(result.error).toContain('properties.price is required');
+  });
+
+  test('validates merged properties on update against schema', async () => {
+    const createResult = await addGraphNodeTool.handler(
+      {
+        type: 'Market Quote',
+        name: 'AAPL Quote Upsert Validation',
+        properties: {
+          price: 171.88,
+          currency: 'USD',
+          volume: 206_310_000,
+          as_of: '2026-02-06T10:00:00Z',
+        },
+      },
+      testContext
+    );
+
+    expect(createResult.success).toBe(true);
+    const nodeId = (createResult.data as { nodeId: string }).nodeId;
+
+    const updateResult = await addGraphNodeTool.handler(
+      {
+        type: 'Market Quote',
+        name: 'AAPL Quote Upsert Validation',
+        properties: {
+          volume: '206.31M',
+        },
+      },
+      testContext
+    );
+
+    expect(updateResult.success).toBe(false);
+    expect(updateResult.error).toContain('NODE_PROPERTIES_SCHEMA_VALIDATION_FAILED');
+    expect(updateResult.error).toContain('properties.volume expected number');
+
+    await cleanupNodes([nodeId]);
   });
 });
 
@@ -400,6 +508,68 @@ describe('addGraphEdge', () => {
     expect(result.error).toContain('does not exist');
     expect(result.error).toContain('Available edge types');
     expect(result.error).toContain('listEdgeTypes');
+  });
+
+  test('rejects edge properties with invalid numeric type', async () => {
+    const result = await addGraphEdgeTool.handler(
+      {
+        type: 'has_quote_metric',
+        sourceName: 'Edge Test Person',
+        sourceType: 'Person',
+        targetName: 'Edge Test Company',
+        targetType: 'Company',
+        properties: {
+          price: '$171.88',
+          as_of: '2026-02-06T10:00:00Z',
+        },
+      },
+      testContext
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('EDGE_PROPERTIES_SCHEMA_VALIDATION_FAILED');
+    expect(result.error).toContain('properties.price expected number');
+  });
+
+  test('rejects edge properties missing required fields', async () => {
+    const result = await addGraphEdgeTool.handler(
+      {
+        type: 'has_quote_metric',
+        sourceName: 'Edge Test Person',
+        sourceType: 'Person',
+        targetName: 'Edge Test Company',
+        targetType: 'Company',
+        properties: {
+          price: 171.88,
+        },
+      },
+      testContext
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('EDGE_PROPERTIES_SCHEMA_VALIDATION_FAILED');
+    expect(result.error).toContain('properties.as_of is required');
+  });
+
+  test('creates edge when edge properties satisfy schema', async () => {
+    const result = await addGraphEdgeTool.handler(
+      {
+        type: 'has_quote_metric',
+        sourceName: 'Edge Test Person',
+        sourceType: 'Person',
+        targetName: 'Edge Test Company',
+        targetType: 'Company',
+        properties: {
+          price: 171.88,
+          as_of: '2026-02-06T10:00:00Z',
+          raw_text: '$171.88',
+        },
+      },
+      testContext
+    );
+
+    expect(result.success).toBe(true);
+    expect((result.data as { action: string }).action).toBe('created');
   });
 
 });
