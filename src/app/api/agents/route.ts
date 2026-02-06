@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { auth } from "@/lib/auth/config";
-import { createAgent, getAgentsByUserId } from "@/lib/db/queries/agents";
-import { generateAgentConfiguration } from "@/lib/llm/agents";
+import { getAgentsByUserId } from "@/lib/db/queries/agents";
+import { initializeAgent } from "@/lib/llm/agent-initialization";
 import { z } from "zod";
 
 const createAgentSchema = z.object({
@@ -57,27 +57,8 @@ export async function POST(request: NextRequest) {
     const { purpose, iterationIntervalMs } = validation.data;
 
     // Generate name and all seven system prompts from mission/purpose
-    const config = await generateAgentConfiguration(
-      purpose,
-      iterationIntervalMs,
-      { userId: session.user.id },
-    );
-
-    // Create the agent with generated name and all seven system prompts
-    const agent = await createAgent({
+    const agent = await initializeAgent(purpose, iterationIntervalMs, {
       userId: session.user.id,
-      name: config.name,
-      purpose,
-      conversationSystemPrompt: config.conversationSystemPrompt,
-      queryIdentificationSystemPrompt: config.queryIdentificationSystemPrompt,
-      insightIdentificationSystemPrompt:
-        config.insightIdentificationSystemPrompt,
-      analysisGenerationSystemPrompt: config.analysisGenerationSystemPrompt,
-      adviceGenerationSystemPrompt: config.adviceGenerationSystemPrompt,
-      knowledgeAcquisitionSystemPrompt: config.knowledgeAcquisitionSystemPrompt,
-      graphConstructionSystemPrompt: config.graphConstructionSystemPrompt,
-      iterationIntervalMs,
-      isActive: true,
     });
 
     return NextResponse.json(agent, { status: 201 });

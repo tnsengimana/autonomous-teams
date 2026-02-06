@@ -1,5 +1,390 @@
 import { z } from "zod";
-import { generateLLMObject } from "@/lib/llm/providers";
+import {
+  generateLLMObject,
+  streamLLMResponseWithTools,
+} from "@/lib/llm/providers";
+import { getAllTools, type Tool, type ToolContext } from "./tools";
+import { registerGraphTools } from "./tools/graph-tools";
+import {
+  createAgent,
+  createEdgeType,
+  createNodeType,
+  edgeTypeExists,
+  getAgentById,
+  nodeTypeExists,
+} from "../db/queries";
+
+// ============================================================================
+// Hardcoded Seed Node & Edge Types
+// ============================================================================
+
+export const AGENT_ANALYSIS_NODE_TYPE = {
+  name: "AgentAnalysis",
+  description:
+    "Agent-derived observations and patterns from knowledge analysis",
+  justification:
+    "Required baseline type for the Decide step: stores reusable analytical outputs that are distinct from raw evidence nodes.",
+  propertiesSchema: {
+    type: "object" as const,
+    required: ["type", "summary", "content", "generated_at"],
+    properties: {
+      type: {
+        type: "string",
+        enum: ["observation", "pattern"],
+        description:
+          "observation=notable trend or development, pattern=recurring behavior or relationship",
+      },
+      summary: {
+        type: "string",
+        description: "Brief 1-2 sentence summary of the analysis",
+      },
+      content: {
+        type: "string",
+        description:
+          "Detailed analysis with [node:uuid] or [edge:uuid] citations",
+      },
+      confidence: {
+        type: "number",
+        minimum: 0,
+        maximum: 1,
+        description: "Confidence level (0=low, 1=high)",
+      },
+      generated_at: {
+        type: "string",
+        format: "date-time",
+        description: "When this analysis was derived",
+      },
+    },
+  },
+  exampleProperties: {
+    type: "observation",
+    summary: "Apple's services revenue growth is outpacing hardware sales.",
+    content: `## Analysis
+
+Apple's services segment continues to demonstrate accelerating growth compared to its hardware divisions.
+
+### Supporting Evidence
+- Q4 earnings report [node:11111111-1111-4111-8111-111111111111] showed services revenue grew 24% YoY
+- Hardware revenue [node:22222222-2222-4222-8222-222222222222] grew only 3% in the same period
+- Services margins [node:33333333-3333-4333-8333-333333333333] reached 71%, significantly above hardware margins
+
+### Implications
+This shift suggests Apple is successfully transitioning toward a higher-margin business model, which could impact long-term valuation multiples.`,
+    confidence: 0.85,
+    generated_at: "2025-01-15T10:30:00Z",
+  },
+} as const;
+
+export const AGENT_ADVICE_NODE_TYPE = {
+  name: "AgentAdvice",
+  description:
+    "Actionable investment recommendation derived exclusively from AgentAnalysis analysis",
+  justification:
+    "Required baseline type for the Act step: stores actionable recommendations that can trigger user-facing notifications.",
+  propertiesSchema: {
+    type: "object" as const,
+    required: ["action", "summary", "content", "generated_at"],
+    properties: {
+      action: {
+        type: "string",
+        enum: ["BUY", "SELL", "HOLD"],
+        description: "The recommended action",
+      },
+      summary: {
+        type: "string",
+        description: "Executive summary of the recommendation (1-2 sentences)",
+      },
+      content: {
+        type: "string",
+        description:
+          "Detailed reasoning citing ONLY AgentAnalysis nodes using [node:uuid] format. Other node types are prohibited.",
+      },
+      confidence: {
+        type: "number",
+        minimum: 0,
+        maximum: 1,
+        description: "Confidence level (0=low, 1=high)",
+      },
+      generated_at: {
+        type: "string",
+        format: "date-time",
+        description: "When this advice was generated",
+      },
+    },
+  },
+  exampleProperties: {
+    action: "BUY",
+    summary:
+      "Strong buy signal for AAPL based on services growth momentum and undervaluation.",
+    content: `## Recommendation: BUY
+
+Based on recent analysis, AAPL presents a compelling buying opportunity.
+
+### Supporting AgentAnalyses
+- [node:44444444-4444-4444-8444-444444444444] Services revenue pattern shows accelerating growth trajectory
+- [node:55555555-5555-4555-8555-555555555555] Institutional accumulation observation indicates smart money confidence
+
+### Risk Factors
+- China revenue exposure remains elevated
+- Hardware cycle timing uncertainty
+
+### Why Now
+The convergence of strong services momentum and technical oversold conditions creates an asymmetric risk/reward setup that may not persist beyond the next earnings cycle.`,
+    confidence: 0.78,
+    generated_at: "2025-01-15T14:00:00Z",
+  },
+} as const;
+
+export const SEED_EDGE_TYPES = [
+  {
+    name: "derived_from",
+    description:
+      "Indicates the source node was derived from the target node or its underlying information.",
+    justification:
+      "Baseline provenance relationship needed to trace how any node output was generated.",
+  },
+  {
+    name: "about",
+    description:
+      "Indicates the source node is about, concerns, or focuses on the target node.",
+    justification:
+      "Baseline semantic relationship needed to associate analyses, advice, and findings with their subjects.",
+  },
+  {
+    name: "supports",
+    description:
+      "Indicates the source node provides supporting evidence or rationale for the target node.",
+    justification:
+      "Baseline evidence relationship needed to represent positive evidence chains.",
+  },
+  {
+    name: "contradicts",
+    description:
+      "Indicates the source node conflicts with or challenges the target node.",
+    justification:
+      "Baseline evidence relationship needed to represent conflicting evidence and avoid one-sided conclusions.",
+  },
+  {
+    name: "correlates_with",
+    description:
+      "Indicates the source node has a meaningful correlation or association with the target node.",
+    justification:
+      "Baseline analytical relationship needed to model non-causal but decision-relevant associations.",
+  },
+  {
+    name: "based_on",
+    description:
+      "Indicates the source node is based on information, evidence, or analysis represented by the target node.",
+    justification:
+      "Baseline lineage relationship needed to connect downstream outputs like advice back to upstream analyses.",
+  },
+] as const;
+
+// ============================================================================
+// Seed Node & Edge Types
+// ============================================================================
+
+/**
+ * Create all standardized seed types (nodes + edges) required by every agent.
+ */
+export async function createSeedTypes(agentId: string): Promise<void> {
+  // Seed node types
+  const analysisExists = await nodeTypeExists(
+    agentId,
+    AGENT_ANALYSIS_NODE_TYPE.name,
+  );
+  if (!analysisExists) {
+    await createNodeType({
+      agentId,
+      name: AGENT_ANALYSIS_NODE_TYPE.name,
+      description: AGENT_ANALYSIS_NODE_TYPE.description,
+      justification: AGENT_ANALYSIS_NODE_TYPE.justification,
+      propertiesSchema: AGENT_ANALYSIS_NODE_TYPE.propertiesSchema,
+      exampleProperties: AGENT_ANALYSIS_NODE_TYPE.exampleProperties,
+      createdBy: "system",
+    });
+
+    console.log(
+      `[GraphTypeInitializer] Created seed AgentAnalysis node type for agent ${agentId}`,
+    );
+  }
+
+  const adviceExists = await nodeTypeExists(
+    agentId,
+    AGENT_ADVICE_NODE_TYPE.name,
+  );
+  if (!adviceExists) {
+    await createNodeType({
+      agentId,
+      name: AGENT_ADVICE_NODE_TYPE.name,
+      description: AGENT_ADVICE_NODE_TYPE.description,
+      justification: AGENT_ADVICE_NODE_TYPE.justification,
+      propertiesSchema: AGENT_ADVICE_NODE_TYPE.propertiesSchema,
+      exampleProperties: AGENT_ADVICE_NODE_TYPE.exampleProperties,
+      createdBy: "system",
+    });
+
+    console.log(
+      `[GraphTypeInitializer] Created seed AgentAdvice node type for agent ${agentId}`,
+    );
+  }
+
+  // Seed edge types
+  for (const edgeType of SEED_EDGE_TYPES) {
+    const exists = await edgeTypeExists(agentId, edgeType.name);
+    if (exists) {
+      continue;
+    }
+
+    await createEdgeType({
+      agentId,
+      name: edgeType.name,
+      description: edgeType.description,
+      justification: edgeType.justification,
+      createdBy: "system",
+    });
+
+    console.log(
+      `[GraphTypeInitializer] Created seed edge type "${edgeType.name}" for agent ${agentId}`,
+    );
+  }
+}
+
+// ============================================================================
+// Dynamic Node & Edge Type Creation
+// ============================================================================
+
+const DYNAMIC_TYPE_SYSTEM_PROMPT = `You are a knowledge graph schema designer. Given an agent's purpose, design appropriate node types and edge types for its knowledge graph.
+
+## Context
+The agent runs autonomously on behalf of a single user, researching and learning over time. The knowledge graph stores external knowledge the agent discovers; never user data. User preferences and profile information are handled separately outside the graph.
+
+## Naming Conventions
+- Node types: Capitalized names with spaces allowed (e.g., "Company", "Research Paper", "Market Event")
+- Edge types: snake_case (e.g., "published_by", "relates_to", "occurred_at")
+
+## Schema Requirements
+- Design 5-10 node types and 5-10 edge types covering key domain concepts
+- Each node type needs: name, description, justification, propertiesSchema (JSON Schema), exampleProperties
+- Each edge type needs: name, description, justification, and optionally propertiesSchema/exampleProperties
+- Justification must be specific and explain why existing types would not adequately represent this concept/relationship
+
+## Property Guidelines
+- Both nodes and edges can have properties
+- Include a "source_url" property on types where provenance matters (Research Paper, Market Event, etc)
+- Include temporal properties where appropriate: discovered_at, published_at, occurred_at, updated_at
+- Include "summary" or "description" fields where appropriate for human-readable context
+- Use specific property types: numbers for quantities, dates for timestamps, arrays for lists
+- For quantitative facts, store normalized numeric values and separate unit/currency fields (avoid stringified numbers)
+- Avoid overloading entity/profile types with event or time-series metrics; create dedicated node types when semantics differ
+
+## What to Include
+- Domain entities the agent will research (companies, people, technologies, etc.)
+- Information artifacts (articles, reports, announcements, data points)
+- Events and changes over time (market events, releases, milestones)
+- Concepts and topics relevant to the domain
+
+## What to Avoid
+- User-centric types (User, Portfolio, Preference, Account, Watchlist)
+- Overly abstract types (Thing, Concept, Item, Object)
+- Types that duplicate what properties can capture
+
+## Workflow requirements
+1. Call listNodeTypes and listEdgeTypes first to inspect existing schema.
+2. Create only domain-specific missing types.
+3. Use createNodeType for new node types and createEdgeType for new edge types.
+4. Never recreate existing types.`;
+
+function getRequiredTools(toolNames: string[]): Tool[] {
+  const toolsByName = new Map<string, Tool>(
+    getAllTools().map((tool) => [tool.schema.name, tool]),
+  );
+
+  const missing = toolNames.filter((toolName) => !toolsByName.has(toolName));
+  if (missing.length > 0) {
+    throw new Error(
+      `[GraphTypeInitializer] Missing required tools: ${missing.join(", ")}.`,
+    );
+  }
+
+  return toolNames.map((toolName) => toolsByName.get(toolName)!);
+}
+
+/**
+ * Create all domain-specific dynamic types (nodes + edges) via LLM tool calling.
+ */
+export async function createDynamicTypes(agentId: string): Promise<void> {
+  const agent = await getAgentById(agentId);
+  if (!agent) {
+    throw new Error(`[GraphTypeInitializer] Agent not found: ${agentId}`);
+  }
+
+  registerGraphTools();
+
+  const tools = getRequiredTools([
+    "listNodeTypes",
+    "listEdgeTypes",
+    "createNodeType",
+    "createEdgeType",
+  ]);
+  const toolContext: ToolContext = { agentId };
+
+  const requestMessages = [
+    {
+      role: "user" as const,
+      content: `Create domain-specific schema types for this agent.
+
+Agent Name: ${agent.name}
+Agent Mission: ${agent.purpose ?? "General purpose assistant"}
+
+Notes:
+- Seed node types already exist: AgentAnalysis, AgentAdvice.
+- Seed edge types already exist: derived_from, about, supports, contradicts, correlates_with, based_on.
+- Create missing domain node and edge types only.
+- Ensure the resulting schema supports ongoing autonomous research and reasoning.`,
+    },
+  ];
+
+  const { fullResponse } = await streamLLMResponseWithTools(
+    requestMessages,
+    DYNAMIC_TYPE_SYSTEM_PROMPT,
+    {
+      tools,
+      toolContext,
+      agentId,
+      userId: agent.userId,
+      temperature: 0.4,
+      maxSteps: 20,
+    },
+  );
+
+  const result = await fullResponse;
+
+  const toolCalls = result.events
+    .filter(
+      (
+        event,
+      ): event is {
+        toolCalls: Array<{ toolName: string; args: Record<string, unknown> }>;
+      } => "toolCalls" in event,
+    )
+    .flatMap((event) => event.toolCalls);
+
+  const createNodeTypeCalls = toolCalls.filter(
+    (toolCall) => toolCall.toolName === "createNodeType",
+  ).length;
+  const createEdgeTypeCalls = toolCalls.filter(
+    (toolCall) => toolCall.toolName === "createEdgeType",
+  ).length;
+
+  console.log(
+    `[GraphTypeInitializer] Dynamic type generation complete for agent ${agentId}. createNodeType calls: ${createNodeTypeCalls}, createEdgeType calls: ${createEdgeTypeCalls}`,
+  );
+}
+
+// ============================================================================
+// Agent System Prompts
+// ============================================================================
 
 /**
  * Format interval in milliseconds to human-readable string
@@ -578,15 +963,11 @@ For each prompt, incorporate:
 - Field-specific quality standards and best practices`;
 }
 
-// ============================================================================
-// Agent Configuration Generation
-// ============================================================================
-
 /**
  * Generate agent configuration with seven distinct system prompts from the mission/purpose.
  * Uses LLM to create appropriate values based on the purpose.
  */
-export async function generateAgentConfiguration(
+export async function generateSystemPrompts(
   purpose: string,
   iterationIntervalMs: number,
   options?: { userId?: string },
@@ -615,4 +996,41 @@ Each system prompt should be detailed and actionable, giving clear guidance for 
       userId: options?.userId,
     },
   );
+}
+
+export async function initializeAgent(
+  purpose: string,
+  iterationIntervalMs: number,
+  options?: { userId?: string },
+) {
+  // Generate name and all seven system prompts from mission/purpose
+  const config = await generateSystemPrompts(
+    purpose,
+    iterationIntervalMs,
+    options,
+  );
+
+  // Create the agent with generated name and all seven system prompts
+  const agent = await createAgent({
+    userId: options!.userId!,
+    name: config.name,
+    purpose,
+    conversationSystemPrompt: config.conversationSystemPrompt,
+    queryIdentificationSystemPrompt: config.queryIdentificationSystemPrompt,
+    insightIdentificationSystemPrompt: config.insightIdentificationSystemPrompt,
+    analysisGenerationSystemPrompt: config.analysisGenerationSystemPrompt,
+    adviceGenerationSystemPrompt: config.adviceGenerationSystemPrompt,
+    knowledgeAcquisitionSystemPrompt: config.knowledgeAcquisitionSystemPrompt,
+    graphConstructionSystemPrompt: config.graphConstructionSystemPrompt,
+    iterationIntervalMs,
+    isActive: true,
+  });
+
+  // Create seed node + edge types
+  await createSeedTypes(agent.id);
+
+  // Create dynamic node + edge types via tool-calling
+  await createDynamicTypes(agent.id);
+
+  return agent;
 }

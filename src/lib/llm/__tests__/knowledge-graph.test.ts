@@ -9,13 +9,9 @@ import { describe, test, expect, beforeAll, afterAll, vi } from "vitest";
 import { db } from "@/lib/db/client";
 import { users, agents } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import {
-  buildGraphContextBlock,
-  ensureGraphTypesInitialized,
-} from "../knowledge-graph";
+import { buildGraphContextBlock } from "../knowledge-graph";
 import { createNodeType } from "@/lib/db/queries/graph-types";
 import { createNode } from "@/lib/db/queries/graph-data";
-import * as graphTypeInitializer from "../graph-types";
 
 // ============================================================================
 // Test Setup
@@ -47,8 +43,8 @@ beforeAll(async () => {
       queryIdentificationSystemPrompt: "You identify queries for testing.",
       insightIdentificationSystemPrompt: "You identify insights for testing.",
       analysisGenerationSystemPrompt: "You generate analyses for testing.",
-      adviceGenerationSystemPrompt: 'You generate advice for testing.',
-      knowledgeAcquisitionSystemPrompt: 'You gather knowledge for testing.',
+      adviceGenerationSystemPrompt: "You generate advice for testing.",
+      knowledgeAcquisitionSystemPrompt: "You gather knowledge for testing.",
       graphConstructionSystemPrompt: "You construct graphs for testing.",
       iterationIntervalMs: 300000,
       isActive: true,
@@ -124,10 +120,10 @@ describe("buildGraphContextBlock", () => {
         conversationSystemPrompt:
           "You are a test agent for empty graph testing.",
         queryIdentificationSystemPrompt: "You identify queries for testing.",
-      insightIdentificationSystemPrompt: "You identify insights for testing.",
+        insightIdentificationSystemPrompt: "You identify insights for testing.",
         analysisGenerationSystemPrompt: "You generate analyses for testing.",
-        adviceGenerationSystemPrompt: 'You generate advice for testing.',
-        knowledgeAcquisitionSystemPrompt: 'You gather knowledge for testing.',
+        adviceGenerationSystemPrompt: "You generate advice for testing.",
+        knowledgeAcquisitionSystemPrompt: "You gather knowledge for testing.",
         graphConstructionSystemPrompt: "You construct graphs for testing.",
         iterationIntervalMs: 300000,
         isActive: true,
@@ -159,129 +155,6 @@ describe("buildGraphContextBlock", () => {
 });
 
 // ============================================================================
-// ensureGraphTypesInitialized Tests
-// ============================================================================
-
-describe("ensureGraphTypesInitialized", () => {
-  test("initializes types for agent without types", async () => {
-    // Create a new agent with no types
-    const [newAgent] = await db
-      .insert(agents)
-      .values({
-        userId: testUserId,
-        name: "No Types Agent",
-        purpose: "Testing type initialization",
-        conversationSystemPrompt:
-          "You are a test agent for type initialization.",
-        queryIdentificationSystemPrompt: "You identify queries for testing.",
-      insightIdentificationSystemPrompt: "You identify insights for testing.",
-        analysisGenerationSystemPrompt: "You generate analyses for testing.",
-        adviceGenerationSystemPrompt: 'You generate advice for testing.',
-        knowledgeAcquisitionSystemPrompt: 'You gather knowledge for testing.',
-        graphConstructionSystemPrompt: "You construct graphs for testing.",
-        iterationIntervalMs: 300000,
-        isActive: true,
-      })
-      .returning();
-
-    // Mock the initializeAndPersistTypesForAgent function
-    const mockInit = vi
-      .spyOn(graphTypeInitializer, "initializeAndPersistTypesForAgent")
-      .mockResolvedValueOnce();
-
-    try {
-      await ensureGraphTypesInitialized(
-        newAgent.id,
-        { name: newAgent.name, type: "agent", purpose: newAgent.purpose },
-        { userId: testUserId },
-      );
-
-      // Should have called the initializer
-      expect(mockInit).toHaveBeenCalledWith(
-        newAgent.id,
-        { name: newAgent.name, type: "agent", purpose: newAgent.purpose },
-        { userId: testUserId },
-      );
-    } finally {
-      mockInit.mockRestore();
-      // Cleanup
-      await db.delete(agents).where(eq(agents.id, newAgent.id));
-    }
-  });
-
-  test("skips initialization if types exist", async () => {
-    // The test agent already has types from the first test
-    // Mock the initializeAndPersistTypesForAgent function
-    const mockInit = vi
-      .spyOn(graphTypeInitializer, "initializeAndPersistTypesForAgent")
-      .mockResolvedValueOnce();
-
-    try {
-      await ensureGraphTypesInitialized(
-        testAgentId,
-        {
-          name: "Test Research Team",
-          type: "team",
-          purpose: "Financial research",
-        },
-        { userId: testUserId },
-      );
-
-      // Should NOT have called the initializer since types exist
-      expect(mockInit).not.toHaveBeenCalled();
-    } finally {
-      mockInit.mockRestore();
-    }
-  });
-
-  test("handles missing userId gracefully", async () => {
-    // Create a new agent with no types
-    const [newAgent] = await db
-      .insert(agents)
-      .values({
-        userId: testUserId,
-        name: "No UserId Agent",
-        purpose: "Testing without userId",
-        conversationSystemPrompt: "You are a test agent for userId testing.",
-        queryIdentificationSystemPrompt: "You identify queries for testing.",
-      insightIdentificationSystemPrompt: "You identify insights for testing.",
-        analysisGenerationSystemPrompt: "You generate analyses for testing.",
-        adviceGenerationSystemPrompt: 'You generate advice for testing.',
-        knowledgeAcquisitionSystemPrompt: 'You gather knowledge for testing.',
-        graphConstructionSystemPrompt: "You construct graphs for testing.",
-        iterationIntervalMs: 300000,
-        isActive: true,
-      })
-      .returning();
-
-    // Mock the initializeAndPersistTypesForAgent function
-    const mockInit = vi
-      .spyOn(graphTypeInitializer, "initializeAndPersistTypesForAgent")
-      .mockResolvedValueOnce();
-
-    try {
-      // Call without userId option
-      await ensureGraphTypesInitialized(newAgent.id, {
-        name: newAgent.name,
-        type: "agent",
-        purpose: newAgent.purpose,
-      });
-
-      // Should still have called the initializer
-      expect(mockInit).toHaveBeenCalledWith(
-        newAgent.id,
-        { name: newAgent.name, type: "agent", purpose: newAgent.purpose },
-        undefined,
-      );
-    } finally {
-      mockInit.mockRestore();
-      // Cleanup
-      await db.delete(agents).where(eq(agents.id, newAgent.id));
-    }
-  });
-});
-
-// ============================================================================
 // Integration Tests
 // ============================================================================
 
@@ -297,10 +170,10 @@ describe("Integration", () => {
         conversationSystemPrompt:
           "You are a test agent for integration testing.",
         queryIdentificationSystemPrompt: "You identify queries for testing.",
-      insightIdentificationSystemPrompt: "You identify insights for testing.",
+        insightIdentificationSystemPrompt: "You identify insights for testing.",
         analysisGenerationSystemPrompt: "You generate analyses for testing.",
-        adviceGenerationSystemPrompt: 'You generate advice for testing.',
-        knowledgeAcquisitionSystemPrompt: 'You gather knowledge for testing.',
+        adviceGenerationSystemPrompt: "You generate advice for testing.",
+        knowledgeAcquisitionSystemPrompt: "You gather knowledge for testing.",
         graphConstructionSystemPrompt: "You construct graphs for testing.",
         iterationIntervalMs: 300000,
         isActive: true,
@@ -313,7 +186,8 @@ describe("Integration", () => {
         agentId: integrationAgent.id,
         name: "Analyst",
         description: "A financial analyst",
-        justification: "Test fixture type for integration graph context checks.",
+        justification:
+          "Test fixture type for integration graph context checks.",
         propertiesSchema: {
           type: "object",
           properties: {

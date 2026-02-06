@@ -96,26 +96,3 @@ When working on tasks, follow this pattern:
 </knowledge_graph>
 `;
 }
-
-/**
- * Ensure agent has graph types initialized.
- * Called before building graph context.
- */
-export async function ensureGraphTypesInitialized(
-  agentId: string,
-  agent: { name: string; type: string; purpose: string | null },
-  options?: { userId?: string },
-): Promise<void> {
-  const { getNodeTypesByAgent } = await import("@/lib/db/queries/graph-types");
-
-  const existingTypes = await getNodeTypesByAgent(agentId);
-  if (existingTypes.length > 0) {
-    return; // Already initialized
-  }
-
-  // Initialize types for this agent
-  const { initializeAndPersistTypesForAgent } = await import("./graph-types");
-
-  console.log(`[Graph] Initializing types for agent ${agent.name}`);
-  await initializeAndPersistTypesForAgent(agentId, agent, options);
-}

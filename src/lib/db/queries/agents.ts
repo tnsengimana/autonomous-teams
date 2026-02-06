@@ -8,7 +8,6 @@ import { eq, desc } from "drizzle-orm";
 import { db } from "../client";
 import { agents } from "../schema";
 import type { Agent } from "@/lib/types";
-import { initializeAndPersistTypesForAgent } from "@/lib/llm/graph-types";
 
 // ============================================================================
 // CRUD Operations
@@ -39,8 +38,7 @@ export async function createAgent(data: {
       purpose: data.purpose ?? null,
       conversationSystemPrompt: data.conversationSystemPrompt,
       queryIdentificationSystemPrompt: data.queryIdentificationSystemPrompt,
-      insightIdentificationSystemPrompt:
-        data.insightIdentificationSystemPrompt,
+      insightIdentificationSystemPrompt: data.insightIdentificationSystemPrompt,
       analysisGenerationSystemPrompt: data.analysisGenerationSystemPrompt,
       adviceGenerationSystemPrompt: data.adviceGenerationSystemPrompt,
       knowledgeAcquisitionSystemPrompt: data.knowledgeAcquisitionSystemPrompt,
@@ -50,18 +48,7 @@ export async function createAgent(data: {
     })
     .returning();
 
-  const agent = result[0];
-
-  // Fire and forget type initialization - don't block agent creation
-  initializeAndPersistTypesForAgent(
-    agent.id,
-    { name: agent.name, purpose: agent.purpose },
-    { userId: data.userId },
-  ).catch((err) => {
-    console.error("[createAgent] Failed to initialize graph types:", err);
-  });
-
-  return agent;
+  return result[0];
 }
 
 /**

@@ -17,10 +17,7 @@ import {
   streamLLMResponseWithTools,
   generateLLMObject,
 } from "@/lib/llm/providers";
-import {
-  buildGraphContextBlock,
-  ensureGraphTypesInitialized,
-} from "@/lib/llm/knowledge-graph";
+import { buildGraphContextBlock } from "@/lib/llm/knowledge-graph";
 import {
   getAnalysisGenerationTools,
   getAdviceGenerationTools,
@@ -839,13 +836,6 @@ async function processAgentIteration(agent: Agent): Promise<void> {
   log(`Created worker iteration: ${workerIteration.id}`);
 
   try {
-    // Ensure graph types are initialized
-    await ensureGraphTypesInitialized(
-      agent.id,
-      { name: agent.name, type: "agent", purpose: agent.purpose },
-      { userId: agent.userId },
-    );
-
     // Build initial graph context
     let graphContext = await buildGraphContextBlock(agent.id);
 
