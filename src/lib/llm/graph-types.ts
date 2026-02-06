@@ -12,6 +12,7 @@ import {
   createEdgeType,
   getNodeTypeByName,
   nodeTypeExists,
+  edgeTypeExists,
 } from "@/lib/db/queries/graph-types";
 
 // ============================================================================
@@ -20,7 +21,8 @@ import {
 
 export const AGENT_ANALYSIS_NODE_TYPE = {
   name: "AgentAnalysis",
-  description: "Agent-derived observations and patterns from knowledge analysis",
+  description:
+    "Agent-derived observations and patterns from knowledge analysis",
   propertiesSchema: {
     type: "object" as const,
     required: ["type", "summary", "content", "generated_at"],
@@ -55,8 +57,7 @@ export const AGENT_ANALYSIS_NODE_TYPE = {
   },
   exampleProperties: {
     type: "observation",
-    summary:
-      "Apple's services revenue growth is outpacing hardware sales.",
+    summary: "Apple's services revenue growth is outpacing hardware sales.",
     content: `## Analysis
 
 Apple's services segment continues to demonstrate accelerating growth compared to its hardware divisions.
@@ -75,7 +76,8 @@ This shift suggests Apple is successfully transitioning toward a higher-margin b
 
 export const AGENT_ADVICE_NODE_TYPE = {
   name: "AgentAdvice",
-  description: "Actionable investment recommendation derived exclusively from AgentAnalysis analysis",
+  description:
+    "Actionable investment recommendation derived exclusively from AgentAnalysis analysis",
   propertiesSchema: {
     type: "object" as const,
     required: ["action", "summary", "content", "generated_at"],
@@ -129,6 +131,51 @@ The convergence of strong services momentum and technical oversold conditions cr
     generated_at: "2025-01-15T14:00:00Z",
   },
 } as const;
+
+export const SEED_EDGE_TYPES = [
+  {
+    name: "derived_from",
+    description:
+      "Indicates an AgentAnalysis was derived from supporting graph knowledge.",
+    sourceNodeTypeNames: ["AgentAnalysis"],
+    targetNodeTypeNames: [],
+  },
+  {
+    name: "about",
+    description:
+      "Indicates what entity, event, or concept an AgentAnalysis focuses on.",
+    sourceNodeTypeNames: ["AgentAnalysis"],
+    targetNodeTypeNames: [],
+  },
+  {
+    name: "supports",
+    description:
+      "Indicates one AgentAnalysis supports another AgentAnalysis finding.",
+    sourceNodeTypeNames: ["AgentAnalysis"],
+    targetNodeTypeNames: ["AgentAnalysis"],
+  },
+  {
+    name: "contradicts",
+    description:
+      "Indicates one AgentAnalysis contradicts another AgentAnalysis finding.",
+    sourceNodeTypeNames: ["AgentAnalysis"],
+    targetNodeTypeNames: ["AgentAnalysis"],
+  },
+  {
+    name: "correlates_with",
+    description:
+      "Indicates one AgentAnalysis observes correlation with another AgentAnalysis finding.",
+    sourceNodeTypeNames: ["AgentAnalysis"],
+    targetNodeTypeNames: ["AgentAnalysis"],
+  },
+  {
+    name: "based_on_analysis",
+    description:
+      "Indicates an AgentAdvice recommendation is based on specific AgentAnalysis nodes.",
+    sourceNodeTypeNames: ["AgentAdvice"],
+    targetNodeTypeNames: ["AgentAnalysis"],
+  },
+] as const;
 
 // ============================================================================
 // Schemas for LLM-generated type definitions
@@ -229,7 +276,10 @@ Valid JSON Schema object with:
  */
 export async function createSeedNodeTypes(agentId: string): Promise<void> {
   // Check if AgentAnalysis type already exists for this agent
-  const analysisExists = await nodeTypeExists(agentId, AGENT_ANALYSIS_NODE_TYPE.name);
+  const analysisExists = await nodeTypeExists(
+    agentId,
+    AGENT_ANALYSIS_NODE_TYPE.name,
+  );
 
   if (!analysisExists) {
     await createNodeType({
@@ -247,7 +297,10 @@ export async function createSeedNodeTypes(agentId: string): Promise<void> {
   }
 
   // Check if AgentAdvice type already exists for this agent
-  const adviceExists = await nodeTypeExists(agentId, AGENT_ADVICE_NODE_TYPE.name);
+  const adviceExists = await nodeTypeExists(
+    agentId,
+    AGENT_ADVICE_NODE_TYPE.name,
+  );
 
   if (!adviceExists) {
     await createNodeType({
@@ -261,6 +314,33 @@ export async function createSeedNodeTypes(agentId: string): Promise<void> {
 
     console.log(
       `[GraphTypeInitializer] Created seed AgentAdvice node type for agent ${agentId}`,
+    );
+  }
+}
+
+/**
+ * Create standardized seed edge types that analysis/advice phases depend on.
+ *
+ * This function is idempotent - it checks if each type exists before creating it.
+ */
+export async function createSeedEdgeTypes(agentId: string): Promise<void> {
+  for (const edgeType of SEED_EDGE_TYPES) {
+    const exists = await edgeTypeExists(agentId, edgeType.name);
+    if (exists) {
+      continue;
+    }
+
+    await createEdgeType({
+      agentId,
+      name: edgeType.name,
+      description: edgeType.description,
+      sourceNodeTypeNames: [...edgeType.sourceNodeTypeNames],
+      targetNodeTypeNames: [...edgeType.targetNodeTypeNames],
+      createdBy: "system",
+    });
+
+    console.log(
+      `[GraphTypeInitializer] Created seed edge type "${edgeType.name}" for agent ${agentId}`,
     );
   }
 }
@@ -320,12 +400,15 @@ export async function persistInitializedTypes(
   // First, create seed node types (AgentAnalysis, AgentAdvice)
   await createSeedNodeTypes(agentId);
 
+  // Second, create seed edge types required by analysis/advice flows
+  await createSeedEdgeTypes(agentId);
+
   // Then, create all LLM-generated node types
   for (const nodeType of types.nodeTypes) {
     // Skip if this is a seed type (already created)
-    if (nodeType.name === AGENT_ANALYSIS_NODE_TYPE.name || nodeType.name === AGENT_ADVICE_NODE_TYPE.name) {
+    if (await nodeTypeExists(agentId, nodeType.name)) {
       console.log(
-        `[GraphTypeInitializer] Skipping LLM-generated ${nodeType.name} type (using seed type instead)`,
+        `[GraphTypeInitializer] Skipping LLM-generated ${nodeType.name} type (already exists)`,
       );
       continue;
     }
@@ -342,6 +425,14 @@ export async function persistInitializedTypes(
 
   // Then, create edge types with references to node types
   for (const edgeType of types.edgeTypes) {
+    // Skip if this is a seed edge type (already created)
+    if (await edgeTypeExists(agentId, edgeType.name)) {
+      console.log(
+        `[GraphTypeInitializer] Skipping LLM-generated ${edgeType.name} edge type (already exists)`,
+      );
+      continue;
+    }
+
     // Validate that all referenced node types exist
     const validSourceNames: string[] = [];
     for (const sourceName of edgeType.sourceNodeTypeNames) {

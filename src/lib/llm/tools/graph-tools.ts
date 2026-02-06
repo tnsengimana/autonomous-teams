@@ -239,13 +239,46 @@ const addGraphEdgeTool: Tool = {
 
     try {
       const { findNodeByTypeAndName, createEdge, findEdge } = await import('@/lib/db/queries/graph-data');
-      const { edgeTypeExists } = await import('@/lib/db/queries/graph-types');
+      const { getEdgeTypesByAgent } = await import('@/lib/db/queries/graph-types');
+
+      const matchingEdgeTypes = (await getEdgeTypesByAgent(ctx.agentId))
+        .filter((edgeType) => edgeType.name === type);
 
       // Validate edge type exists
-      if (!(await edgeTypeExists(ctx.agentId, type))) {
+      if (matchingEdgeTypes.length === 0) {
         return {
           success: false,
           error: `Edge type "${type}" does not exist.`,
+        };
+      }
+
+      const edgeType =
+        matchingEdgeTypes.find((candidate) => candidate.agentId === ctx.agentId) ??
+        matchingEdgeTypes[0];
+
+      const allowedSourceTypes = edgeType.sourceNodeTypes.map((nodeType) => nodeType.name);
+      if (
+        allowedSourceTypes.length > 0 &&
+        !allowedSourceTypes.includes(sourceType)
+      ) {
+        return {
+          success: false,
+          error:
+            `Edge type "${type}" does not allow source type "${sourceType}". ` +
+            `Allowed source types: ${allowedSourceTypes.join(", ")}.`,
+        };
+      }
+
+      const allowedTargetTypes = edgeType.targetNodeTypes.map((nodeType) => nodeType.name);
+      if (
+        allowedTargetTypes.length > 0 &&
+        !allowedTargetTypes.includes(targetType)
+      ) {
+        return {
+          success: false,
+          error:
+            `Edge type "${type}" does not allow target type "${targetType}". ` +
+            `Allowed target types: ${allowedTargetTypes.join(", ")}.`,
         };
       }
 

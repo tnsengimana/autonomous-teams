@@ -16,6 +16,7 @@ import {
   initializeTypesForAgent,
   persistInitializedTypes,
   type TypeInitializationResult,
+  SEED_EDGE_TYPES,
 } from "../graph-types";
 import {
   getNodeTypesByAgent,
@@ -389,9 +390,9 @@ describe("persistInitializedTypes", () => {
 
       const edgeTypes = await getEdgeTypesByAgent(testAgent.id);
 
-      // Should have persisted all edge types
+      // Should have persisted all LLM edge types + seed edge types
       expect(edgeTypes.length).toBe(
-        mockTypeInitializationResult.edgeTypes.length,
+        mockTypeInitializationResult.edgeTypes.length + SEED_EDGE_TYPES.length,
       );
 
       // Verify each edge type was persisted correctly
@@ -485,9 +486,56 @@ describe("persistInitializedTypes", () => {
       expect(nodeTypes.length).toBe(2);
       const nodeTypeNames = nodeTypes.map(t => t.name).sort();
       expect(nodeTypeNames).toEqual(["AgentAdvice", "AgentAnalysis"]);
-      expect(edgeTypes.length).toBe(0);
+      expect(edgeTypes.length).toBe(SEED_EDGE_TYPES.length);
+      const edgeTypeNames = edgeTypes.map((t) => t.name).sort();
+      expect(edgeTypeNames).toEqual(
+        [...SEED_EDGE_TYPES.map((t) => t.name)].sort(),
+      );
     } finally {
       // Cleanup
+      await db.delete(agents).where(eq(agents.id, testAgent.id));
+    }
+  });
+
+  test("skips duplicate LLM edge types when seed edge already exists", async () => {
+    const [testAgent] = await db
+      .insert(agents)
+      .values({
+        userId: testUserId,
+        name: "Seed Edge Duplicate Test Agent",
+        purpose: "Testing duplicate seed edge handling",
+        conversationSystemPrompt:
+          "You are a test agent for duplicate seed edge handling.",
+        observerSystemPrompt: "You observe and classify information for testing.",
+        analysisGenerationSystemPrompt: "You generate analyses for testing.",
+        adviceGenerationSystemPrompt: "You generate advice for testing.",
+        graphConstructionSystemPrompt: "You construct graphs for testing.",
+        iterationIntervalMs: 300000,
+        isActive: true,
+      })
+      .returning();
+
+    try {
+      const typesWithSeedDuplicate: TypeInitializationResult = {
+        nodeTypes: [],
+        edgeTypes: [
+          {
+            name: "derived_from",
+            description: "Duplicate of seeded edge",
+            sourceNodeTypeNames: ["AgentAnalysis"],
+            targetNodeTypeNames: ["AgentAnalysis"],
+          },
+        ],
+      };
+
+      await persistInitializedTypes(testAgent.id, typesWithSeedDuplicate);
+
+      const edgeTypes = await getEdgeTypesByAgent(testAgent.id);
+      expect(edgeTypes.length).toBe(SEED_EDGE_TYPES.length);
+
+      const derivedFromEdges = edgeTypes.filter((t) => t.name === "derived_from");
+      expect(derivedFromEdges).toHaveLength(1);
+    } finally {
       await db.delete(agents).where(eq(agents.id, testAgent.id));
     }
   });
@@ -593,7 +641,7 @@ describe("Integration", () => {
         mockTypeInitializationResult.nodeTypes.length + 2,
       );
       expect(edgeTypes.length).toBe(
-        mockTypeInitializationResult.edgeTypes.length,
+        mockTypeInitializationResult.edgeTypes.length + SEED_EDGE_TYPES.length,
       );
 
       // Verify node types have correct properties

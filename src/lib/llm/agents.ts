@@ -312,13 +312,18 @@ AgentAdvice content MUST cite ONLY AgentAnalysis nodes. This is a HARD REQUIREME
 - PROHIBITED: Referencing raw data nodes directly
 The rationale: AgentAnalysis nodes represent the agent's analyzed understanding. Advice must be grounded in analyzed analyses, not raw data.
 
-### 5. AgentAdvice Structure
+### 5. Graph Linkage Requirements
+- After creating an AgentAdvice node, create "based_on_analysis" edges to the specific AgentAnalysis nodes that support it
+- The source must be the AgentAdvice node and targets must be AgentAnalysis nodes
+- Every AgentAnalysis node cited in content should have a corresponding "based_on_analysis" edge
+
+### 6. AgentAdvice Structure
 - action: BUY, SELL, or HOLD
 - summary: Executive summary for inbox notification (1-2 sentences)
 - content: Detailed reasoning citing ONLY AgentAnalysis nodes using [node:uuid] format
   - Sections: Recommendation summary, Supporting AgentAnalysis citations, Risk factors, Why NOW
 
-### 6. Quality Standards
+### 7. Quality Standards
 - Every recommendation must be defensible and traceable to AgentAnalysis nodes
 - Risk factors must also be derived from AgentAnalysis analysis
 - The "Why Now" section must explain timing based on recent AgentAnalysis patterns`;

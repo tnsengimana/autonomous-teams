@@ -164,24 +164,21 @@ export function getConversationTools(): Tool[] {
  */
 export function getAnalysisGenerationTools(): Tool[] {
   return getAllTools().filter((tool) =>
-    [
-      "queryGraph",
-      "addAgentAnalysisNode",
-      "addGraphEdge",
-    ].includes(tool.schema.name),
+    ["queryGraph", "addAgentAnalysisNode", "addGraphEdge"].includes(
+      tool.schema.name,
+    ),
   );
 }
 
 /**
  * Get tools for the Advice Generation phase (creating actionable recommendations)
- * Tools: queryGraph, addAgentAdviceNode
+ * Tools: queryGraph, addAgentAdviceNode, addGraphEdge
  */
 export function getAdviceGenerationTools(): Tool[] {
   return getAllTools().filter((tool) =>
-    [
-      "queryGraph",
-      "addAgentAdviceNode",
-    ].includes(tool.schema.name),
+    ["queryGraph", "addAgentAdviceNode", "addGraphEdge"].includes(
+      tool.schema.name,
+    ),
   );
 }
 
@@ -191,11 +188,7 @@ export function getAdviceGenerationTools(): Tool[] {
  */
 export function getKnowledgeAcquisitionTools(): Tool[] {
   return getAllTools().filter((tool) =>
-    [
-      "tavilySearch",
-      "tavilyExtract",
-      "tavilyResearch",
-    ].includes(tool.schema.name),
+    ["tavilySearch", "tavilyExtract"].includes(tool.schema.name),
   );
 }
 
@@ -206,11 +199,7 @@ export function getKnowledgeAcquisitionTools(): Tool[] {
  */
 export function getGraphConstructionTools(): Tool[] {
   return getAllTools().filter((tool) =>
-    [
-      "queryGraph",
-      "addGraphNode",
-      "addGraphEdge",
-    ].includes(tool.schema.name),
+    ["queryGraph", "addGraphNode", "addGraphEdge"].includes(tool.schema.name),
   );
 }
 

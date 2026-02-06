@@ -374,7 +374,9 @@ async function runAdviceGenerationPhase(
 ## Current Knowledge Graph
 ${graphContext}
 
-Review the AgentAnalysis nodes in your knowledge graph. Only create AgentAdvice if you have comprehensive AgentAnalysis coverage that addresses every aspect of the recommendation. The default action is to create NOTHING - only proceed if you have absolute conviction supported by thorough AgentAnalysis analysis.`,
+Review the AgentAnalysis nodes in your knowledge graph. Only create AgentAdvice if you have comprehensive AgentAnalysis coverage that addresses every aspect of the recommendation. The default action is to create NOTHING - only proceed if you have absolute conviction supported by thorough AgentAnalysis analysis.
+
+If you create AgentAdvice, also create "based_on_analysis" edges from that AgentAdvice node to each supporting AgentAnalysis node you cite.`,
     },
   ];
 

@@ -389,6 +389,74 @@ describe('addGraphEdge', () => {
     expect(result.success).toBe(false);
     expect(result.error).toContain('does not exist');
   });
+
+  test('enforces source type constraints when edge type defines them', async () => {
+    const constrainedTypeName = 'strict_source_test';
+    await cleanupEdgeTypes([constrainedTypeName]);
+
+    const createTypeResult = await createEdgeTypeTool.handler(
+      {
+        name: constrainedTypeName,
+        description: 'Strict source test edge type',
+        sourceNodeTypeNames: ['Company'],
+        targetNodeTypeNames: ['Company'],
+        justification: 'Constraint validation test',
+      },
+      testContext
+    );
+    expect(createTypeResult.success).toBe(true);
+
+    const result = await addGraphEdgeTool.handler(
+      {
+        type: constrainedTypeName,
+        sourceName: 'Edge Test Person',
+        sourceType: 'Person',
+        targetName: 'Edge Test Company',
+        targetType: 'Company',
+      },
+      testContext
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('does not allow source type "Person"');
+    expect(result.error).toContain('Allowed source types: Company');
+
+    await cleanupEdgeTypes([constrainedTypeName]);
+  });
+
+  test('enforces target type constraints when edge type defines them', async () => {
+    const constrainedTypeName = 'strict_target_test';
+    await cleanupEdgeTypes([constrainedTypeName]);
+
+    const createTypeResult = await createEdgeTypeTool.handler(
+      {
+        name: constrainedTypeName,
+        description: 'Strict target test edge type',
+        sourceNodeTypeNames: ['Person'],
+        targetNodeTypeNames: ['Person'],
+        justification: 'Constraint validation test',
+      },
+      testContext
+    );
+    expect(createTypeResult.success).toBe(true);
+
+    const result = await addGraphEdgeTool.handler(
+      {
+        type: constrainedTypeName,
+        sourceName: 'Edge Test Person',
+        sourceType: 'Person',
+        targetName: 'Edge Test Company',
+        targetType: 'Company',
+      },
+      testContext
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('does not allow target type "Company"');
+    expect(result.error).toContain('Allowed target types: Person');
+
+    await cleanupEdgeTypes([constrainedTypeName]);
+  });
 });
 
 // ============================================================================

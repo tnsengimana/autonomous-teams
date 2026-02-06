@@ -30,6 +30,7 @@ describe("generateAgentConfiguration", () => {
     expect(systemPrompt).toContain(
       'Never use node names, labels, or "Type:Name" values in relevantNodeIds',
     );
+    expect(systemPrompt).toContain("based_on_analysis");
 
     mockGenerateLLMObject.mockRestore();
   });
