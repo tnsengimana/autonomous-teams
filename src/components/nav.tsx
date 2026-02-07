@@ -9,7 +9,7 @@ import { useUnreadInboxItemsCount } from "@/hooks/useUnreadInboxItemsCount";
 
 const navItems = [
   { href: "/inbox", label: "Inbox" },
-  { href: "/entities", label: "Entities" },
+  { href: "/agents", label: "Agents" },
   { href: "/settings", label: "Settings" },
 ];
 
@@ -30,7 +30,7 @@ export function Nav() {
             >
               <span className="flex-1 text-left">{item.label}</span>
               {item.href.endsWith("/inbox") && unreadCount > 0 && (
-                <Badge variant="destructive" className="ml-2 px-2 py-0 text-xs">
+                <Badge variant="secondary" className="ml-2 px-2 py-0 text-xs">
                   {unreadCount > 99 ? "99+" : unreadCount}
                 </Badge>
               )}
@@ -61,7 +61,7 @@ export function MobileNav() {
               {item.label}
               {item.href.endsWith("/inbox") && unreadCount > 0 && (
                 <Badge
-                  variant="destructive"
+                  variant="secondary"
                   className="ml-1 px-1.5 py-0 text-xs min-w-[1.25rem] h-5"
                 >
                   {unreadCount > 99 ? "99+" : unreadCount}

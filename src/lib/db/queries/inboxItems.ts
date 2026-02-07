@@ -1,12 +1,12 @@
 /**
  * Inbox Items Database Queries
  *
- * CRUD operations for inbox items (briefings and feedback).
+ * CRUD operations for inbox items.
  */
 
 import { eq, desc, and, isNull, count } from 'drizzle-orm';
 import { db } from '../client';
-import { inboxItems, entities, agents } from '../schema';
+import { inboxItems, agents } from '../schema';
 import type { InboxItem } from '@/lib/types';
 
 /**
@@ -23,20 +23,19 @@ export async function getInboxItemsByUserId(userId: string): Promise<InboxItem[]
 }
 
 /**
- * Get inbox items for a specific entity
+ * Get inbox items for a specific agent
  */
-export async function getInboxItemsByEntityId(
+export async function getInboxItemsByAgentId(
   userId: string,
-  entityId: string
+  agentId: string
 ): Promise<InboxItem[]> {
   const result = await db
     .select()
     .from(inboxItems)
-    .innerJoin(agents, eq(inboxItems.agentId, agents.id))
-    .where(and(eq(inboxItems.userId, userId), eq(agents.entityId, entityId)))
+    .where(and(eq(inboxItems.userId, userId), eq(inboxItems.agentId, agentId)))
     .orderBy(desc(inboxItems.createdAt));
 
-  return result.map((row) => row.inbox_items as InboxItem);
+  return result as InboxItem[];
 }
 
 /**
@@ -65,24 +64,21 @@ export async function getInboxItemById(itemId: string): Promise<InboxItem | null
 }
 
 /**
- * Get an inbox item with its entity info
+ * Get an inbox item with its agent info
  */
 export async function getInboxItemWithSource(itemId: string): Promise<{
   item: InboxItem;
-  entityId: string | null;
-  entityName: string | null;
-  entityType: string | null;
+  agentId: string | null;
+  agentName: string | null;
 } | null> {
   const result = await db
     .select({
       item: inboxItems,
-      entityId: agents.entityId,
-      entityName: entities.name,
-      entityType: entities.type,
+      agentId: agents.id,
+      agentName: agents.name,
     })
     .from(inboxItems)
     .leftJoin(agents, eq(inboxItems.agentId, agents.id))
-    .leftJoin(entities, eq(agents.entityId, entities.id))
     .where(eq(inboxItems.id, itemId))
     .limit(1);
 
@@ -92,9 +88,8 @@ export async function getInboxItemWithSource(itemId: string): Promise<{
 
   return {
     item: result[0].item as InboxItem,
-    entityId: result[0].entityId,
-    entityName: result[0].entityName,
-    entityType: result[0].entityType,
+    agentId: result[0].agentId,
+    agentName: result[0].agentName,
   };
 }
 
@@ -105,18 +100,14 @@ export async function getInboxItemWithSource(itemId: string): Promise<{
 export async function createInboxItem(data: {
   userId: string;
   agentId: string;
-  type: string;
   title: string;
   content: string;
-  briefingId?: string | null;
 }): Promise<InboxItem> {
   const result = await db
     .insert(inboxItems)
     .values({
       userId: data.userId,
       agentId: data.agentId,
-      briefingId: data.briefingId ?? null,
-      type: data.type,
       title: data.title,
       content: data.content,
     })
@@ -180,33 +171,29 @@ export async function getRecentInboxItems(
 }
 
 /**
- * Get inbox items with entity names
+ * Get inbox items with agent names
  */
 export async function getInboxItemsWithSources(userId: string): Promise<
   Array<{
     item: InboxItem;
-    entityId: string | null;
-    entityName: string | null;
-    entityType: string | null;
+    agentId: string | null;
+    agentName: string | null;
   }>
 > {
   const result = await db
     .select({
       item: inboxItems,
-      entityId: agents.entityId,
-      entityName: entities.name,
-      entityType: entities.type,
+      agentId: agents.id,
+      agentName: agents.name,
     })
     .from(inboxItems)
     .leftJoin(agents, eq(inboxItems.agentId, agents.id))
-    .leftJoin(entities, eq(agents.entityId, entities.id))
     .where(eq(inboxItems.userId, userId))
     .orderBy(desc(inboxItems.createdAt));
 
   return result.map((r) => ({
     item: r.item as InboxItem,
-    entityId: r.entityId,
-    entityName: r.entityName,
-    entityType: r.entityType,
+    agentId: r.agentId,
+    agentName: r.agentName,
   }));
 }

@@ -1,1 +1,1 @@
-See ./CLAUDE.MD
+See [CLAUDE.md](./CLAUDE.md)

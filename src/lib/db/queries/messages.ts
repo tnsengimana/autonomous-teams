@@ -3,30 +3,18 @@ import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { db } from '../client';
 import * as schema from '../schema';
 import { messages, conversations } from '../schema';
-import type { Message } from '@/lib/types';
+import type { Message, MessageContent, MessageRole, UserMessageContent, LLMMessageContent, SummaryMessageContent } from '@/lib/types';
 
-// Message role type for the new schema (no 'system', added 'tool' and 'summary')
-export type MessageRole = 'user' | 'assistant' | 'tool' | 'summary';
-
-// Tool call type for assistant messages
-export interface ToolCall {
-  toolCallId: string;
-  toolName: string;
-  args: Record<string, unknown>;
-}
+type DbClient = PostgresJsDatabase<typeof schema>;
 
 // Parameters for creating a new message
 export interface CreateMessageParams {
   conversationId: string;
   role: MessageRole;
-  content: string;
-  thinking?: string | null;
-  toolCalls?: ToolCall[] | null;
-  toolCallId?: string | null;
+  content: MessageContent;
   previousMessageId?: string | null;
 }
 
-type DbClient = PostgresJsDatabase<typeof schema>;
 type TurnMessageParams = Omit<CreateMessageParams, 'conversationId' | 'previousMessageId'>;
 
 /**
@@ -74,7 +62,7 @@ export async function getRecentMessages(
 }
 
 /**
- * Create a new message with all supported fields
+ * Create a new message
  */
 export async function createMessage(data: CreateMessageParams): Promise<Message> {
   const result = await db
@@ -83,9 +71,6 @@ export async function createMessage(data: CreateMessageParams): Promise<Message>
       conversationId: data.conversationId,
       role: data.role,
       content: data.content,
-      thinking: data.thinking ?? null,
-      toolCalls: data.toolCalls ?? null,
-      toolCallId: data.toolCallId ?? null,
       previousMessageId: data.previousMessageId ?? null,
     })
     .returning();
@@ -94,16 +79,16 @@ export async function createMessage(data: CreateMessageParams): Promise<Message>
 }
 
 /**
- * Create a full turn (user + assistant) in a single transaction.
- * Links user -> last message, assistant -> user message.
+ * Create a full turn (user + llm) in a single transaction.
+ * Links user -> last message, llm -> user message.
  */
 export async function createTurnMessages(
   conversationId: string,
   user: TurnMessageParams,
-  assistant: TurnMessageParams
-): Promise<{ userMessage: Message; assistantMessage: Message }> {
+  llm: TurnMessageParams
+): Promise<{ userMessage: Message; llmMessage: Message }> {
   return db.transaction(async (tx) =>
-    createTurnMessagesInTransaction(tx, conversationId, user, assistant)
+    createTurnMessagesInTransaction(tx, conversationId, user, llm)
   );
 }
 
@@ -114,8 +99,8 @@ export async function createTurnMessagesInTransaction(
   tx: DbClient,
   conversationId: string,
   user: TurnMessageParams,
-  assistant: TurnMessageParams
-): Promise<{ userMessage: Message; assistantMessage: Message }> {
+  llm: TurnMessageParams
+): Promise<{ userMessage: Message; llmMessage: Message }> {
   const lastMessage = await tx
     .select()
     .from(messages)
@@ -131,22 +116,16 @@ export async function createTurnMessagesInTransaction(
       conversationId,
       role: user.role,
       content: user.content,
-      thinking: user.thinking ?? null,
-      toolCalls: user.toolCalls ?? null,
-      toolCallId: user.toolCallId ?? null,
       previousMessageId,
     })
     .returning();
 
-  const [assistantMessage] = await tx
+  const [llmMessage] = await tx
     .insert(messages)
     .values({
       conversationId,
-      role: assistant.role,
-      content: assistant.content,
-      thinking: assistant.thinking ?? null,
-      toolCalls: assistant.toolCalls ?? null,
-      toolCallId: assistant.toolCallId ?? null,
+      role: llm.role,
+      content: llm.content,
       previousMessageId: userMessage.id,
     })
     .returning();
@@ -156,7 +135,7 @@ export async function createTurnMessagesInTransaction(
     .set({ updatedAt: new Date() })
     .where(eq(conversations.id, conversationId));
 
-  return { userMessage, assistantMessage };
+  return { userMessage, llmMessage };
 }
 
 /**
@@ -165,12 +144,7 @@ export async function createTurnMessagesInTransaction(
 export async function appendMessage(
   conversationId: string,
   role: MessageRole,
-  content: string,
-  options?: {
-    thinking?: string | null;
-    toolCalls?: ToolCall[] | null;
-    toolCallId?: string | null;
-  }
+  content: MessageContent
 ): Promise<Message> {
   // Get the last message to link to it
   const lastMessage = await getLastMessage(conversationId);
@@ -179,11 +153,40 @@ export async function appendMessage(
     conversationId,
     role,
     content,
-    thinking: options?.thinking,
-    toolCalls: options?.toolCalls,
-    toolCallId: options?.toolCallId,
     previousMessageId: lastMessage?.id ?? null,
   });
+}
+
+/**
+ * Append a user message
+ */
+export async function appendUserMessage(
+  conversationId: string,
+  text: string
+): Promise<Message> {
+  const content: UserMessageContent = { text };
+  return appendMessage(conversationId, 'user', content);
+}
+
+/**
+ * Append an LLM message
+ */
+export async function appendLLMMessage(
+  conversationId: string,
+  content: LLMMessageContent
+): Promise<Message> {
+  return appendMessage(conversationId, 'llm', content);
+}
+
+/**
+ * Append a summary message
+ */
+export async function appendSummaryMessage(
+  conversationId: string,
+  text: string
+): Promise<Message> {
+  const content: SummaryMessageContent = { text };
+  return appendMessage(conversationId, 'summary', content);
 }
 
 /**
@@ -254,43 +257,61 @@ export async function getConversationContext(
 }
 
 /**
- * Add a tool result message to a conversation
- * Links the result to the tool call via toolCallId
- */
-export async function addToolResultMessage(
-  conversationId: string,
-  toolCallId: string,
-  content: string,
-  previousMessageId?: string
-): Promise<Message> {
-  // If no previousMessageId provided, get the last message
-  const prevId = previousMessageId ?? (await getLastMessage(conversationId))?.id ?? null;
-
-  return createMessage({
-    conversationId,
-    role: 'tool',
-    content,
-    toolCallId,
-    previousMessageId: prevId,
-  });
-}
-
-/**
  * Add a summary message to a conversation (for compaction)
  * The summary includes all context up to and including the previous message
  */
 export async function addSummaryMessage(
   conversationId: string,
-  summaryContent: string,
+  summaryText: string,
   previousMessageId?: string
 ): Promise<Message> {
   // If no previousMessageId provided, get the last message
   const prevId = previousMessageId ?? (await getLastMessage(conversationId))?.id ?? null;
 
+  const content: SummaryMessageContent = { text: summaryText };
   return createMessage({
     conversationId,
     role: 'summary',
-    content: summaryContent,
+    content,
     previousMessageId: prevId,
   });
+}
+
+// ============================================================================
+// Helper functions for extracting text from message content
+// ============================================================================
+
+/**
+ * Extract text from any message content type
+ */
+export function getMessageText(message: Message): string {
+  const content = message.content as MessageContent;
+  return content.text;
+}
+
+/**
+ * Check if a message has tool calls (only LLM messages can have them)
+ */
+export function hasToolCalls(message: Message): boolean {
+  if (message.role !== 'llm') return false;
+  const content = message.content as LLMMessageContent;
+  return Array.isArray(content.toolCalls) && content.toolCalls.length > 0;
+}
+
+/**
+ * Get tool calls from an LLM message
+ */
+export function getToolCalls(message: Message): LLMMessageContent['toolCalls'] {
+  if (message.role !== 'llm') return undefined;
+  const content = message.content as LLMMessageContent;
+  return content.toolCalls;
+}
+
+/**
+ * Get thinking from an LLM message
+ */
+export function getThinking(message: Message): string | undefined {
+  if (message.role !== 'llm') return undefined;
+  const content = message.content as LLMMessageContent;
+  return content.thinking;
 }

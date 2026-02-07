@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -16,14 +15,10 @@ import { Separator } from "@/components/ui/separator";
 
 interface InboxItem {
   id: string;
-  type: string;
   title: string;
   content: string;
-  entityId: string | null;
-  entityName: string | null;
-  entityType: string | null;
-  agentId: string;
-  briefingId: string | null;
+  agentId: string | null;
+  agentName: string | null;
   read: boolean;
   readAt: string | null;
   createdAt: string;
@@ -31,20 +26,12 @@ interface InboxItem {
 
 // Helper functions for displaying source info
 function getSourceName(item: InboxItem): string {
-  return item.entityName ?? "Unknown";
-}
-
-function getSourceLabel(item: InboxItem): string {
-  return item.entityType === "team" ? "Team" : "Aide";
+  return item.agentName ?? "Unknown";
 }
 
 function getItemLink(item: InboxItem): string {
-  if (item.type === "briefing" && item.briefingId && item.entityId) {
-    return `/entities/${item.entityId}/briefings/${item.briefingId}`;
-  }
-
-  if (item.entityId) {
-    return `/entities/${item.entityId}/agents/${item.agentId}/chat`;
+  if (item.agentId) {
+    return `/agents/${item.agentId}/chat`;
   }
   return "#";
 }
@@ -53,25 +40,6 @@ interface InboxResponse {
   items: InboxItem[];
   unreadCount: number;
   total: number;
-}
-
-function InboxItemBadge({ type }: { type: string }) {
-  const variants: Record<
-    string,
-    "default" | "secondary" | "destructive" | "outline"
-  > = {
-    briefing: "default",
-    feedback: "secondary",
-  };
-  const labels: Record<string, string> = {
-    briefing: "Briefing",
-    feedback: "Feedback",
-  };
-  return (
-    <Badge variant={variants[type] || "outline"}>
-      {labels[type] || type}
-    </Badge>
-  );
 }
 
 function formatTimeAgo(dateString: string): string {
@@ -83,8 +51,10 @@ function formatTimeAgo(dateString: string): string {
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
   if (diffMins < 1) return "just now";
-  if (diffMins < 60) return `${diffMins} minute${diffMins !== 1 ? "s" : ""} ago`;
-  if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? "s" : ""} ago`;
+  if (diffMins < 60)
+    return `${diffMins} minute${diffMins !== 1 ? "s" : ""} ago`;
+  if (diffHours < 24)
+    return `${diffHours} hour${diffHours !== 1 ? "s" : ""} ago`;
   if (diffDays < 7) return `${diffDays} day${diffDays !== 1 ? "s" : ""} ago`;
   return date.toLocaleDateString();
 }
@@ -137,7 +107,7 @@ export default function InboxPage() {
         });
         if (response.ok) {
           setItems((prev) =>
-            prev.map((i) => (i.id === item.id ? { ...i, read: true } : i))
+            prev.map((i) => (i.id === item.id ? { ...i, read: true } : i)),
           );
           setUnreadCount((prev) => Math.max(0, prev - 1));
         }
@@ -157,9 +127,11 @@ export default function InboxPage() {
       });
       if (response.ok) {
         setItems((prev) =>
-          prev.map((i) => (i.id === item.id ? { ...i, read: !item.read } : i))
+          prev.map((i) => (i.id === item.id ? { ...i, read: !item.read } : i)),
         );
-        setUnreadCount((prev) => (item.read ? prev + 1 : Math.max(0, prev - 1)));
+        setUnreadCount((prev) =>
+          item.read ? prev + 1 : Math.max(0, prev - 1),
+        );
         if (selectedItem?.id === item.id) {
           setSelectedItem({ ...item, read: !item.read });
         }
@@ -254,7 +226,7 @@ export default function InboxPage() {
             <div className="text-center text-muted-foreground">
               <p className="text-lg font-medium">Your inbox is empty</p>
               <p className="text-sm mt-2">
-                Your agents will send briefings and feedback here.
+                Your agents will send messages here.
               </p>
             </div>
           </CardContent>
@@ -266,7 +238,7 @@ export default function InboxPage() {
             <CardHeader>
               <CardTitle>Messages</CardTitle>
               <CardDescription>
-                Briefings and feedback from your teams
+                Messages from your agents
               </CardDescription>
             </CardHeader>
             <CardContent className="p-0">
@@ -283,16 +255,16 @@ export default function InboxPage() {
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <InboxItemBadge type={item.type} />
+                            <h3 className="font-medium truncate">
+                              {item.title}
+                            </h3>
                             {!item.read && (
                               <div className="h-2 w-2 rounded-full bg-primary" />
                             )}
                           </div>
-                          <h3 className="mt-1 font-medium truncate">
-                            {item.title}
-                          </h3>
                           <p className="mt-1 text-xs text-muted-foreground">
-                            {getSourceName(item)} - {formatTimeAgo(item.createdAt)}
+                            {getSourceName(item)} -{" "}
+                            {formatTimeAgo(item.createdAt)}
                           </p>
                         </div>
                       </div>
@@ -310,14 +282,15 @@ export default function InboxPage() {
                 <CardHeader>
                   <div className="flex items-start justify-between">
                     <div>
-                      <div className="flex items-center gap-2">
-                        <InboxItemBadge type={selectedItem.type} />
-                        <span className="text-sm text-muted-foreground">
-                          {formatTimeAgo(selectedItem.createdAt)}
-                        </span>
-                      </div>
-                      <CardTitle className="mt-2">{selectedItem.title}</CardTitle>
-                      <CardDescription>From {getSourceName(selectedItem)}</CardDescription>
+                      <span className="text-sm text-muted-foreground">
+                        {formatTimeAgo(selectedItem.createdAt)}
+                      </span>
+                      <CardTitle className="mt-2">
+                        {selectedItem.title}
+                      </CardTitle>
+                      <CardDescription>
+                        From {getSourceName(selectedItem)}
+                      </CardDescription>
                     </div>
                     <div className="flex gap-2">
                       <Button
@@ -339,19 +312,17 @@ export default function InboxPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="prose prose-sm max-w-none dark:prose-invert">
-                    {selectedItem.content.split("\n").map((paragraph, index) => (
-                      <p key={index}>{paragraph}</p>
-                    ))}
+                    {selectedItem.content
+                      .split("\n")
+                      .map((paragraph, index) => (
+                        <p key={index}>{paragraph}</p>
+                      ))}
                   </div>
                   <Separator className="my-6" />
                   <div className="text-sm text-muted-foreground">
                     <p>
-                      <span className="font-medium">{getSourceLabel(selectedItem)}:</span>{" "}
+                      <span className="font-medium">Agent:</span>{" "}
                       {getSourceName(selectedItem)}
-                    </p>
-                    <p>
-                      <span className="font-medium">Type:</span>{" "}
-                      {selectedItem.type}
                     </p>
                     <p>
                       <span className="font-medium">Received:</span>{" "}
@@ -362,7 +333,7 @@ export default function InboxPage() {
                   <div className="flex justify-center">
                     <Button asChild>
                       <Link href={getItemLink(selectedItem)}>
-                        {selectedItem.type === "briefing" ? "View Briefing" : "View Conversation"}
+                        View Conversation
                       </Link>
                     </Button>
                   </div>

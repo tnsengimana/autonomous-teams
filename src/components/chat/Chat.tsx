@@ -12,22 +12,18 @@ import { ChatMessages, type Message } from "./ChatMessages";
 import { ChatInput } from "./ChatInput";
 
 export interface ChatProps {
-  entityId: string;
-  agentId?: string;
+  agentId: string;
   agentName?: string;
   title?: string;
   description?: string;
-  mode?: "foreground" | "background";
   readOnly?: boolean;
 }
 
 export function Chat({
-  entityId,
   agentId,
   agentName,
   title = "Conversation",
   description = "Chat with your AI assistant.",
-  mode = "foreground",
   readOnly = false,
 }: ChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -39,12 +35,8 @@ export function Chat({
   // Load existing conversation history on mount
   useEffect(() => {
     const loadHistory = async () => {
-      if (!agentId) return;
-
       try {
-        const response = await fetch(
-          `/api/conversations/${agentId}?mode=${mode}`,
-        );
+        const response = await fetch(`/api/conversations/${agentId}`);
         if (response.ok) {
           const data = await response.json();
           if (data.messages && Array.isArray(data.messages)) {
@@ -65,7 +57,7 @@ export function Chat({
     };
 
     loadHistory();
-  }, [agentId, mode]);
+  }, [agentId]);
 
   const handleSendMessage = useCallback(
     async (content: string) => {
@@ -90,7 +82,6 @@ export function Chat({
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            entityId,
             agentId,
             content,
           }),
@@ -137,7 +128,7 @@ export function Chat({
         setStreamingContent("");
       }
     },
-    [entityId, agentId, isLoading],
+    [agentId, isLoading],
   );
 
   return (

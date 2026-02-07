@@ -1,7 +1,55 @@
-import { eq, isNull, and, or, lte, inArray } from 'drizzle-orm';
-import { db } from '../client';
-import { agents, entities } from '../schema';
-import type { Agent, AgentStatus } from '@/lib/types';
+/**
+ * Agents Database Queries
+ *
+ * CRUD operations for agents.
+ */
+
+import { eq, desc } from "drizzle-orm";
+import { db } from "../client";
+import { agents } from "../schema";
+import type { Agent } from "@/lib/types";
+
+// ============================================================================
+// CRUD Operations
+// ============================================================================
+
+/**
+ * Create a new agent
+ */
+export async function createAgent(data: {
+  userId: string;
+  name: string;
+  purpose?: string | null;
+  conversationSystemPrompt: string;
+  queryIdentificationSystemPrompt: string;
+  insightIdentificationSystemPrompt: string;
+  analysisGenerationSystemPrompt: string;
+  adviceGenerationSystemPrompt: string;
+  knowledgeAcquisitionSystemPrompt: string;
+  graphConstructionSystemPrompt: string;
+  iterationIntervalMs: number;
+  isActive?: boolean;
+}): Promise<Agent> {
+  const result = await db
+    .insert(agents)
+    .values({
+      userId: data.userId,
+      name: data.name,
+      purpose: data.purpose ?? null,
+      conversationSystemPrompt: data.conversationSystemPrompt,
+      queryIdentificationSystemPrompt: data.queryIdentificationSystemPrompt,
+      insightIdentificationSystemPrompt: data.insightIdentificationSystemPrompt,
+      analysisGenerationSystemPrompt: data.analysisGenerationSystemPrompt,
+      adviceGenerationSystemPrompt: data.adviceGenerationSystemPrompt,
+      knowledgeAcquisitionSystemPrompt: data.knowledgeAcquisitionSystemPrompt,
+      graphConstructionSystemPrompt: data.graphConstructionSystemPrompt,
+      iterationIntervalMs: data.iterationIntervalMs,
+      isActive: data.isActive ?? true,
+    })
+    .returning();
+
+  return result[0];
+}
 
 /**
  * Get an agent by ID
@@ -17,89 +65,52 @@ export async function getAgentById(agentId: string): Promise<Agent | null> {
 }
 
 /**
- * Get all agents for an entity
+ * Get all agents for a user
  */
-export async function getAgentsByEntityId(entityId: string): Promise<Agent[]> {
-  return db.select().from(agents).where(eq(agents.entityId, entityId));
-}
-
-/**
- * Get the lead for an entity (agent with no parent)
- */
-export async function getLead(entityId: string): Promise<Agent | null> {
-  const result = await db
-    .select()
-    .from(agents)
-    .where(and(eq(agents.entityId, entityId), isNull(agents.parentAgentId)))
-    .limit(1);
-
-  return result[0] ?? null;
-}
-
-/**
- * Get all active leads (for worker runner)
- * Returns leads for active entities regardless of agent status
- */
-export async function getActiveLeads(): Promise<Agent[]> {
-  return db
-    .select({
-      id: agents.id,
-      entityId: agents.entityId,
-      parentAgentId: agents.parentAgentId,
-      name: agents.name,
-      type: agents.type,
-      systemPrompt: agents.systemPrompt,
-      status: agents.status,
-      leadNextRunAt: agents.leadNextRunAt,
-      backoffNextRunAt: agents.backoffNextRunAt,
-      backoffAttemptCount: agents.backoffAttemptCount,
-      lastCompletedAt: agents.lastCompletedAt,
-      createdAt: agents.createdAt,
-      updatedAt: agents.updatedAt,
-    })
-    .from(agents)
-    .innerJoin(entities, eq(agents.entityId, entities.id))
-    .where(
-      and(
-        isNull(agents.parentAgentId),
-        eq(entities.status, 'active')
-      )
-    );
-}
-
-/**
- * Get child agents for a parent agent
- */
-export async function getChildAgents(parentAgentId: string): Promise<Agent[]> {
+export async function getAgentsByUserId(userId: string): Promise<Agent[]> {
   return db
     .select()
     .from(agents)
-    .where(eq(agents.parentAgentId, parentAgentId));
+    .where(eq(agents.userId, userId))
+    .orderBy(desc(agents.createdAt));
 }
 
 /**
- * Update agent status
+ * Get active agents for a user
  */
-export async function updateAgentStatus(
-  agentId: string,
-  status: AgentStatus
-): Promise<void> {
-  await db
-    .update(agents)
-    .set({ status, updatedAt: new Date() })
-    .where(eq(agents.id, agentId));
+export async function getActiveAgentsByUserId(
+  userId: string,
+): Promise<Agent[]> {
+  return db
+    .select()
+    .from(agents)
+    .where(eq(agents.userId, userId))
+    .orderBy(desc(agents.createdAt));
 }
 
 /**
- * Update agent details (name, type, systemPrompt)
+ * Get all active agents (across all users)
+ * Used by the background worker to process all agents
+ */
+export async function getActiveAgents(): Promise<Agent[]> {
+  return db
+    .select()
+    .from(agents)
+    .where(eq(agents.isActive, true))
+    .orderBy(desc(agents.createdAt));
+}
+
+/**
+ * Update agent details
  */
 export async function updateAgent(
   agentId: string,
   data: {
     name?: string;
-    type?: string;
-    systemPrompt?: string;
-  }
+    purpose?: string | null;
+    iterationIntervalMs?: number;
+    isActive?: boolean;
+  },
 ): Promise<void> {
   await db
     .update(agents)
@@ -108,161 +119,48 @@ export async function updateAgent(
 }
 
 /**
- * Create a new agent for an entity
+ * Set agent active state
  */
-export async function createAgent(data: {
-  entityId: string;
-  parentAgentId?: string | null;
-  name: string;
-  type: string;
-  systemPrompt?: string | null;
-  status?: AgentStatus;
-}): Promise<Agent> {
-  const result = await db
-    .insert(agents)
-    .values({
-      entityId: data.entityId,
-      parentAgentId: data.parentAgentId ?? null,
-      name: data.name,
-      type: data.type,
-      systemPrompt: data.systemPrompt ?? null,
-      status: data.status ?? 'idle',
-    })
-    .returning();
-
-  return result[0];
-}
-
-/**
- * Update lead agent's next scheduled run time
- */
-export async function updateAgentLeadNextRunAt(
+export async function setAgentActive(
   agentId: string,
-  leadNextRunAt: Date
+  isActive: boolean,
 ): Promise<void> {
   await db
     .update(agents)
-    .set({ leadNextRunAt, updatedAt: new Date() })
+    .set({ isActive, updatedAt: new Date() })
     .where(eq(agents.id, agentId));
 }
 
 /**
- * Set agent backoff state
+ * Activate an agent (set isActive to true)
  */
-export async function setAgentBackoff(
-  agentId: string,
-  backoffAttemptCount: number,
-  backoffNextRunAt: Date
-): Promise<void> {
-  await db
-    .update(agents)
-    .set({
-      backoffAttemptCount,
-      backoffNextRunAt,
-      updatedAt: new Date(),
-    })
-    .where(eq(agents.id, agentId));
+export async function activateAgent(agentId: string): Promise<void> {
+  await setAgentActive(agentId, true);
 }
 
 /**
- * Clear agent backoff state
+ * Pause an agent (set isActive to false)
  */
-export async function clearAgentBackoff(agentId: string): Promise<void> {
-  await db
-    .update(agents)
-    .set({
-      backoffAttemptCount: 0,
-      backoffNextRunAt: null,
-      updatedAt: new Date(),
-    })
-    .where(eq(agents.id, agentId));
+export async function pauseAgent(agentId: string): Promise<void> {
+  await setAgentActive(agentId, false);
 }
 
 /**
- * Update agent's last completed timestamp
+ * Delete an agent (cascades to conversations, etc.)
  */
-export async function updateAgentLastCompletedAt(
-  agentId: string,
-  lastCompletedAt: Date
-): Promise<void> {
-  await db
-    .update(agents)
-    .set({ lastCompletedAt, updatedAt: new Date() })
-    .where(eq(agents.id, agentId));
+export async function deleteAgent(agentId: string): Promise<void> {
+  await db.delete(agents).where(eq(agents.id, agentId));
 }
 
 /**
- * Get all agent IDs that have pending tasks
- * Used by the worker runner to find agents with queued work
+ * Get the user ID for an agent
  */
-export async function getAgentsWithPendingTasks(): Promise<string[]> {
-  // Import agentTasks dynamically to avoid circular dependencies
-  const { agentTasks } = await import('../schema');
-  const now = new Date();
-
+export async function getAgentUserId(agentId: string): Promise<string | null> {
   const result = await db
-    .selectDistinct({ agentId: agentTasks.assignedToId })
-    .from(agentTasks)
-    .innerJoin(agents, eq(agentTasks.assignedToId, agents.id))
-    .where(
-      and(
-        eq(agentTasks.status, 'pending'),
-        or(
-          isNull(agents.backoffNextRunAt),
-          lte(agents.backoffNextRunAt, now)
-        )
-      )
-    );
-
-  return result.map((r) => r.agentId);
-}
-
-/**
- * Get lead agent IDs where leadNextRunAt <= now
- * Only includes leads from active entities
- */
-export async function getLeadsDueToRun(): Promise<string[]> {
-  const now = new Date();
-  const result = await db
-    .select({ id: agents.id })
+    .select({ userId: agents.userId })
     .from(agents)
-    .innerJoin(entities, eq(agents.entityId, entities.id))
-    .where(
-      and(
-        isNull(agents.parentAgentId), // Leads only
-        eq(entities.status, 'active'),   // Active entities only
-        lte(agents.leadNextRunAt, now),   // Due to run
-        or(
-          isNull(agents.backoffNextRunAt),
-          lte(agents.backoffNextRunAt, now)
-        )
-      )
-    );
+    .where(eq(agents.id, agentId))
+    .limit(1);
 
-  return result.map((r) => r.id);
-}
-
-/**
- * Filter agent IDs to those not currently in backoff
- */
-export async function getAgentsReadyForWork(
-  agentIds: string[]
-): Promise<string[]> {
-  if (agentIds.length === 0) return [];
-
-  const now = new Date();
-  const result = await db
-    .select({ id: agents.id })
-    .from(agents)
-    .where(
-      and(
-        inArray(agents.id, agentIds),
-        or(
-          isNull(agents.backoffNextRunAt),
-          lte(agents.backoffNextRunAt, now)
-        )
-      )
-    );
-
-  return result.map((r) => r.id);
+  return result[0]?.userId ?? null;
 }

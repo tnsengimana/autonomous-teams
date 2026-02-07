@@ -1,3 +1,20 @@
+# Autonomous Agents
+
+A TypeScript/Next.js application where users create entities that run continuously to fulfill a mission. Each entity has a system prompt, a knowledge graph, and runs in a 5-minute iteration loop where it autonomously researches and learns using web search and graph tools.
+
+## IMPORTANT: UI Change Policy
+
+**ALL UI CHANGES REQUIRE EXPLICIT USER APPROVAL BEFORE IMPLEMENTATION.**
+
+This includes but is not limited to:
+- Adding or removing buttons
+- Changing layouts or styling
+- Adding new UI components
+- Modifying existing component behavior
+- Any visual changes whatsoever
+
+Do not make any UI changes without first describing the proposed change and receiving explicit approval.
+
 ## Getting Started
 
 `docker compose up` starts Postgres, runs migrations, and launches the Next.js dev server and background worker.

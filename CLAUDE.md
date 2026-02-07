@@ -4,12 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Autonomous Agents is a TypeScript/Next.js application where users create entities (teams or aides) containing AI agents that run continuously to fulfill a mission. Entities have hierarchical agents (leads run continuously, subordinates spawn on-demand) that collaborate, extract knowledge from work sessions, and proactively deliver insights to users.
+Autonomous Agents is a TypeScript/Next.js application where users create agents that run continuously to fulfill a mission. Each agent has a system prompt, a knowledge graph, and runs in an autonomous iteration loop where it researches and learns using web search and graph tools.
 
-**Terminology Note**:
-- "Entity" is the unified concept for teams and aides. Teams have multiple agents; aides have a single agent.
-- "Subordinate" refers to non-lead agents that report to the lead.
-- "Worker" refers to the background process (`src/worker/`) that runs agent cycles.
+**Key Concepts**:
+- **Agent**: The central unit with a name, purpose, system prompt, and knowledge graph
+- **Knowledge Graph (KGoT)**: Agent's accumulated knowledge stored as typed nodes and edges
+- **Background Worker**: Runs agents in configurable iteration loops (default 5 min), calling the LLM with tools
+- **OODA Loop**: The worker pipeline is a variant of the OODA (Observe → Orient → Decide → Act) loop — Query Identification identifies knowledge gaps, Researcher orients by actively gathering information, Insight Identification identifies patterns on the enriched graph, Analyzer decides by synthesizing insights, Adviser acts by producing recommendations
+- **LLM Interactions**: Trace of all background LLM calls stored for debugging/auditing
 
 ## Commands
 
@@ -38,98 +40,128 @@ npx drizzle-kit studio            # Open Drizzle Studio UI
 
 ## Architecture
 
-### Foreground/Background Architecture
+### Agent-Centric Architecture
 
-The system separates user interactions (foreground) from agent work (background):
+The system is built around agents that run autonomously:
 
-**Conversation Modes**:
-- **Foreground** (`mode='foreground'`): User-Agent interaction (permanent, UI-visible, one per agent). Human user sends messages, agent responds.
-- **Background** (`mode='background'`): Agent work sessions (persistent, internal only, one per agent). Agent processes tasks, uses tools, extracts knowledge. Automatic compaction via summary messages.
-
-**Memories vs Knowledge Items**:
-- **Memories**: User interaction context (preferences, past requests). Extracted from foreground conversations. Sent to LLM in **foreground only**.
-- **Knowledge Items**: Professional knowledge base (domain expertise, techniques, patterns, facts). Extracted from background conversations (`sourceConversationId`). Sent to LLM in **background only**.
+- **One Conversation Per Agent**: Each agent has a single conversation for user interaction
+- **Knowledge Graph**: Each agent has a KGoT (Knowledge Graph of Thoughts) that stores learned knowledge
+- **Background Iterations**: The worker runs each agent on its configured interval to work autonomously
 
 ### Core Components
 
-**Agent Runtime** (`src/lib/agents/`)
-- `agent.ts` - Agent class with foreground/background separation:
-  - `handleUserMessage()` - Foreground: quick ack + queue task, returns immediately
-  - `runWorkSession()` - Background: process queue in background conversation, extract knowledge, decide briefing
-  - `processTask()` - Per-task processing with tools in background conversation
-  - `extractKnowledgeFromConversation()` - Post-session professional learning (via `knowledge-items.ts`)
-  - `decideBriefing()` - Lead briefing decision after work session
-- `memory.ts` - Memory extraction from user conversations using `generateObject()`
-- `knowledge-items.ts` - Knowledge extraction from background conversations (professional knowledge)
+**LLM & Tools** (`src/lib/llm/`)
+- `llm.ts` - Provider abstraction (OpenAI, Anthropic, Gemini, LMStudio). Looks up user's encrypted API keys, falls back to env vars
+- `knowledge-graph.ts` - Builds graph context block for LLM prompts
+- `graph-types.ts` - Initializes node/edge types for new agents
+- `conversation.ts` - Conversation management
+- `memory.ts` - Memory extraction from user conversations
 - `compaction.ts` - Conversation compaction via summary messages
-- `taskQueue.ts` - Task queue operations (queue, claim, complete)
-- `llm.ts` - Provider abstraction (OpenAI, Anthropic, Gemini). Looks up user's encrypted API keys, falls back to env vars
+
+**Tools** (`src/lib/llm/tools/`)
+- `graph-tools.ts` - Knowledge graph manipulation (addGraphNode, addGraphEdge, queryGraph, addAgentAnalysisNode, addAgentAdviceNode, etc.)
+- `tavily-tools.ts` - Web search tools (tavilySearch, tavilyExtract, tavilyResearch)
+- `index.ts` - Tool registry, provides phase-specific tool sets (getAnalysisGenerationTools, getAdviceGenerationTools, etc.)
 
 **Database** (`src/lib/db/`)
 - PostgreSQL with Drizzle ORM
-- Schema: users, entities, agents, conversations (with mode), messages (with toolCalls, previousMessageId), memories, knowledgeItems (with sourceConversationId), agentTasks, inboxItems
+- Schema: users, agents, conversations, messages, memories, inboxItems, llmInteractions, workerIterations
+- Knowledge Graph tables: graphNodeTypes, graphEdgeTypes, graphNodes, graphEdges
 - `drizzle.config.ts` points to `src/lib/db/schema.ts`
-- `inbox_items` stores `userId` and `agentId` only; entity is derived via the agent relation; types are `briefing` or `feedback`
+
+**API Routes** (`src/app/api/agents/[id]/`)
+- `route.ts` - Agent CRUD (GET, PATCH, DELETE)
+- `worker-iterations/route.ts` - Worker iteration history (GET)
+- `knowledge-graph/route.ts` - Knowledge graph visualization data (GET)
+- `graph-node-types/route.ts` - Graph node type definitions (GET)
+- `graph-edge-types/route.ts` - Graph edge type definitions (GET)
+- All routes follow the same pattern: auth check → agent ownership check → query → JSON response
 
 **Background Worker** (`src/worker/runner.ts`)
-- Event-driven + timer-based execution:
-  - **Event-driven**: Tasks queued via `notifyTaskQueued()` trigger immediate processing
-  - **Timer-based**: Leads scheduled for daily proactive runs via `leadNextRunAt`
-- Subordinates are purely reactive (only triggered when work in queue)
-- Leads are proactive (daily trigger to further mission)
-- Calls `agent.runWorkSession()` for background conversation task processing
+- Per-agent iteration loop based on `iterationIntervalMs`
+- Each iteration runs the **Query Identification → Researcher → Insight Identification → Analyzer → Adviser** pipeline (a variant of the OODA loop):
+  1. **Query Identification** (Observe): Scans graph, identifies knowledge gaps (queries)
+  2. **Researcher** (Orient): For each query, runs Knowledge Acquisition (web research) + Graph Construction — actively gathers information rather than passively reorienting
+  3. Rebuild graph context with enriched data
+  4. **Insight Identification**: Scans enriched graph, identifies patterns (insights)
+  5. **Analyzer** (Decide): For each insight, runs Analysis Generation (creates AgentAnalysis nodes)
+  6. **Adviser** (Act): If analyses were produced, runs Advice Generation (may create AgentAdvice nodes)
+- AgentAdvice node creation triggers user notifications via inbox items
 
 **Authentication** (`src/lib/auth/config.ts`)
 - NextAuth.js with passwordless magic links
 - DrizzleAdapter for session persistence
 - In dev, magic links log to console
 
+### UI Architecture
+
+**Agent Detail Layout** (`src/app/(dashboard)/agents/[id]/layout.tsx`)
+- Server component handling auth + agent ownership
+- Two-column layout: sidebar (back link + nav) | content (title + actions header + page content)
+- `AgentHeaderActionsProvider` context allows subpages to inject page-specific actions into the content header
+
+**Agent Detail Subpages** — all client-rendered, fetch data via API routes:
+- Details (`page.tsx`) — mission, stats; header actions: Edit/Pause/Delete
+- Chat (`chat/page.tsx`) — conversation UI; header actions: View System Prompt
+- Worker Iterations (`worker-iterations/page.tsx`) — iteration history with collapsible LLM interaction details
+- Knowledge Graph (`knowledge-graph/page.tsx`) — 3D graph visualization via reagraph
+- Graph Node Types (`graph-node-types/page.tsx`) — collapsible cards showing type definitions
+- Graph Edge Types (`graph-edge-types/page.tsx`) — collapsible cards with source/target constraints
+
+**Key UI Components**:
+- `AgentHeaderActions` / `AgentHeaderActionsSlot` (`src/components/agent-header-actions.tsx`) — React Context slot pattern for page-specific header actions
+- `AgentDetailNav` (`src/components/agent-detail-nav.tsx`) — sidebar navigation with active state via `usePathname()`
+- `AgentDetailTitle` (`src/components/agent-detail-title.tsx`) — dynamic "AgentName - SubPage" title based on route
+- `AutoRefresh` (`src/components/auto-refresh.tsx`) — 60-second auto-refresh interval + manual Refresh button in header; accepts optional `onRefresh` callback for client-fetched pages
+
 ### Data Flow
 
-**Foreground (User Interaction)**:
-1. User sends message to lead
-2. Agent loads MEMORIES (user context)
-3. Generates quick contextual acknowledgment
-4. Queues task for background processing
-5. Returns acknowledgment immediately
+**User Interaction (Foreground)**:
+1. User sends message to agent via chat UI
+2. Agent loads memories (user context)
+3. Responds to user message
+4. Can optionally use foreground tools (web search, graph queries)
 
-**Background (Work Session)**:
-1. Task picked up from queue (event-driven or scheduled)
-2. Agent uses background conversation (persistent, with automatic compaction)
-3. Agent loads KNOWLEDGE ITEMS (professional knowledge)
-4. Processes task with tools in background conversation
-5. After queue empty: lead appends a briefing-decision turn in the background conversation
-6. Lead only: may call `createBriefing` (writes `briefings` + inbox item; no foreground message)
-7. Leads can call `requestUserInput` to create a `feedback` inbox item and append the full message to the foreground conversation
-8. Leads can call `listBriefings` (metadata only) and `getBriefing` (full content) in foreground conversations to answer user questions about briefings
-9. After briefing-decision turn: extracts knowledge from conversation
-10. Next run scheduled
+**Autonomous Work (Background — OODA Loop)**:
+1. Worker picks up active agent based on its iteration interval
+2. **Query Identification** (Observe): Scans graph, identifies knowledge gaps (queries)
+3. **Researcher** (Orient) for each query:
+   - **Knowledge Acquisition**: Uses Tavily tools to research knowledge gap
+   - **Graph Construction**: Structures acquired knowledge into typed graph nodes/edges
+4. Rebuild graph context (now enriched with new data)
+5. **Insight Identification**: Scans enriched graph, identifies patterns (insights)
+6. **Analyzer** (Decide) for each insight:
+   - **Analysis Generation**: Creates AgentAnalysis nodes from existing knowledge
+7. **Adviser** (Act) if analyses were produced:
+   - **Advice Generation**: Reviews AgentAnalysis nodes, may create AgentAdvice nodes which notify user
+8. All phases logged to `llm_interactions` with phase tracking
 
 ### Key Patterns
 
 - **Path alias**: `@/*` maps to `./src/*`
 - **Mock mode**: Set `MOCK_LLM=true` in `.env.local` to run without real API calls
 - **Encrypted API keys**: User API keys stored encrypted in `userApiKeys` table
-- **Agent hierarchy**: Leads have `parentAgentId = null`, subordinates reference their lead
-- **Memories vs Knowledge Items**: Memories store user interaction context. Knowledge items are the agent's professional knowledge base.
-- **Conversation compaction**: Summary messages compress old context via linked list (`previousMessageId`). Context loading returns latest summary + recent messages.
-- **Professional growth**: Knowledge items accumulate as expertise from background work sessions
-- **Atomic turns + retries**: Persist user+assistant messages together; only complete tasks after turn is saved, with exponential backoff for task retries
-- **Worker assumption**: Single worker per agent queue; concurrent workers would require locking changes
-- **Backoff gating**: `agents.backoffNextRunAt` + `backoffAttemptCount` gate retries for queued tasks and scheduled runs
+- **Conversation compaction**: Summary messages compress old context via linked list (`previousMessageId`)
+- **Single worker assumption**: One worker per deployment; concurrent workers would require locking
+- **Client-rendered subpages**: All agent detail subpages are `"use client"` components that fetch data via API routes. This keeps the architecture simple — no server/client serialization issues, consistent data-fetching pattern, easy auto-refresh via `useCallback` + `setInterval`
+- **Header action slots**: Subpages inject page-specific actions (Edit/Delete, Refresh, View System Prompt) into the layout header via React Context (`AgentHeaderActions`)
 
 ## Autonomous Operation
 
-For entities to run autonomously and deliver proactive insights:
+For agents to run autonomously:
 
-1. **Entity status must be 'active'** - Set via UI or database
+1. **Agent status must be 'active'** - Set via UI or database
 2. **Worker process must be running** - Start separately from dev server:
    ```bash
    npx ts-node --project tsconfig.json src/worker/index.ts
    ```
-3. **Event-driven**: Tasks queued trigger immediate processing via `notifyTaskQueued()`
-4. **Timer-based**: Leads auto-scheduled for daily proactive runs
-5. Leads can delegate to subordinates and push briefings to user inbox
+3. **Configurable iterations**: Each agent has `iterationIntervalMs` (default 5 minutes)
+4. **Advice via notifications**: AgentAdvice nodes automatically create inbox notifications
+
+## UI Guidelines
+
+- **Emphasis colors are reserved for buttons only** — buttons can use `default` (black), `destructive` (red), etc. to signal intent clearly.
+- **Badges & labels must use subtle, muted colors only** — use `secondary` (gray) or `outline` variants. Never use `default` (dark) or `destructive` (red) on badges/labels. This keeps the UI predictable: if something is colored, it's actionable.
 
 ## Workflow Preferences
 

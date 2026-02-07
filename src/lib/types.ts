@@ -1,51 +1,81 @@
 /**
- * Core types for the Autonomous Teams agent system
+ * Core types for the Autonomous Agents system
  *
  * Database types are inferred from the Drizzle schema to ensure type safety.
  * Application-specific types are defined here for domain logic.
  */
 
-import type { InferSelectModel } from 'drizzle-orm';
+import type { InferSelectModel } from "drizzle-orm";
 import type {
-  agents,
-  agentTasks,
-  briefings,
   conversations,
-  entities,
-  knowledgeItems,
+  agents,
+  graphEdges,
+  graphEdgeTypes,
+  graphNodes,
+  graphNodeTypes,
   memories,
   messages,
   userApiKeys,
-} from '@/lib/db/schema';
+  llmInteractions,
+} from "@/lib/db/schema";
 
 // ============================================================================
 // Database Model Types (inferred from Drizzle schema)
 // ============================================================================
 
-export type Agent = InferSelectModel<typeof agents>;
-export type AgentTask = InferSelectModel<typeof agentTasks>;
-export type Briefing = InferSelectModel<typeof briefings>;
 export type Conversation = InferSelectModel<typeof conversations>;
-export type Entity = InferSelectModel<typeof entities>;
-export type KnowledgeItem = InferSelectModel<typeof knowledgeItems>;
+export type Agent = InferSelectModel<typeof agents>;
 export type Memory = InferSelectModel<typeof memories>;
 export type Message = InferSelectModel<typeof messages>;
 export type UserApiKey = InferSelectModel<typeof userApiKeys>;
+export type LLMInteraction = InferSelectModel<typeof llmInteractions>;
+
+// Knowledge Graph Types
+export type GraphNodeType = InferSelectModel<typeof graphNodeTypes>;
+export type GraphEdgeType = InferSelectModel<typeof graphEdgeTypes>;
+export type GraphNode = InferSelectModel<typeof graphNodes>;
+export type GraphEdge = InferSelectModel<typeof graphEdges>;
 
 // ============================================================================
 // Status Types
 // ============================================================================
 
-export type AgentStatus = 'idle' | 'running' | 'paused';
-export type AgentType = 'lead' | 'subordinate';
-export type AgentTaskStatus = 'pending' | 'completed';
-export type AgentTaskSource = 'delegation' | 'user' | 'system' | 'self';
-export type EntityType = 'team' | 'aide';
-export type EntityStatus = 'active' | 'paused' | 'archived';
-export type MemoryType = 'preference' | 'insight' | 'fact';
-export type MessageRole = 'user' | 'assistant' | 'tool' | 'summary';
-export type ConversationMode = 'foreground' | 'background';
-export type KnowledgeItemType = 'fact' | 'technique' | 'pattern' | 'lesson';
+export type MemoryType = "preference" | "insight" | "fact";
+export type MessageRole = "user" | "llm" | "summary";
+
+// ============================================================================
+// Message Content Types (JSON structure for messages.content)
+// ============================================================================
+
+/** Content for role === 'user' */
+export interface UserMessageContent {
+  text: string;
+}
+
+/** Content for role === 'llm' */
+export interface LLMMessageContent {
+  text: string;
+  thinking?: string;
+  toolCalls?: Array<{
+    toolName: string;
+    args: Record<string, unknown>;
+  }>;
+  toolResults?: Array<{
+    toolName: string;
+    result: unknown;
+  }>;
+}
+
+/** Content for role === 'summary' */
+export interface SummaryMessageContent {
+  text: string;
+}
+
+/** Union type for all message content types */
+export type MessageContent =
+  | UserMessageContent
+  | LLMMessageContent
+  | SummaryMessageContent;
 
 // ============================================================================
 // Extended Types
@@ -59,10 +89,7 @@ export interface ExtractedMemory {
 export interface NewMessage {
   conversationId: string;
   role: MessageRole;
-  content: string;
-  thinking?: string | null;
-  toolCalls?: unknown;
-  toolCallId?: string;
+  content: MessageContent;
   previousMessageId?: string;
 }
 
@@ -70,30 +97,18 @@ export interface ConversationWithMessages extends Conversation {
   messages: Message[];
 }
 
-export interface AgentWithRelations extends Agent {
-  entity?: Entity;
-  parentAgent?: Agent | null;
-  childAgents?: Agent[];
-  conversations?: Conversation[];
-  memories?: Memory[];
-}
-
-export interface EntityWithAgents extends Entity {
-  agents: Agent[];
-}
-
 // ============================================================================
 // LLM Provider Types
 // ============================================================================
 
-export type LLMProvider = 'openai' | 'anthropic' | 'google' | 'lmstudio';
+export type LLMProvider = "openai" | "anthropic" | "google" | "lmstudio";
 
 // ============================================================================
 // LLM Types
 // ============================================================================
 
 export interface LLMMessage {
-  role: 'user' | 'assistant' | 'system';
+  role: "user" | "assistant" | "system";
   content: string;
 }
 
@@ -112,16 +127,31 @@ export interface LLMResponse {
 // Inbox Types
 // ============================================================================
 
-export type InboxItemType = 'briefing' | 'feedback';
-
 export interface InboxItem {
   id: string;
   userId: string;
   agentId: string;
-  briefingId: string | null;
-  type: InboxItemType;
   title: string;
   content: string;
   readAt: Date | null;
   createdAt: Date;
+}
+
+// ============================================================================
+// Knowledge Graph Types
+// ============================================================================
+
+export type GraphTypeCreator = "system" | "agent" | "user";
+
+// Helper types for graph traversal
+export interface GraphNeighbors {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+}
+
+export interface GraphStats {
+  nodeCount: number;
+  edgeCount: number;
+  nodesByType: Record<string, number>;
+  edgesByType: Record<string, number>;
 }

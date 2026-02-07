@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth/config";
 import { getAgentById } from "@/lib/db/queries/agents";
-import { getEntityById } from "@/lib/db/queries/entities";
 import { getLatestConversation } from "@/lib/db/queries/conversations";
-import { getMessagesByConversationId } from "@/lib/db/queries/messages";
+import { getMessagesByConversationId, getMessageText } from "@/lib/db/queries/messages";
 
 /**
  * GET /api/conversations/[agentId]
  *
  * Returns the conversation for an agent.
- * Supports ?mode=background to fetch internal work session logs.
  */
 export async function GET(
   _request: NextRequest,
@@ -24,44 +22,32 @@ export async function GET(
 
     const { agentId } = await params;
 
-    // 2. Get the agent
+    // 2. Verify user owns the agent
     const agent = await getAgentById(agentId);
     if (!agent) {
       return NextResponse.json({ error: "Agent not found" }, { status: 404 });
     }
 
-    // 3. Verify user owns the entity
-    if (!agent.entityId) {
-      return NextResponse.json(
-        { error: "Agent has no entity" },
-        { status: 500 },
-      );
-    }
-
-    const entity = await getEntityById(agent.entityId);
-    if (!entity || entity.userId !== session.user.id) {
+    if (agent.userId !== session.user.id) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    // 4. Get the conversation and messages
-    const url = new URL(_request.url);
-    const modeParam = url.searchParams.get("mode");
-    const mode = modeParam === "background" ? "background" : "foreground";
-
-    const conversation = await getLatestConversation(agentId, mode);
+    // 3. Get the conversation and messages
+    const conversation = await getLatestConversation(agentId);
     if (!conversation) {
       return NextResponse.json({ messages: [] });
     }
 
     const messages = await getMessagesByConversationId(conversation.id);
 
-    // 5. Filter out system messages and format response
+    // 4. Filter out summary messages and format response
+    // Map 'llm' role to 'assistant' for UI compatibility
     const filteredMessages = messages
-      .filter((m) => m.role !== "system")
+      .filter((m) => m.role !== "summary")
       .map((m) => ({
         id: m.id,
-        role: m.role,
-        content: m.content,
+        role: m.role === "llm" ? "assistant" : m.role,
+        content: getMessageText(m),
         createdAt: m.createdAt,
       }));
 

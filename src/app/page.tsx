@@ -72,8 +72,8 @@ export default async function Home() {
                 <div className="mb-4 text-4xl">3</div>
                 <h3 className="mb-2 text-xl font-semibold">Get Proactive Insights</h3>
                 <p className="text-muted-foreground">
-                  Your agents run continuously, extracting memories and delivering
-                  briefings and feedback to your inbox.
+                  Your entities run continuously, building knowledge and delivering
+                  insights to your inbox.
                 </p>
               </div>
             </div>

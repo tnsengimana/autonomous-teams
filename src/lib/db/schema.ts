@@ -6,243 +6,310 @@ import {
   integer,
   primaryKey,
   jsonb,
-  real,
   index,
   type AnyPgColumn,
-} from 'drizzle-orm/pg-core';
-import { relations } from 'drizzle-orm';
-import type { AdapterAccountType } from 'next-auth/adapters';
+  boolean,
+} from "drizzle-orm/pg-core";
+import { relations } from "drizzle-orm";
+import type { AdapterAccountType } from "next-auth/adapters";
 
 // ============================================================================
 // NextAuth.js Required Tables
 // ============================================================================
 
-export const users = pgTable('users', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  name: text('name'),
-  email: text('email').unique().notNull(),
-  emailVerified: timestamp('email_verified', { mode: 'date' }),
-  image: text('image'),
-  createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
-  updatedAt: timestamp('updated_at', { mode: 'date' }).defaultNow().notNull(),
+export const users = pgTable("users", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name"),
+  email: text("email").unique().notNull(),
+  emailVerified: timestamp("email_verified", { mode: "date" }),
+  image: text("image"),
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { mode: "date" }).defaultNow().notNull(),
 });
 
 export const accounts = pgTable(
-  'accounts',
+  "accounts",
   {
-    userId: uuid('user_id')
+    userId: uuid("user_id")
       .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }),
-    type: text('type').$type<AdapterAccountType>().notNull(),
-    provider: text('provider').notNull(),
-    providerAccountId: text('provider_account_id').notNull(),
-    refresh_token: text('refresh_token'),
-    access_token: text('access_token'),
-    expires_at: integer('expires_at'),
-    token_type: text('token_type'),
-    scope: text('scope'),
-    id_token: text('id_token'),
-    session_state: text('session_state'),
+      .references(() => users.id, { onDelete: "cascade" }),
+    type: text("type").$type<AdapterAccountType>().notNull(),
+    provider: text("provider").notNull(),
+    providerAccountId: text("provider_account_id").notNull(),
+    refresh_token: text("refresh_token"),
+    access_token: text("access_token"),
+    expires_at: integer("expires_at"),
+    token_type: text("token_type"),
+    scope: text("scope"),
+    id_token: text("id_token"),
+    session_state: text("session_state"),
   },
   (account) => [
     primaryKey({ columns: [account.provider, account.providerAccountId] }),
-  ]
+  ],
 );
 
-export const sessions = pgTable('sessions', {
-  sessionToken: text('session_token').primaryKey(),
-  userId: uuid('user_id')
+export const sessions = pgTable("sessions", {
+  sessionToken: text("session_token").primaryKey(),
+  userId: uuid("user_id")
     .notNull()
-    .references(() => users.id, { onDelete: 'cascade' }),
-  expires: timestamp('expires', { mode: 'date' }).notNull(),
+    .references(() => users.id, { onDelete: "cascade" }),
+  expires: timestamp("expires", { mode: "date" }).notNull(),
 });
 
 export const verificationTokens = pgTable(
-  'verification_tokens',
+  "verification_tokens",
   {
-    identifier: text('identifier').notNull(),
-    token: text('token').notNull(),
-    expires: timestamp('expires', { mode: 'date' }).notNull(),
+    identifier: text("identifier").notNull(),
+    token: text("token").notNull(),
+    expires: timestamp("expires", { mode: "date" }).notNull(),
   },
   (verificationToken) => [
     primaryKey({
       columns: [verificationToken.identifier, verificationToken.token],
     }),
-  ]
+  ],
 );
 
 // ============================================================================
 // Application Tables
 // ============================================================================
 
-export const userApiKeys = pgTable('user_api_keys', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id')
+export const userApiKeys = pgTable("user_api_keys", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id")
     .notNull()
-    .references(() => users.id, { onDelete: 'cascade' }),
-  provider: text('provider').notNull(), // 'openai', 'anthropic'
-  encryptedKey: text('encrypted_key').notNull(),
-  createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
-  updatedAt: timestamp('updated_at', { mode: 'date' }).defaultNow().notNull(),
+    .references(() => users.id, { onDelete: "cascade" }),
+  provider: text("provider").notNull(), // 'openai', 'anthropic'
+  encryptedKey: text("encrypted_key").notNull(),
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { mode: "date" }).defaultNow().notNull(),
 });
 
-export const entities = pgTable('entities', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id')
-    .notNull()
-    .references(() => users.id, { onDelete: 'cascade' }),
-  type: text('type').notNull(), // 'team' | 'aide'
-  name: text('name').notNull(),
-  purpose: text('purpose'),
-  status: text('status').notNull().default('active'), // 'active', 'paused', 'archived'
-  createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
-  updatedAt: timestamp('updated_at', { mode: 'date' }).defaultNow().notNull(),
-}, (table) => [
-  index('entities_user_id_idx').on(table.userId),
-  index('entities_type_idx').on(table.type),
-]);
-
-export const agents = pgTable('agents', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  entityId: uuid('entity_id')
-    .notNull()
-    .references(() => entities.id, { onDelete: 'cascade' }),
-  parentAgentId: uuid('parent_agent_id').references((): AnyPgColumn => agents.id, { onDelete: 'cascade' }), // null for leads
-  name: text('name').notNull(),
-  type: text('type').notNull(), // 'lead' | 'subordinate'
-  systemPrompt: text('system_prompt'),
-  status: text('status').notNull().default('idle'), // 'idle', 'running', 'paused'
-  leadNextRunAt: timestamp('lead_next_run_at', { mode: 'date' }), // Only used for lead agents
-  backoffNextRunAt: timestamp('backoff_next_run_at', { mode: 'date' }),
-  backoffAttemptCount: integer('backoff_attempt_count').notNull().default(0),
-  lastCompletedAt: timestamp('last_completed_at', { mode: 'date' }),
-  createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
-  updatedAt: timestamp('updated_at', { mode: 'date' }).defaultNow().notNull(),
-}, (table) => [
-  index('agents_entity_id_idx').on(table.entityId),
-  index('agents_lead_next_run_at_idx').on(table.leadNextRunAt),
-  index('agents_backoff_next_run_at_idx').on(table.backoffNextRunAt),
-]);
-
-export const conversations = pgTable('conversations', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  agentId: uuid('agent_id')
-    .notNull()
-    .references(() => agents.id, { onDelete: 'cascade' }),
-  mode: text('mode').notNull().default('foreground'), // 'foreground' | 'background'
-  createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
-  updatedAt: timestamp('updated_at', { mode: 'date' }).defaultNow().notNull(),
-});
-
-export const messages = pgTable('messages', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  conversationId: uuid('conversation_id')
-    .notNull()
-    .references(() => conversations.id, { onDelete: 'cascade' }),
-  role: text('role').notNull(), // 'user' | 'assistant' | 'tool' | 'summary'
-  content: text('content').notNull(),
-  thinking: text('thinking'), // for extended thinking/reasoning
-  toolCalls: jsonb('tool_calls'), // For assistant messages with tool calls
-  toolCallId: text('tool_call_id'), // For tool role - links result to call
-  previousMessageId: uuid('previous_message_id').references((): AnyPgColumn => messages.id), // Linked list for compaction
-  createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
-});
-
-export const memories = pgTable('memories', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  agentId: uuid('agent_id')
-    .notNull()
-    .references(() => agents.id, { onDelete: 'cascade' }),
-  type: text('type').notNull(), // 'preference' | 'insight' | 'fact'
-  content: text('content').notNull(),
-  sourceMessageId: uuid('source_message_id').references(() => messages.id, {
-    onDelete: 'set null',
-  }),
-  createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
-  updatedAt: timestamp('updated_at', { mode: 'date' }).defaultNow().notNull(),
-});
-
-export const inboxItems = pgTable('inbox_items', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id')
-    .notNull()
-    .references(() => users.id, { onDelete: 'cascade' }),
-  agentId: uuid('agent_id')
-    .notNull()
-    .references(() => agents.id, { onDelete: 'cascade' }),
-  briefingId: uuid('briefing_id').references(() => briefings.id, {
-    onDelete: 'set null',
-  }),
-  type: text('type').notNull(), // 'briefing' | 'feedback'
-  title: text('title').notNull(),
-  content: text('content').notNull(),
-  readAt: timestamp('read_at', { mode: 'date' }),
-  createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
-});
-
-export const briefings = pgTable(
-  'briefings',
+export const agents = pgTable(
+  "agents",
   {
-    id: uuid('id').primaryKey().defaultRandom(),
-    userId: uuid('user_id')
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
       .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }),
-    entityId: uuid('entity_id')
-      .notNull()
-      .references(() => entities.id, { onDelete: 'cascade' }),
-    agentId: uuid('agent_id')
-      .notNull()
-      .references(() => agents.id, { onDelete: 'cascade' }),
-    title: text('title').notNull(),
-    summary: text('summary').notNull(),
-    content: text('content').notNull(),
-    createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
-    updatedAt: timestamp('updated_at', { mode: 'date' }).defaultNow().notNull(),
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    purpose: text("purpose"),
+    // Phase-specific system prompts (multi-phase architecture)
+    conversationSystemPrompt: text("conversation_system_prompt").notNull(),
+    queryIdentificationSystemPrompt: text("query_identification_system_prompt").notNull(),
+    insightIdentificationSystemPrompt: text("insight_identification_system_prompt").notNull(),
+    analysisGenerationSystemPrompt: text(
+      "analysis_generation_system_prompt",
+    ).notNull(),
+    adviceGenerationSystemPrompt: text(
+      "advice_generation_system_prompt",
+    ).notNull(),
+    knowledgeAcquisitionSystemPrompt: text(
+      "knowledge_acquisition_system_prompt",
+    ).notNull(),
+    graphConstructionSystemPrompt: text(
+      "graph_construction_system_prompt",
+    ).notNull(),
+    // Worker iteration interval in milliseconds
+    iterationIntervalMs: integer("iteration_interval_ms").notNull(),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date" }).defaultNow().notNull(),
   },
-  (table) => [
-    index('briefings_user_id_idx').on(table.userId),
-    index('briefings_entity_id_idx').on(table.entityId),
-    index('briefings_agent_id_idx').on(table.agentId),
-  ]
+  (table) => [index("agents_user_id_idx").on(table.userId)],
 );
 
-export const agentTasks = pgTable('agent_tasks', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  entityId: uuid('entity_id')
+export const conversations = pgTable("conversations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  agentId: uuid("agent_id")
     .notNull()
-    .references(() => entities.id, { onDelete: 'cascade' }),
-  assignedToId: uuid('assigned_to_id')
+    .references(() => agents.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { mode: "date" }).defaultNow().notNull(),
+});
+
+export const messages = pgTable("messages", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  conversationId: uuid("conversation_id")
     .notNull()
-    .references(() => agents.id, { onDelete: 'cascade' }),
-  assignedById: uuid('assigned_by_id')
+    .references(() => conversations.id, { onDelete: "cascade" }),
+  role: text("role").notNull(), // 'user' | 'llm' | 'summary'
+  content: jsonb("content").notNull(), // JSON structure depends on role (see MessageContent types)
+  previousMessageId: uuid("previous_message_id").references(
+    (): AnyPgColumn => messages.id,
+  ), // Linked list for compaction
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+});
+
+export const memories = pgTable("memories", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  agentId: uuid("agent_id")
     .notNull()
-    .references(() => agents.id, { onDelete: 'cascade' }),
-  task: text('task').notNull(),
-  result: text('result'),
-  status: text('status').notNull().default('pending'), // 'pending', 'completed'
-  source: text('source').notNull().default('delegation'), // 'delegation' | 'user' | 'system' | 'self'
-  createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
-  completedAt: timestamp('completed_at', { mode: 'date' }),
-}, (table) => [
-  index('agent_tasks_entity_id_idx').on(table.entityId),
-]);
+    .references(() => agents.id, { onDelete: "cascade" }),
+  type: text("type").notNull(), // 'preference' | 'insight' | 'fact'
+  content: text("content").notNull(),
+  sourceMessageId: uuid("source_message_id").references(() => messages.id, {
+    onDelete: "set null",
+  }),
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { mode: "date" }).defaultNow().notNull(),
+});
+
+export const inboxItems = pgTable("inbox_items", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  agentId: uuid("agent_id")
+    .notNull()
+    .references(() => agents.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  readAt: timestamp("read_at", { mode: "date" }),
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+});
 
 // ============================================================================
-// Knowledge Items (Professional Knowledge)
+// Worker Iterations (Background Processing Cycles)
 // ============================================================================
 
-// Knowledge Items - professional knowledge extracted from background conversations
-export const knowledgeItems = pgTable('knowledge_items', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  agentId: uuid('agent_id').notNull().references(() => agents.id, { onDelete: 'cascade' }),
-  type: text('type').notNull(), // 'fact', 'technique', 'pattern', 'lesson'
-  content: text('content').notNull(),
-  sourceConversationId: uuid('source_conversation_id').references(() => conversations.id, { onDelete: 'set null' }),
-  confidence: real('confidence'),
-  createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
-}, (table) => [
-  index('knowledge_items_agent_id_idx').on(table.agentId),
-]);
+export const workerIterations = pgTable(
+  "worker_iterations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    agentId: uuid("agent_id")
+      .notNull()
+      .references(() => agents.id, { onDelete: "cascade" }),
+    status: text("status").notNull().default("running"), // 'running' | 'completed' | 'failed'
+    errorMessage: text("error_message"),
+    createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+    completedAt: timestamp("completed_at", { mode: "date" }),
+  },
+  (table) => [
+    index("worker_iterations_agent_id_idx").on(table.agentId),
+    index("worker_iterations_created_at_idx").on(table.createdAt),
+  ],
+);
+
+// ============================================================================
+// LLM Interactions (Background Trace)
+// ============================================================================
+
+export const llmInteractions = pgTable(
+  "llm_interactions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    agentId: uuid("agent_id")
+      .notNull()
+      .references(() => agents.id, { onDelete: "cascade" }),
+    workerIterationId: uuid("worker_iteration_id").references(
+      () => workerIterations.id,
+      { onDelete: "cascade" },
+    ),
+    systemPrompt: text("system_prompt").notNull(),
+    phase: text("phase"), // 'query_identification' | 'insight_identification' | 'knowledge_acquisition' | 'graph_construction' | 'analysis_generation' | 'advice_generation' | 'conversation'
+    request: jsonb("request").notNull(),
+    response: jsonb("response"),
+    createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+    completedAt: timestamp("completed_at", { mode: "date" }),
+  },
+  (table) => [
+    index("llm_interactions_agent_id_idx").on(table.agentId),
+    index("llm_interactions_worker_iteration_id_idx").on(
+      table.workerIterationId,
+    ),
+    index("llm_interactions_created_at_idx").on(table.createdAt),
+  ],
+);
+
+// ============================================================================
+// Knowledge Graph Type System
+// ============================================================================
+
+export const graphNodeTypes = pgTable(
+  "graph_node_types",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    agentId: uuid("agent_id").references(() => agents.id, {
+      onDelete: "cascade",
+    }), // NULL = global type
+    name: text("name").notNull(), // Capitalized name, spaces allowed (e.g., "Company", "Market Event")
+    description: text("description").notNull(),
+    justification: text("justification").notNull(), // Why this type exists and why existing types were insufficient
+    propertiesSchema: jsonb("properties_schema").notNull(), // JSON Schema for validation
+    exampleProperties: jsonb("example_properties"), // For LLM few-shot learning
+    createdBy: text("created_by").notNull().default("system"), // 'system' | 'agent' | 'user'
+    createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+  },
+  (table) => [index("graph_node_types_agent_id_idx").on(table.agentId)],
+);
+
+export const graphEdgeTypes = pgTable(
+  "graph_edge_types",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    agentId: uuid("agent_id").references(() => agents.id, {
+      onDelete: "cascade",
+    }), // NULL = global type
+    name: text("name").notNull(), // snake_case, e.g., "issued_by", "affects"
+    description: text("description").notNull(),
+    justification: text("justification").notNull(), // Why this relationship type exists and why existing types were insufficient
+    propertiesSchema: jsonb("properties_schema"), // JSON Schema for edge properties
+    exampleProperties: jsonb("example_properties"), // For LLM few-shot learning
+    createdBy: text("created_by").notNull().default("system"), // 'system' | 'agent' | 'user'
+    createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+  },
+  (table) => [index("graph_edge_types_agent_id_idx").on(table.agentId)],
+);
+
+// ============================================================================
+// Knowledge Graph Data
+// ============================================================================
+
+export const graphNodes = pgTable(
+  "graph_nodes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    agentId: uuid("agent_id")
+      .notNull()
+      .references(() => agents.id, { onDelete: "cascade" }),
+    type: text("type").notNull(), // References graphNodeTypes.name
+    name: text("name").notNull(), // Human-readable identifier
+    properties: jsonb("properties").notNull().default({}), // Validated against type schema; temporal fields live here
+    createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("graph_nodes_agent_id_idx").on(table.agentId),
+    index("graph_nodes_type_idx").on(table.type),
+    index("graph_nodes_agent_type_idx").on(table.agentId, table.type),
+  ],
+);
+
+export const graphEdges = pgTable(
+  "graph_edges",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    agentId: uuid("agent_id")
+      .notNull()
+      .references(() => agents.id, { onDelete: "cascade" }),
+    type: text("type").notNull(), // References graphEdgeTypes.name
+    sourceId: uuid("source_id")
+      .notNull()
+      .references(() => graphNodes.id, { onDelete: "cascade" }),
+    targetId: uuid("target_id")
+      .notNull()
+      .references(() => graphNodes.id, { onDelete: "cascade" }),
+    properties: jsonb("properties").notNull().default({}), // Validated against type schema
+    createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("graph_edges_agent_id_idx").on(table.agentId),
+    index("graph_edges_type_idx").on(table.type),
+    index("graph_edges_source_id_idx").on(table.sourceId),
+    index("graph_edges_target_id_idx").on(table.targetId),
+  ],
+);
 
 // ============================================================================
 // Relations
@@ -252,9 +319,8 @@ export const usersRelations = relations(users, ({ many }) => ({
   accounts: many(accounts),
   sessions: many(sessions),
   apiKeys: many(userApiKeys),
-  entities: many(entities),
+  agents: many(agents),
   inboxItems: many(inboxItems),
-  briefings: many(briefings),
 }));
 
 export const accountsRelations = relations(accounts, ({ one }) => ({
@@ -278,50 +344,32 @@ export const userApiKeysRelations = relations(userApiKeys, ({ one }) => ({
   }),
 }));
 
-export const entitiesRelations = relations(entities, ({ one, many }) => ({
-  user: one(users, {
-    fields: [entities.userId],
-    references: [users.id],
-  }),
-  agents: many(agents),
-  briefings: many(briefings),
-  agentTasks: many(agentTasks),
-}));
-
 export const agentsRelations = relations(agents, ({ one, many }) => ({
-  entity: one(entities, {
-    fields: [agents.entityId],
-    references: [entities.id],
-  }),
-  parentAgent: one(agents, {
-    fields: [agents.parentAgentId],
-    references: [agents.id],
-    relationName: 'agentHierarchy',
-  }),
-  childAgents: many(agents, {
-    relationName: 'agentHierarchy',
+  user: one(users, {
+    fields: [agents.userId],
+    references: [users.id],
   }),
   conversations: many(conversations),
   memories: many(memories),
   inboxItems: many(inboxItems),
-  briefings: many(briefings),
-  assignedTasks: many(agentTasks, {
-    relationName: 'assignedTasks',
-  }),
-  delegatedTasks: many(agentTasks, {
-    relationName: 'delegatedTasks',
-  }),
-  knowledgeItems: many(knowledgeItems),
+  workerIterations: many(workerIterations),
+  llmInteractions: many(llmInteractions),
+  graphNodeTypes: many(graphNodeTypes),
+  graphEdgeTypes: many(graphEdgeTypes),
+  graphNodes: many(graphNodes),
+  graphEdges: many(graphEdges),
 }));
 
-export const conversationsRelations = relations(conversations, ({ one, many }) => ({
-  agent: one(agents, {
-    fields: [conversations.agentId],
-    references: [agents.id],
+export const conversationsRelations = relations(
+  conversations,
+  ({ one, many }) => ({
+    agent: one(agents, {
+      fields: [conversations.agentId],
+      references: [agents.id],
+    }),
+    messages: many(messages),
   }),
-  messages: many(messages),
-  knowledgeItems: many(knowledgeItems),
-}));
+);
 
 export const messagesRelations = relations(messages, ({ one, many }) => ({
   conversation: one(conversations, {
@@ -331,10 +379,10 @@ export const messagesRelations = relations(messages, ({ one, many }) => ({
   previousMessage: one(messages, {
     fields: [messages.previousMessageId],
     references: [messages.id],
-    relationName: 'messageChain',
+    relationName: "messageChain",
   }),
   nextMessages: many(messages, {
-    relationName: 'messageChain',
+    relationName: "messageChain",
   }),
   sourceMemories: many(memories),
 }));
@@ -359,51 +407,73 @@ export const inboxItemsRelations = relations(inboxItems, ({ one }) => ({
     fields: [inboxItems.agentId],
     references: [agents.id],
   }),
-  briefing: one(briefings, {
-    fields: [inboxItems.briefingId],
-    references: [briefings.id],
-  }),
 }));
 
-export const briefingsRelations = relations(briefings, ({ one }) => ({
-  user: one(users, {
-    fields: [briefings.userId],
-    references: [users.id],
+export const workerIterationsRelations = relations(
+  workerIterations,
+  ({ one, many }) => ({
+    agent: one(agents, {
+      fields: [workerIterations.agentId],
+      references: [agents.id],
+    }),
+    llmInteractions: many(llmInteractions),
   }),
-  entity: one(entities, {
-    fields: [briefings.entityId],
-    references: [entities.id],
+);
+
+export const llmInteractionsRelations = relations(
+  llmInteractions,
+  ({ one }) => ({
+    agent: one(agents, {
+      fields: [llmInteractions.agentId],
+      references: [agents.id],
+    }),
+    workerIteration: one(workerIterations, {
+      fields: [llmInteractions.workerIterationId],
+      references: [workerIterations.id],
+    }),
   }),
+);
+
+// ============================================================================
+// Knowledge Graph Relations
+// ============================================================================
+
+export const graphNodeTypesRelations = relations(graphNodeTypes, ({ one }) => ({
   agent: one(agents, {
-    fields: [briefings.agentId],
+    fields: [graphNodeTypes.agentId],
     references: [agents.id],
   }),
 }));
 
-export const agentTasksRelations = relations(agentTasks, ({ one }) => ({
-  entity: one(entities, {
-    fields: [agentTasks.entityId],
-    references: [entities.id],
-  }),
-  assignedTo: one(agents, {
-    fields: [agentTasks.assignedToId],
-    references: [agents.id],
-    relationName: 'assignedTasks',
-  }),
-  assignedBy: one(agents, {
-    fields: [agentTasks.assignedById],
-    references: [agents.id],
-    relationName: 'delegatedTasks',
-  }),
-}));
-
-export const knowledgeItemsRelations = relations(knowledgeItems, ({ one }) => ({
+export const graphEdgeTypesRelations = relations(graphEdgeTypes, ({ one }) => ({
   agent: one(agents, {
-    fields: [knowledgeItems.agentId],
+    fields: [graphEdgeTypes.agentId],
     references: [agents.id],
   }),
-  sourceConversation: one(conversations, {
-    fields: [knowledgeItems.sourceConversationId],
-    references: [conversations.id],
+}));
+
+export const graphNodesRelations = relations(graphNodes, ({ one, many }) => ({
+  agent: one(agents, {
+    fields: [graphNodes.agentId],
+    references: [agents.id],
+  }),
+  outgoingEdges: many(graphEdges, { relationName: "sourceNode" }),
+  incomingEdges: many(graphEdges, { relationName: "targetNode" }),
+}));
+
+export const graphEdgesRelations = relations(graphEdges, ({ one }) => ({
+  agent: one(agents, {
+    fields: [graphEdges.agentId],
+    references: [agents.id],
+  }),
+  sourceNode: one(graphNodes, {
+    fields: [graphEdges.sourceId],
+    references: [graphNodes.id],
+    relationName: "sourceNode",
+  }),
+  targetNode: one(graphNodes, {
+    fields: [graphEdges.targetId],
+    references: [graphNodes.id],
+    relationName: "targetNode",
   }),
 }));

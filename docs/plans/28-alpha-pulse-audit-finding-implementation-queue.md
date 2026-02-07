@@ -1,0 +1,225 @@
+# 28 - Alpha Pulse Audit Finding Implementation Queue
+
+## Source of Truth
+- Audit document: `docs/audits/1-alpha-pulse-ooda-kgot-live-audit.md`
+- This plan tracks execution order and completion status for audit findings.
+
+## Working Protocol
+- Process one finding at a time.
+- For each finding:
+  - Align on solution approach.
+  - Implement code changes.
+  - Add or update relevant tests.
+  - Verify behavior in runtime/DB where applicable.
+  - Mark the item complete and record outcome notes.
+
+## Todo Queue
+- [x] `F1` Observer `relevantNodeIds` are names instead of UUIDs.
+- [x] `F2` Edge ontology is too weak and semantically incorrect for analysis linkage.
+- [x] `F3` Graph Construction prompt/tool mismatch on type creation.
+- [x] `F4` Analyzer loops on impossible edge creation and malformed tool names.
+- [ ] `F5` Failed iterations leave orphaned open `llm_interactions`.
+- [x] `F6` Knowledge Acquisition instability (`UND_ERR_BODY_TIMEOUT`, extract failures).
+- [x] `F7` Analysis citations do not follow required `[node:uuid]`/`[edge:uuid]` format.
+- [x] `F8` Data model overload in `Company` nodes and stringified numeric metrics.
+- [ ] `F9` Advice generation criteria are over-constrained for practical output.
+- [ ] `F10` Type initialization allows edge constraints with missing source/target sets.
+
+## Execution Log
+- 2026-02-06: Queue initialized from audit findings `F1` through `F10`.
+- 2026-02-06: Completed `F1`.
+  - Implemented:
+    - Added node IDs to graph LLM serialization so Observer context exposes UUIDs.
+    - Tightened Observer meta-prompt guidance to require UUID-only `relevantNodeIds`.
+    - Added post-validation normalization in worker Observer phase to resolve names/typed refs to UUIDs and drop unresolved refs before persistence.
+  - Tests:
+    - `npm run test:run -- src/lib/db/queries/__tests__/graph-data.test.ts src/worker/__tests__/normalization.test.ts src/lib/llm/__tests__/agents.test.ts`
+    - `npm run test:run -- src/lib/llm/__tests__/knowledge-graph.test.ts`
+- 2026-02-06: Semantic cleanup requested by user:
+  - Replaced Observer "plan" semantics with explicit `queries`/`insights` and umbrella term `output`.
+  - Renamed worker iteration schema field from `observer_plan` to `observer_output`.
+- 2026-02-06: F1 normalization refinements:
+  - Renamed `src/worker/observer-output-normalization.ts` to `src/worker/normalization.ts`.
+  - Renamed `normalizeObserverOutputNodeIds` to `normalizeObserverOutput`.
+  - Simplified normalization return type to `ObserverOutput`.
+  - Added warning logs that include full `droppedReferences` payload for traceability.
+  - Revalidated F1 tests:
+    - `npm run test:run -- src/lib/db/queries/__tests__/graph-data.test.ts src/worker/__tests__/normalization.test.ts src/lib/llm/__tests__/agents.test.ts`
+    - `npm run test:run -- src/lib/llm/__tests__/knowledge-graph.test.ts`
+- 2026-02-06: Completed `F2`.
+  - Implemented:
+    - Added `createSeedEdgeTypes` in `src/lib/llm/graph-types.ts` with baseline edge types:
+      - `derived_from`, `about`, `supports`, `contradicts`, `correlates_with`, `based_on`.
+    - Seeded baseline edge types during type persistence (`persistInitializedTypes`) for every agent.
+    - Added duplicate safeguard to skip LLM-generated edge types when an edge name already exists.
+    - Enforced edge source/target type constraints at runtime in `addGraphEdge` tool.
+    - Enabled Advice phase to use `addGraphEdge` and updated advice prompting to link `AgentAdvice` to `AgentAnalysis` via `based_on`.
+  - Tests:
+    - `npm run test:run -- src/lib/llm/__tests__/graph-configuration.test.ts src/lib/llm/tools/__tests__/graph-tools.test.ts src/lib/llm/__tests__/agents.test.ts`
+    - `npm run build`
+- 2026-02-06: Completed `F3`.
+  - Implemented:
+    - Enabled Graph Construction phase toolset to include `createNodeType` and `createEdgeType` in `src/lib/llm/tools/index.ts`.
+    - Added explicit Graph Construction guardrails in prompts:
+      - Prefer existing types first.
+      - Create new types only when no existing type fits.
+      - Keep per-run type creation minimal.
+    - Updated Graph Construction runner instruction text to reflect type-creation availability and guardrails.
+    - Updated node-type naming convention from strict PascalCase to capitalized names with spaces allowed:
+      - Tool schema/validation (`src/lib/llm/tools/graph-tools.ts`)
+      - Type initialization schema/prompt guidance (`src/lib/llm/graph-types.ts`)
+      - DB schema comment (`src/lib/db/schema.ts`)
+  - Tests:
+    - Added `src/lib/llm/tools/__tests__/index.test.ts` to verify Graph Construction toolset includes type-creation tools.
+    - Updated createNodeType tests in `src/lib/llm/tools/__tests__/graph-tools.test.ts` for capitalized-space naming.
+    - Revalidated:
+      - `npm run test:run -- src/lib/llm/tools/__tests__/index.test.ts src/lib/llm/tools/__tests__/graph-tools.test.ts src/lib/llm/__tests__/graph-configuration.test.ts src/lib/llm/__tests__/agents.test.ts`
+      - `npm run build`
+- 2026-02-06: Completed `F4`.
+  - Implemented:
+    - Hardened Analyzer requirements so edge linkage is mandatory for each created `AgentAnalysis`.
+      - Updated analysis meta-prompt guidance in `src/lib/llm/agents.ts` to require edge links and `listEdgeTypes` usage before edge creation.
+      - Updated analyzer runtime instructions in `src/worker/runner.ts` to require edges, call `listEdgeTypes`, and retry edge creation at most once after a missing-type failure.
+    - Added `listEdgeTypes` to analysis/advice phase toolsets in `src/lib/llm/tools/index.ts` for explicit edge-type discovery.
+    - Improved graph tool recovery ergonomics:
+      - `addGraphEdge` now returns actionable missing-type errors with available edge types and `listEdgeTypes` guidance.
+      - `addGraphNode` now returns actionable missing-type errors with available node types and `listNodeTypes` guidance.
+    - Added warning-level observability for edge operations:
+      - `addGraphEdge` emits explicit warning logs showing the exact edge attempted/created.
+      - Analyzer phase logs warning summaries of all `addGraphEdge` attempts and flags malformed `[TOOL_CALLS]` artifacts in model output.
+  - Tests:
+    - `npm run test:run -- src/lib/llm/tools/__tests__/index.test.ts src/lib/llm/tools/__tests__/graph-tools.test.ts`
+    - `npm run build`
+- 2026-02-06: Completed `F6`.
+  - Implemented:
+    - Removed the deep-research tool and kept acquisition focused on search + extract only.
+    - Renamed the acquisition tool interface from `tavily*` to `web*`:
+      - `tavilySearch` -> `webSearch`
+      - `tavilyExtract` -> `webExtract`
+      - `src/lib/llm/tools/tavily-tools.ts` -> `src/lib/llm/tools/web-tools.ts`
+    - Made `webExtract` failures non-fatal and traceable:
+      - Empty extraction now returns a recoverable structured payload (`extractionStatus: "no_content"`).
+      - Timeout/extraction errors now return a recoverable structured payload (`extractionStatus: "failed"`) with explicit error code/message.
+    - Added shortlist-first acquisition guardrails and strict citation requirements:
+      - Updated Knowledge Acquisition meta-prompt in `src/lib/llm/agents.ts` to enforce search shortlist + selective extraction and avoid repeated retries.
+      - Updated knowledge acquisition runtime instruction in `src/worker/runner.ts` with explicit bounded workflow (1-2 searches, 2-4 URL shortlist, selective extraction).
+      - Enforced output contract:
+        - `## Findings` with inline `[S#]` citations on factual claims
+        - `## Source Ledger` with per-source subsections (`### [S#]`) and `url`, `title`, `published_at`
+    - Added runtime validation for citation/ledger integrity in `src/worker/validation.ts` and fail-fast behavior when invalid.
+    - Updated acquisition toolset documentation in `src/lib/llm/tools/index.ts` to reflect `webSearch` + `webExtract` only.
+  - Tests:
+    - Added/updated `src/lib/llm/tools/__tests__/web-tools.test.ts` for recoverable `webExtract` behaviors.
+    - Updated `src/lib/llm/tools/__tests__/index.test.ts` to assert knowledge acquisition tools expose `webSearch` and `webExtract`.
+    - Added `src/worker/__tests__/validation.test.ts` for strict citation + source-ledger validation.
+    - Revalidated:
+      - `npm run test:run -- src/lib/llm/tools/__tests__/index.test.ts src/lib/llm/tools/__tests__/web-tools.test.ts src/worker/__tests__/validation.test.ts`
+      - `npm run build`
+- 2026-02-06: Completed `F7`.
+  - Implemented:
+    - Added strict citation validation in `addAgentAnalysisNode` (`src/lib/llm/tools/graph-tools.ts`):
+      - Requires at least one citation in `content`.
+      - Accepts only `[node:uuid]` or `[edge:uuid]` formats.
+      - Rejects malformed citations (e.g., name-based references).
+      - Verifies cited node/edge IDs exist and belong to the same agent.
+    - Exposed edge IDs to the model so `[edge:uuid]` citations are feasible:
+      - `queryGraph` now returns `edges[].id` in `src/lib/llm/tools/graph-tools.ts`.
+      - `serializeGraphForLLM` now includes `[edge:<uuid>]` markers in relationships in `src/lib/db/queries/graph-data.ts`.
+    - Fixed analysis citation guidance in prompts/examples:
+      - Corrected UUID guidance typo and strengthened name-vs-UUID rule in `src/lib/llm/agents.ts`.
+      - Updated baseline graph type examples to UUID-shaped citations in `src/lib/llm/graph-types.ts`.
+    - Updated analyzer iteration behavior in `src/worker/runner.ts`:
+      - Added explicit runtime instruction to never cite by names.
+      - Counts `analysesProduced` based on successful `addAgentAnalysisNode` tool results (not attempted tool calls).
+  - Tests:
+    - Added edge lookup coverage in `src/lib/db/queries/__tests__/graph-data.test.ts` (`getEdgeById`).
+    - Updated serialization expectation to assert edge UUID marker in `src/lib/db/queries/__tests__/graph-data.test.ts`.
+    - Updated `queryGraph` tests to assert `edges[].id` in `src/lib/llm/tools/__tests__/graph-tools.test.ts`.
+    - Added citation-validation tests for analysis creation in `src/lib/llm/tools/__tests__/graph-tools.test.ts`:
+      - rejects missing citations
+      - rejects malformed citations
+      - rejects unknown IDs
+  - Revalidated:
+    - `npm run test:run -- src/lib/llm/tools/__tests__/graph-tools.test.ts src/lib/db/queries/__tests__/graph-data.test.ts src/lib/llm/__tests__/knowledge-graph.test.ts`
+    - `npm run test:run -- src/lib/llm/__tests__/agents.test.ts`
+    - `npm run build`
+- 2026-02-06: Completed `F8`.
+  - Implemented:
+    - Added runtime node-property schema validation in `addGraphNode` (`src/lib/llm/tools/graph-tools.ts`) for both create and update paths.
+    - Validation now enforces required fields and property types from each node type's `propertiesSchema`; invalid writes fail with explicit `NODE_PROPERTIES_SCHEMA_VALIDATION_FAILED` errors and warning logs.
+    - Added runtime edge-property schema validation in `addGraphEdge` (`src/lib/llm/tools/graph-tools.ts`) on edge creation.
+    - Edge writes now enforce required fields and property types from each edge type's `propertiesSchema`; invalid writes fail with explicit `EDGE_PROPERTIES_SCHEMA_VALIDATION_FAILED` errors and warning logs.
+    - Strengthened graph-construction/meta-prompt guidance to prevent overloading broad entity nodes with event/time-series data and require machine-typed numeric fields plus separate unit/currency fields:
+      - `src/lib/llm/agents.ts`
+      - `src/lib/llm/graph-types.ts`
+      - `src/worker/runner.ts`
+    - Kept type creation fully dynamic (no new hardcoded finance seed node types).
+  - Tests:
+    - Extended `addGraphNode` coverage in `src/lib/llm/tools/__tests__/graph-tools.test.ts`:
+      - rejects stringified numeric values for numeric schema fields
+      - rejects missing required schema fields
+      - validates merged properties on upsert updates
+    - Extended `addGraphEdge` coverage in `src/lib/llm/tools/__tests__/graph-tools.test.ts`:
+      - rejects stringified numeric values for numeric edge properties
+      - rejects missing required edge properties
+      - accepts valid schema-compliant edge properties
+    - Added prompt guardrail assertions in `src/lib/llm/__tests__/agents.test.ts`.
+  - Revalidated:
+    - `npm run test:run -- src/lib/llm/tools/__tests__/graph-tools.test.ts src/lib/llm/__tests__/agents.test.ts`
+    - `npm run test:run`
+    - `npm run build`
+
+## Unfixed Findings Recommendations
+- `F5` recommendations (discussion only; not implemented):
+  - Problem statement: failed iterations can leave `llm_interactions` rows open (`completed_at IS NULL`), creating trace ambiguity and incorrect run-state visibility.
+  - 1. Add iteration-level cleanup in a `finally` path for `processAgentIteration`:
+  - mark all unfinished interactions for the iteration as completed when the iteration fails.
+  - include terminal failure metadata in the interaction response payload.
+  - 2. Add explicit interaction terminal fields:
+  - `status` at interaction level (for example: `running|completed|failed`).
+  - `error`/`error_message` field for the terminal failure reason.
+  - 3. Ensure crash-safe consistency:
+  - if phase update fails mid-run, cleanup should still finalize prior open interactions.
+  - add warning logs with iteration id and interaction ids finalized during cleanup.
+  - 4. Tests:
+  - verify failed iterations do not leave orphaned open interactions.
+  - verify status/error fields are set as expected on failed interactions.
+- `F9` recommendations (discussion only; not implemented):
+  - F9 diagnosis is clear: advice is currently gated too hard in both prompt layers.
+  - 1. Meta-prompt is effectively unreachable: it requires “EVERY IMAGINABLE QUESTION”, “100% coverage”, and “absolute conviction” in `src/lib/llm/agents.ts:302`.
+  - 2. Runtime instruction repeats the same hard gate in `src/worker/runner.ts:439`.
+  - 3. Adviser only runs when new analyses are produced in that same iteration in `src/worker/runner.ts:835`, which further reduces chance to emit advice.
+  - My recommendation is a thresholded conservative policy (instead of absolute policy):
+  - 1. Keep default as “no advice”.
+  - 2. Permit advice when all are true:
+  - Minimum evidence count met (`BUY/SELL >= 3` AgentAnalysis nodes, `HOLD >= 2`).
+  - Freshness met (at least one supporting AgentAnalysis within last `72h`).
+  - Confidence floor met (average supporting confidence `>= 0.65` and no supporting node below `0.50` when confidence exists).
+  - Risk section required (at least 2 concrete risks + explicit invalidation conditions).
+  - Every cited AgentAnalysis must have a matching `based_on` edge.
+  - 3. If thresholds fail, the model should abstain and explicitly state why in its completion text (insufficient freshness/evidence/confidence).
+  - I also recommend discussing one system change as part of F9:
+  - Run adviser every iteration (or every N iterations), not only when fresh analyses were created, so it can act when an older but now sufficient evidence set is present.
+  - If you agree, implementation scope:
+  - 1. Threshold language in advice meta-prompt + runtime advice instruction.
+  - 2. Optional adviser scheduling tweak (`always run` vs `run every N iterations`).
+  - 3. Tests that assert the new threshold phrasing and runtime behavior.
+- `F10` recommendations (discussion only; not implemented):
+  - F10 as originally written is obsolete under the current architecture, since edge constraints are no longer modeled.
+  - Current schema has no edge source/target constraint fields (`src/lib/db/schema.ts:248`) and initialization schema has no edge constraint model (`src/lib/llm/graph-types.ts:205`).
+  - Recommended reframe: Type initialization quality hardening (without edge constraints).
+  - 1. Type initialization quality hardening (no constraints):
+  - Enforce stronger type-definition validation at generation time:
+  - node type names: non-empty + capitalized/space format
+  - edge type names: non-empty + snake_case
+  - description/justification: non-empty and meaningful length
+  - Prevent malformed schemas (still JSON-schema-like, but stricter shape checks).
+  - 2. Initialization-time sanitization + dedupe:
+  - Trim/normalize names before persistence.
+  - Skip/reject duplicates after normalization.
+  - Emit explicit warnings for dropped/invalid types with reason.
+  - 3. Semantic clarity guardrails for edge types:
+  - Require edge descriptions to state directionality (`source -> target`) and intended usage.
+  - Require one concrete example per edge type to reduce misuse.
+  - 4. Cap runaway type creation:
+  - Enforce hard max types persisted per init run to avoid ontology explosion if the LLM drifts.

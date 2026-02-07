@@ -2,7 +2,7 @@
  * Worker Process Entry Point
  *
  * This file initializes and starts the background worker process
- * that continuously polls for active team leads and processes their cycles.
+ * that continuously iterates through active entities and processes their work.
  */
 
 // Load environment variables from .env.local (Next.js does this automatically, but worker runs standalone)
@@ -16,7 +16,7 @@ import { startRunner, stopRunner } from './runner';
 // ============================================================================
 
 console.log('='.repeat(60));
-console.log('Autonomous Teams - Worker Process');
+console.log('Autonomous Agents - Worker Process');
 console.log('='.repeat(60));
 console.log('');
 console.log('Initializing worker process...');
